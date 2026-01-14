@@ -1,0 +1,475 @@
+import React, { useState, useEffect } from "react";
+import { generateSnowCoefficients } from "./baseMatrixUtils";
+import PinProtectedSection from "./PinProtectedSection";
+
+const styles = {
+  overlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  modal: {
+    backgroundColor: "#fff",
+    borderRadius: "12px",
+    padding: "25px",
+    maxWidth: "700px",
+    width: "90%",
+    maxHeight: "90vh",
+    overflow: "auto",
+    boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "20px",
+    borderBottom: "2px solid #007bff",
+    paddingBottom: "10px",
+  },
+  title: {
+    margin: 0,
+    fontSize: "1.3em",
+    color: "#333",
+  },
+  closeBtn: {
+    padding: "8px 15px",
+    backgroundColor: "#6c757d",
+    color: "white",
+    border: "none",
+    borderRadius: "5px",
+    cursor: "pointer",
+  },
+  description: {
+    backgroundColor: "#f8f9fa",
+    padding: "12px",
+    borderRadius: "6px",
+    marginBottom: "20px",
+    fontSize: "0.9em",
+    color: "#555",
+  },
+  saveBtn: {
+    padding: "10px 20px",
+    backgroundColor: "#28a745",
+    color: "white",
+    border: "none",
+    borderRadius: "5px",
+    cursor: "pointer",
+    fontSize: "1em",
+    marginRight: "10px",
+  },
+  resetBtn: {
+    padding: "10px 20px",
+    backgroundColor: "#ffc107",
+    color: "#333",
+    border: "none",
+    borderRadius: "5px",
+    cursor: "pointer",
+    fontSize: "1em",
+    marginRight: "10px",
+  },
+  importBtn: {
+    padding: "10px 20px",
+    backgroundColor: "#17a2b8",
+    color: "white",
+    border: "none",
+    borderRadius: "5px",
+    cursor: "pointer",
+    fontSize: "1em",
+  },
+  buttonGroup: {
+    display: "flex",
+    gap: "10px",
+    marginTop: "15px",
+  },
+  importSection: {
+    backgroundColor: "#e7f3ff",
+    padding: "15px",
+    borderRadius: "8px",
+    marginBottom: "15px",
+    border: "2px solid #17a2b8",
+  },
+  importTitle: {
+    fontWeight: "bold",
+    marginBottom: "10px",
+    color: "#17a2b8",
+  },
+  urlInput: {
+    width: "100%",
+    padding: "8px",
+    borderRadius: "5px",
+    border: "1px solid #ccc",
+    fontSize: "0.9em",
+    marginBottom: "10px",
+  },
+  importHint: {
+    fontSize: "0.8em",
+    color: "#666",
+    marginTop: "5px",
+  },
+  addBtn: {
+    padding: "8px 15px",
+    backgroundColor: "#007bff",
+    color: "white",
+    border: "none",
+    borderRadius: "5px",
+    cursor: "pointer",
+    fontSize: "0.9em",
+    marginBottom: "10px",
+  },
+  deleteBtn: {
+    padding: "5px 10px",
+    backgroundColor: "#dc3545",
+    color: "white",
+    border: "none",
+    borderRadius: "3px",
+    cursor: "pointer",
+    fontSize: "0.8em",
+    marginLeft: "10px",
+  },
+  row: {
+    display: "flex",
+    gap: "10px",
+    alignItems: "center",
+    marginBottom: "10px",
+    padding: "10px",
+    backgroundColor: "#f8f9fa",
+    borderRadius: "5px",
+  },
+  rowInput: {
+    padding: "8px",
+    border: "1px solid #ccc",
+    borderRadius: "5px",
+    fontSize: "1em",
+    flex: 1,
+  },
+  label: {
+    fontWeight: "bold",
+    marginBottom: "5px",
+    fontSize: "0.85em",
+    color: "#333",
+    display: "block",
+  },
+  baseRow: {
+    backgroundColor: "#d4edda",
+    border: "2px solid #28a745",
+  },
+};
+
+export default function SnowCoefficientsEditor({ isOpen, onClose, onSave }) {
+  const [coeffs, setCoeffs] = useState(null);
+  const [showImport, setShowImport] = useState(false);
+  const [googleSheetUrl, setGoogleSheetUrl] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [requirePin, setRequirePin] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      const saved = localStorage.getItem("snowCoefficients");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (typeof parsed === "object" && !Array.isArray(parsed)) {
+            const converted = Object.keys(parsed).map((snow) => ({
+              snow: Number(snow),
+              coefficient: parsed[snow],
+            }));
+            setCoeffs(converted);
+          } else {
+            setCoeffs(parsed);
+          }
+        } catch {
+          setCoeffs(generateSnowCoefficients());
+        }
+      } else {
+        setCoeffs(generateSnowCoefficients());
+      }
+    }
+  }, [isOpen]);
+
+  const handleChange = (index, field, value) => {
+    const newCoeffs = [...coeffs];
+    newCoeffs[index] = {
+      ...newCoeffs[index],
+      [field]: parseFloat(value) || 0,
+    };
+    setCoeffs(newCoeffs);
+  };
+
+  const handleAdd = () => {
+    const maxSnow = Math.max(...coeffs.map((c) => c.snow));
+    setCoeffs([...coeffs, { snow: maxSnow + 70, coefficient: 1.0 }]);
+  };
+
+  const handleDelete = (index) => {
+    if (coeffs.length <= 1) {
+      alert("⚠️ Должна остаться хотя бы одна строка!");
+      return;
+    }
+    setCoeffs(coeffs.filter((_, i) => i !== index));
+  };
+
+  const handleSave = () => {
+    localStorage.setItem("snowCoefficients", JSON.stringify(coeffs));
+    onSave(coeffs);
+    alert("✅ Коэффициенты снега сохранены!");
+  };
+
+  const handleReset = () => {
+    if (window.confirm("Сбросить коэффициенты к значениям по умолчанию?")) {
+      setCoeffs(generateSnowCoefficients());
+    }
+  };
+
+  const handleImportClick = () => {
+    setRequirePin(true);
+  };
+
+  const handlePinSuccess = () => {
+    setShowImport(true);
+  };
+
+  const handlePinCancel = () => {
+    setRequirePin(false);
+    setShowImport(false);
+  };
+
+  const handleImportFromGoogle = async () => {
+    if (!googleSheetUrl.trim()) {
+      alert("⚠️ Введите URL Google Sheets");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      let csvUrl = googleSheetUrl;
+      if (csvUrl.includes("/edit")) {
+        csvUrl = csvUrl.replace("/edit#gid=", "/export?format=csv&gid=");
+        csvUrl = csvUrl.replace("/edit?usp=sharing", "/export?format=csv");
+        csvUrl = csvUrl.replace("/edit", "/export?format=csv");
+      }
+
+      const response = await fetch(csvUrl);
+      const text = await response.text();
+
+      console.log("Загруженный CSV:", text.substring(0, 500));
+
+      const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "");
+
+      console.log("Количество строк:", lines.length);
+
+      // Функция для правильного парсинга CSV строки с кавычками
+      const parseCsvLine = (line) => {
+        const cells = [];
+        let current = "";
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (
+            (char === "," || char === "\t" || char === ";") &&
+            !inQuotes
+          ) {
+            cells.push(current.trim());
+            current = "";
+          } else {
+            current += char;
+          }
+        }
+
+        if (current) {
+          cells.push(current.trim());
+        }
+
+        return cells.map((cell) => {
+          const cleaned = cell.replace(/["']/g, "").trim();
+          if (/^\d+,\d+$/.test(cleaned)) {
+            return cleaned.replace(",", ".");
+          }
+          return cleaned;
+        });
+      };
+
+      const newCoeffs = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const cells = parseCsvLine(line);
+
+        console.log(`Строка ${i}:`, cells);
+
+        if (cells.length < 2) continue;
+
+        const snow = parseFloat(cells[0]);
+        const coeff = parseFloat(cells[1]);
+
+        console.log(`Парсинг: snow=${snow}, coeff=${coeff}`);
+
+        if (!isNaN(snow) && !isNaN(coeff)) {
+          newCoeffs.push({ snow, coefficient: coeff });
+        }
+      }
+
+      console.log("Результат парсинга:", newCoeffs);
+
+      if (newCoeffs.length === 0) {
+        alert(
+          "⚠️ Не удалось найти данные в таблице.\nПроверьте формат:\nПервый столбец - снег, второй - коэффициент"
+        );
+        return;
+      }
+
+      setCoeffs(newCoeffs);
+      alert(`✅ Загружено ${newCoeffs.length} строк из Google Sheets!`);
+      setShowImport(false);
+      setRequirePin(false);
+    } catch (error) {
+      console.error("Ошибка загрузки:", error);
+      alert("❌ Ошибка загрузки данных: " + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!isOpen || !coeffs) return null;
+
+  const renderContent = () => (
+    <>
+      <div style={styles.header}>
+        <h2 style={styles.title}>❄️ Коэффициенты снега</h2>
+        <button style={styles.closeBtn} onClick={onClose}>
+          Закрыть
+        </button>
+      </div>
+
+      <div style={styles.description}>
+        <strong>Коэффициенты влияния снега</strong> относительно базы (210
+        кг/м²).
+        <br />
+        Для расчёта: <code>Вес = База_210 × Коэфф_снега</code>
+        <br />
+        Снег 210 должен иметь коэфф = 1.00 (эталон, 100%)
+      </div>
+
+      {showImport ? (
+        <div style={styles.importSection}>
+          <div style={styles.importTitle}>📥 Импорт из Google Sheets</div>
+          <input
+            type="text"
+            placeholder="Вставьте ссылку на Google Sheets"
+            style={styles.urlInput}
+            value={googleSheetUrl}
+            onChange={(e) => setGoogleSheetUrl(e.target.value)}
+          />
+          <button
+            style={styles.importBtn}
+            onClick={handleImportFromGoogle}
+            disabled={isLoading}
+          >
+            {isLoading ? "⏳ Загрузка..." : "📥 Загрузить"}
+          </button>
+          <div style={styles.importHint}>
+            💡 Формат: первый столбец — снег (70, 140, 210...), второй —
+            коэффициент (0.70, 0.85, 1.00...)
+          </div>
+        </div>
+      ) : (
+        <>
+          <button style={styles.addBtn} onClick={handleAdd}>
+            ➕ Добавить строку
+          </button>
+
+          <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+            {coeffs.map((item, index) => {
+              const isBase = item.snow === 210;
+              return (
+                <div
+                  key={index}
+                  style={{
+                    ...styles.row,
+                    ...(isBase ? styles.baseRow : {}),
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <label style={styles.label}>
+                      Снег (кг/м²) {isBase && "⭐"}
+                    </label>
+                    <input
+                      type="number"
+                      style={styles.rowInput}
+                      value={item.snow}
+                      onChange={(e) =>
+                        handleChange(index, "snow", e.target.value)
+                      }
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={styles.label}>Коэффициент</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      style={styles.rowInput}
+                      value={item.coefficient}
+                      onChange={(e) =>
+                        handleChange(index, "coefficient", e.target.value)
+                      }
+                    />
+                  </div>
+                  <button
+                    style={styles.deleteBtn}
+                    onClick={() => handleDelete(index)}
+                  >
+                    🗑️
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={styles.buttonGroup}>
+            <button style={styles.saveBtn} onClick={handleSave}>
+              💾 Сохранить
+            </button>
+            <button style={styles.resetBtn} onClick={handleReset}>
+              🔄 Сбросить к умолчанию
+            </button>
+            <button style={styles.importBtn} onClick={handleImportClick}>
+              🔒 Импорт из Google Sheets
+            </button>
+          </div>
+        </>
+      )}
+    </>
+  );
+
+  return (
+    <div style={styles.overlay} onClick={onClose}>
+      {requirePin ? (
+        <PinProtectedSection
+          onCancel={handlePinCancel}
+          onSuccess={handlePinSuccess}
+        >
+          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+            {renderContent()}
+          </div>
+        </PinProtectedSection>
+      ) : (
+        <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+          {renderContent()}
+        </div>
+      )}
+    </div>
+  );
+}
