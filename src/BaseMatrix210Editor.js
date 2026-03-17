@@ -2,6 +2,10 @@ import React, { useState, useEffect } from "react";
 import { generateBase210Matrix } from "./baseMatrixUtils";
 import PinProtectedSection from "./PinProtectedSection";
 
+// Жестко заданная ссылка на актуальную базу ЕВРОАНГАР
+const DEFAULT_GOOGLE_CSV_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vT8wDX5_uyk3mIEeUidIAJsirnE4itmiCcJX6RxyTnLguLc1Gqs65yBs3m9pKAYIC_D3YMsCWfHzKlj/pub?output=csv";
+
 const styles = {
   overlay: {
     position: "fixed",
@@ -32,11 +36,7 @@ const styles = {
     borderBottom: "2px solid #007bff",
     paddingBottom: "10px",
   },
-  title: {
-    margin: 0,
-    fontSize: "1.3em",
-    color: "#333",
-  },
+  title: { margin: 0, fontSize: "1.3em", color: "#333" },
   closeBtn: {
     padding: "8px 15px",
     backgroundColor: "#6c757d",
@@ -74,11 +74,7 @@ const styles = {
     cursor: "pointer",
     fontSize: "1em",
   },
-  table: {
-    borderCollapse: "collapse",
-    fontSize: "0.85em",
-    marginTop: "15px",
-  },
+  table: { borderCollapse: "collapse", fontSize: "0.85em", marginTop: "15px" },
   th: {
     backgroundColor: "#007bff",
     color: "white",
@@ -99,11 +95,7 @@ const styles = {
     zIndex: 5,
     fontWeight: "bold",
   },
-  td: {
-    padding: "4px",
-    border: "1px solid #ddd",
-    textAlign: "center",
-  },
+  td: { padding: "4px", border: "1px solid #ddd", textAlign: "center" },
   input: {
     width: "50px",
     padding: "4px",
@@ -120,11 +112,7 @@ const styles = {
     fontSize: "0.9em",
     color: "#555",
   },
-  buttonGroup: {
-    marginTop: "15px",
-    display: "flex",
-    gap: "10px",
-  },
+  buttonGroup: { marginTop: "15px", display: "flex", gap: "10px" },
   importSection: {
     backgroundColor: "#e7f3ff",
     padding: "15px",
@@ -132,11 +120,7 @@ const styles = {
     marginBottom: "15px",
     border: "2px solid #17a2b8",
   },
-  importTitle: {
-    fontWeight: "bold",
-    marginBottom: "10px",
-    color: "#17a2b8",
-  },
+  importTitle: { fontWeight: "bold", marginBottom: "10px", color: "#17a2b8" },
   urlInput: {
     width: "100%",
     padding: "8px",
@@ -145,32 +129,127 @@ const styles = {
     fontSize: "0.9em",
     marginBottom: "10px",
   },
-  importHint: {
-    fontSize: "0.8em",
-    color: "#666",
-    marginTop: "5px",
-  },
+  importHint: { fontSize: "0.8em", color: "#666", marginTop: "5px" },
 };
 
 export default function BaseMatrix210Editor({ isOpen, onClose, onSave }) {
   const [matrix, setMatrix] = useState(null);
   const [showImport, setShowImport] = useState(false);
-  const [googleSheetUrl, setGoogleSheetUrl] = useState("");
+  const [googleSheetUrl, setGoogleSheetUrl] = useState(DEFAULT_GOOGLE_CSV_URL);
   const [isLoading, setIsLoading] = useState(false);
   const [requirePin, setRequirePin] = useState(false);
 
+  // Вынесенная функция парсинга CSV
+  const fetchAndParseCsv = async (url) => {
+    let csvUrl = url;
+    if (csvUrl.includes("/edit")) {
+      csvUrl = csvUrl.replace("/edit#gid=", "/export?format=csv&gid=");
+      csvUrl = csvUrl.replace("/edit?usp=sharing", "/export?format=csv");
+      csvUrl = csvUrl.replace("/edit", "/export?format=csv");
+    }
+
+    const response = await fetch(csvUrl);
+    if (!response.ok) throw new Error("Ошибка сети при скачивании файла");
+
+    const text = await response.text();
+    const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "");
+
+    if (lines.length < 2) {
+      throw new Error("Таблица пустая или содержит только заголовок");
+    }
+
+    const parseCsvLine = (line) => {
+      const cells = [];
+      let current = "";
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') inQuotes = !inQuotes;
+        else if ((char === "," || char === "\t" || char === ";") && !inQuotes) {
+          cells.push(current.trim());
+          current = "";
+        } else {
+          current += char;
+        }
+      }
+      if (current) cells.push(current.trim());
+      return cells.map((cell) => {
+        const cleaned = cell.replace(/["']/g, "").trim();
+        if (/^\d+,\d+$/.test(cleaned)) return cleaned.replace(",", ".");
+        return cleaned;
+      });
+    };
+
+    const headerCells = parseCsvLine(lines[0]);
+    const spans = headerCells
+      .slice(1)
+      .map((s) => parseFloat(s))
+      .filter((s) => !isNaN(s));
+
+    const heights = [];
+    const data = {};
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      const cells = parseCsvLine(line);
+      if (cells.length < 2) continue;
+
+      const h = parseFloat(cells[0]);
+      if (isNaN(h)) continue;
+
+      heights.push(h);
+      data[h] = {};
+
+      for (let j = 1; j < cells.length && j - 1 < spans.length; j++) {
+        const w = spans[j - 1];
+        const value = parseFloat(cells[j]);
+        data[h][w] = isNaN(value) ? 0 : value;
+      }
+    }
+
+    if (heights.length === 0 || spans.length === 0) {
+      throw new Error("Не удалось найти данные. Проверьте формат таблицы.");
+    }
+
+    return { heights, spans, data };
+  };
+
   useEffect(() => {
     if (isOpen) {
-      const saved = localStorage.getItem("baseMatrix210");
-      if (saved) {
+      const loadData = async () => {
+        setIsLoading(true);
         try {
-          setMatrix(JSON.parse(saved));
-        } catch {
-          setMatrix(generateBase210Matrix());
+          // Жесткая синхронизация: всегда качаем свежую версию
+          const cloudData = await fetchAndParseCsv(DEFAULT_GOOGLE_CSV_URL);
+          setMatrix(cloudData);
+
+          // Сразу обновляем локальное хранилище для остальных компонентов
+          localStorage.setItem("baseMatrix210", JSON.stringify(cloudData));
+          localStorage.setItem("baseMatrixGoogleUrl", DEFAULT_GOOGLE_CSV_URL);
+        } catch (error) {
+          console.error(
+            "Авто-загрузка из Google не удалась, используем кэш:",
+            error
+          );
+
+          // Fallback: берем из кэша, если нет связи с облаком
+          const saved = localStorage.getItem("baseMatrix210");
+          if (saved) {
+            try {
+              setMatrix(JSON.parse(saved));
+            } catch {
+              setMatrix(generateBase210Matrix());
+            }
+          } else {
+            setMatrix(generateBase210Matrix());
+          }
+        } finally {
+          setIsLoading(false);
         }
-      } else {
-        setMatrix(generateBase210Matrix());
-      }
+      };
+
+      loadData();
     }
   }, [isOpen]);
 
@@ -182,8 +261,9 @@ export default function BaseMatrix210Editor({ isOpen, onClose, onSave }) {
 
   const handleSave = () => {
     localStorage.setItem("baseMatrix210", JSON.stringify(matrix));
+    localStorage.setItem("baseMatrixGoogleUrl", googleSheetUrl);
     onSave(matrix);
-    alert("✅ Базовая матрица 210 сохранена!");
+    alert("✅ Базовая матрица ЕВРОАНГАР сохранена в локальный кэш!");
   };
 
   const handleReset = () => {
@@ -193,14 +273,8 @@ export default function BaseMatrix210Editor({ isOpen, onClose, onSave }) {
     }
   };
 
-  const handleImportClick = () => {
-    setRequirePin(true);
-  };
-
-  const handlePinSuccess = () => {
-    setShowImport(true);
-  };
-
+  const handleImportClick = () => setRequirePin(true);
+  const handlePinSuccess = () => setShowImport(true);
   const handlePinCancel = () => {
     setRequirePin(false);
     setShowImport(false);
@@ -211,128 +285,17 @@ export default function BaseMatrix210Editor({ isOpen, onClose, onSave }) {
       alert("⚠️ Введите URL Google Sheets");
       return;
     }
-
     setIsLoading(true);
-
     try {
-      let csvUrl = googleSheetUrl;
-      if (csvUrl.includes("/edit")) {
-        csvUrl = csvUrl.replace("/edit#gid=", "/export?format=csv&gid=");
-        csvUrl = csvUrl.replace("/edit?usp=sharing", "/export?format=csv");
-        csvUrl = csvUrl.replace("/edit", "/export?format=csv");
-      }
-
-      const response = await fetch(csvUrl);
-      const text = await response.text();
-
-      console.log("Загруженный CSV:", text.substring(0, 500));
-
-      const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "");
-
-      console.log("Количество строк:", lines.length);
-
-      if (lines.length < 2) {
-        alert("⚠️ Таблица пустая или содержит только заголовок");
-        return;
-      }
-
-      // Функция для правильного парсинга CSV строки с кавычками
-      const parseCsvLine = (line) => {
-        const cells = [];
-        let current = "";
-        let inQuotes = false;
-
-        for (let i = 0; i < line.length; i++) {
-          const char = line[i];
-
-          if (char === '"') {
-            inQuotes = !inQuotes;
-          } else if (
-            (char === "," || char === "\t" || char === ";") &&
-            !inQuotes
-          ) {
-            cells.push(current.trim());
-            current = "";
-          } else {
-            current += char;
-          }
-        }
-
-        if (current) {
-          cells.push(current.trim());
-        }
-
-        // Очищаем от кавычек и заменяем запятые на точки в числах
-        return cells.map((cell) => {
-          const cleaned = cell.replace(/["']/g, "").trim();
-          // Если это число с запятой, заменяем на точку
-          if (/^\d+,\d+$/.test(cleaned)) {
-            return cleaned.replace(",", ".");
-          }
-          return cleaned;
-        });
-      };
-
-      // Парсим первую строку (пролёты)
-      const headerCells = parseCsvLine(lines[0]);
-      console.log("Заголовок:", headerCells);
-
-      const spans = headerCells
-        .slice(1)
-        .map((s) => parseFloat(s))
-        .filter((s) => !isNaN(s));
-
-      console.log("Пролёты:", spans);
-
-      const heights = [];
-      const data = {};
-
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-
-        const cells = parseCsvLine(line);
-
-        console.log(`Строка ${i}:`, cells);
-
-        if (cells.length < 2) continue;
-
-        const h = parseFloat(cells[0]);
-
-        if (isNaN(h)) {
-          console.log(
-            `Пропускаем строку ${i}: не удалось распарсить высоту "${cells[0]}"`
-          );
-          continue;
-        }
-
-        heights.push(h);
-        data[h] = {};
-
-        for (let j = 1; j < cells.length && j - 1 < spans.length; j++) {
-          const w = spans[j - 1];
-          const value = parseFloat(cells[j]);
-          data[h][w] = isNaN(value) ? 0 : value;
-        }
-      }
-
-      console.log("Результат парсинга:", { heights, spans, data });
-
-      if (heights.length === 0 || spans.length === 0) {
-        alert(
-          "⚠️ Не удалось найти данные в таблице.\nПроверьте формат:\nПервая строка - пролёты, первый столбец - высоты"
-        );
-        return;
-      }
-
-      setMatrix({ heights, spans, data });
+      const parsedData = await fetchAndParseCsv(googleSheetUrl);
+      setMatrix(parsedData);
+      localStorage.setItem("baseMatrix210", JSON.stringify(parsedData));
       alert(
-        `✅ Загружено ${heights.length} высот и ${spans.length} пролётов из Google Sheets!`
+        `✅ Загружено ${parsedData.heights.length} высот и ${parsedData.spans.length} пролётов из Google Sheets!`
       );
       setShowImport(false);
       setRequirePin(false);
     } catch (error) {
-      console.error("Ошибка загрузки:", error);
       alert("❌ Ошибка загрузки данных: " + error.message);
     } finally {
       setIsLoading(false);
@@ -345,7 +308,7 @@ export default function BaseMatrix210Editor({ isOpen, onClose, onSave }) {
     <>
       <div style={styles.header}>
         <h2 style={styles.title}>
-          📊 Базовая матрица каркаса (Снег 210 кг/м²)
+          📊 Базовая матрица ЕВРОАНГАР (Снег 210 кг/м²)
         </h2>
         <button style={styles.closeBtn} onClick={onClose}>
           Закрыть
@@ -356,15 +319,14 @@ export default function BaseMatrix210Editor({ isOpen, onClose, onSave }) {
         <strong>Эталонная таблица веса каркаса</strong> для III снегового района
         (210 кг/м²).
         <br />
-        Строки — высота здания (2.0-15.0 м), столбцы — пролёт (3-45 м).
-        <br />
-        Значения в <strong>кг/м²</strong> площади здания (без прогонов и
-        связей).
+        При открытии автоматически подгружается свежая версия из Google Таблиц.
       </div>
 
       {showImport ? (
         <div style={styles.importSection}>
-          <div style={styles.importTitle}>📥 Импорт из Google Sheets</div>
+          <div style={styles.importTitle}>
+            📥 Ручной импорт по другой ссылке
+          </div>
           <input
             type="text"
             placeholder="Вставьте ссылку на Google Sheets"
@@ -380,12 +342,16 @@ export default function BaseMatrix210Editor({ isOpen, onClose, onSave }) {
             {isLoading ? "⏳ Загрузка..." : "📥 Загрузить"}
           </button>
           <div style={styles.importHint}>
-            💡 Формат: первая строка — пролёты (3, 6, 9...), первый столбец —
-            высоты (2.0, 2.5, 3.0...)
+            💡 Формат: первая строка — пролёты, первый столбец — высоты
           </div>
         </div>
       ) : (
         <>
+          {isLoading && (
+            <div style={{ color: "#007bff", marginBottom: "10px" }}>
+              <strong>Синхронизация с облаком...</strong>
+            </div>
+          )}
           <div
             style={{ overflowX: "auto", overflowY: "auto", maxHeight: "60vh" }}
           >
@@ -425,13 +391,10 @@ export default function BaseMatrix210Editor({ isOpen, onClose, onSave }) {
 
           <div style={styles.buttonGroup}>
             <button style={styles.saveBtn} onClick={handleSave}>
-              💾 Сохранить
-            </button>
-            <button style={styles.resetBtn} onClick={handleReset}>
-              🔄 Сбросить к умолчанию
+              💾 Сохранить ручные правки
             </button>
             <button style={styles.importBtn} onClick={handleImportClick}>
-              🔒 Импорт из Google Sheets
+              🔗 Сменить Google-ссылку
             </button>
           </div>
         </>
