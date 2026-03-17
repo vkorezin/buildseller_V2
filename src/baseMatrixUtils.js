@@ -193,3 +193,38 @@ export function getRoofPurlinWeight(purlinsArray, targetSnow) {
 
   return 6.5;
 }
+// Генерация базовых коэффициентов по ветру
+export function generateWindCoefficients() {
+  return [
+    { wind: 23, coefficient: 0.97 }, // I район (облегчение)
+    { wind: 30, coefficient: 0.98 },
+    { wind: 38, coefficient: 1.0 }, // II район (ЭТАЛОН)
+    { wind: 48, coefficient: 1.04 }, // III район
+    { wind: 60, coefficient: 1.09 }, // IV район
+    { wind: 73, coefficient: 1.15 }, // V район
+  ];
+}
+
+// Получение ветрового коэффициента с интерполяцией
+export function getWindCoefficient(windArray, targetWind) {
+  if (!windArray || windArray.length === 0) return 1.0;
+
+  const sorted = [...windArray].sort((a, b) => a.wind - b.wind);
+  const exact = sorted.find((item) => item.wind === targetWind);
+  if (exact) return exact.coefficient;
+
+  if (targetWind <= sorted[0].wind) return sorted[0].coefficient;
+  if (targetWind >= sorted[sorted.length - 1].wind)
+    return sorted[sorted.length - 1].coefficient;
+
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (targetWind >= sorted[i].wind && targetWind <= sorted[i + 1].wind) {
+      const w1 = sorted[i].wind;
+      const w2 = sorted[i + 1].wind;
+      const c1 = sorted[i].coefficient;
+      const c2 = sorted[i + 1].coefficient;
+      return c1 + ((targetWind - w1) * (c2 - c1)) / (w2 - w1);
+    }
+  }
+  return 1.0;
+}
