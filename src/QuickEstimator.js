@@ -5,6 +5,7 @@ import TrussEfficiencyEditor, {
 import BaseMatrix210Editor from "./BaseMatrix210Editor";
 import SnowCoefficientsEditor from "./SnowCoefficientsEditor";
 import RoofPurlinsEditor from "./RoofPurlinsEditor";
+import WindCoefficientsEditor from "./WindCoefficientsEditor";
 import QuickEstimatorForm from "./QuickEstimatorForm";
 import QuickEstimatorAnalytics from "./QuickEstimatorAnalytics";
 import QuickEstimatorResults from "./QuickEstimatorResults";
@@ -12,13 +13,15 @@ import {
   generateBase210Matrix,
   generateSnowCoefficients,
   generateRoofPurlins,
+  generateWindCoefficients,
   interpolate2D,
   getSnowCoefficient,
   getRoofPurlinWeight,
+  getWindCoefficient,
 } from "./baseMatrixUtils";
 
 const COEFFS = {
-  tiesRatio: 0.15, // Связи 15% от рам
+  tiesRatio: 0.098, // Связи ровно 9.8% от массы очищенных рам
 };
 
 const OVERHANG = 0.4;
@@ -124,17 +127,19 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [cranes, setCranes] = useState([{ id: 0, cap: "0", type: "support" }]);
   const [frameType, setFrameType] = useState("beam");
 
-  // Новые таблицы
+  // Таблицы баз
   const [baseMatrix210, setBaseMatrix210] = useState(null);
   const [snowCoefficients, setSnowCoefficients] = useState(null);
   const [roofPurlins, setRoofPurlins] = useState(null);
   const [trussTable, setTrussTable] = useState(null);
+  const [windCoefficients, setWindCoefficients] = useState(null);
 
   // Состояния редакторов
   const [isBaseMatrixOpen, setIsBaseMatrixOpen] = useState(false);
   const [isSnowCoeffsOpen, setIsSnowCoeffsOpen] = useState(false);
   const [isPurlinsOpen, setIsPurlinsOpen] = useState(false);
   const [isTrussEditorOpen, setIsTrussEditorOpen] = useState(false);
+  const [isWindCoeffsOpen, setIsWindCoeffsOpen] = useState(false);
 
   const [gatesArea, setGatesArea] = useState("0");
   const [windowsArea, setWindowsArea] = useState("0");
@@ -144,6 +149,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [layoutMode, setLayoutMode] = useState("horizontal");
   const [panelModule, setPanelModule] = useState(1.0);
   const [panelStockLength, setPanelStockLength] = useState(6.0);
+
   const [metalPrice, setMetalPrice] = useState(DEFAULT_METAL_PRICE);
   const [wallPrice, setWallPrice] = useState(DEFAULT_WALL_PRICE);
   const [roofPrice, setRoofPrice] = useState(DEFAULT_ROOF_PRICE);
@@ -151,55 +157,30 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [concretePrice, setConcretePrice] = useState(DEFAULT_CONCRETE_PRICE);
   const [rebarPrice, setRebarPrice] = useState(DEFAULT_REBAR_PRICE);
 
-  // Загрузка всех таблиц при монтировании
+  // Загрузка таблиц
   useEffect(() => {
-    // База 210
     const savedBase = localStorage.getItem("baseMatrix210");
-    if (savedBase) {
-      try {
-        setBaseMatrix210(JSON.parse(savedBase));
-      } catch {
-        setBaseMatrix210(generateBase210Matrix());
-      }
-    } else {
-      setBaseMatrix210(generateBase210Matrix());
-    }
+    setBaseMatrix210(
+      savedBase ? JSON.parse(savedBase) : generateBase210Matrix()
+    );
 
-    // Коэффициенты снега
     const savedSnow = localStorage.getItem("snowCoefficients");
-    if (savedSnow) {
-      try {
-        setSnowCoefficients(JSON.parse(savedSnow));
-      } catch {
-        setSnowCoefficients(generateSnowCoefficients());
-      }
-    } else {
-      setSnowCoefficients(generateSnowCoefficients());
-    }
+    setSnowCoefficients(
+      savedSnow ? JSON.parse(savedSnow) : generateSnowCoefficients()
+    );
 
-    // Прогоны кровли
     const savedPurlins = localStorage.getItem("roofPurlins");
-    if (savedPurlins) {
-      try {
-        setRoofPurlins(JSON.parse(savedPurlins));
-      } catch {
-        setRoofPurlins(generateRoofPurlins());
-      }
-    } else {
-      setRoofPurlins(generateRoofPurlins());
-    }
+    setRoofPurlins(
+      savedPurlins ? JSON.parse(savedPurlins) : generateRoofPurlins()
+    );
 
-    // Таблица эффективности ферм
     const savedTruss = localStorage.getItem("trussEfficiencyTable");
-    if (savedTruss) {
-      try {
-        setTrussTable(JSON.parse(savedTruss));
-      } catch {
-        setTrussTable(generateDefaultTable());
-      }
-    } else {
-      setTrussTable(generateDefaultTable());
-    }
+    setTrussTable(savedTruss ? JSON.parse(savedTruss) : generateDefaultTable());
+
+    const savedWind = localStorage.getItem("windCoefficients");
+    setWindCoefficients(
+      savedWind ? JSON.parse(savedWind) : generateWindCoefficients()
+    );
   }, []);
 
   useEffect(() => {
@@ -208,11 +189,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       if (prev.length === count) return prev;
       if (prev.length < count) {
         const added = Array.from({ length: count - prev.length }).map(
-          (_, i) => ({
-            id: prev.length + i,
-            cap: "0",
-            type: "support",
-          })
+          (_, i) => ({ id: prev.length + i, cap: "0", type: "support" })
         );
         return [...prev, ...added];
       } else return prev.slice(0, count);
@@ -262,9 +239,15 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     };
   }, [spanWidth, projectsDb, strictFilter, cranes, stories]);
 
+  // ГЛАВНЫЙ РАСЧЕТНЫЙ БЛОК ЕВРОАНГАР
   const estimation = useMemo(() => {
-    // Проверяем готовность данных
-    if (!baseMatrix210 || !snowCoefficients || !roofPurlins || !trussTable) {
+    if (
+      !baseMatrix210 ||
+      !snowCoefficients ||
+      !roofPurlins ||
+      !trussTable ||
+      !windCoefficients
+    ) {
       return {
         floorArea: 0,
         metalRate: "0.0",
@@ -281,6 +264,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         tiesCost: 0,
         currentDiscount: "0",
         savingsAmount: 0,
+        envelopeDiffAmount: 0,
         craneSystemWeight: null,
         craneSystemCost: 0,
         craneInfo: "",
@@ -305,10 +289,34 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const H = Number(height) || 0;
     const S = Number(slope) || 0;
     const baseSnow = Number(snowLoad) || 0;
+    const currentWind = Number(windLoad) || 38;
+
     let pMod = Number(panelModule);
     if (!pMod) pMod = 1.0;
     const pStock = Number(panelStockLength) || 6.0;
     const openingsTotal = Number(gatesArea) + Number(windowsArea);
+
+    // --- ВЫЧИСЛЕНИЕ ВЫСОТЫ СТЕНЫ ЕВРОАНГАР ---
+    const purlinHeight = baseSnow <= 400 ? 0.24 : 0.3;
+
+    let supportHeight = 0.35;
+    if (W > 18 && W < 33)
+      supportHeight = 0.35 + ((W - 18) * (0.75 - 0.35)) / (33 - 18);
+    else if (W >= 33) supportHeight = 0.75;
+
+    let trussCorrectionValue = 0;
+    if (S <= 21) {
+      trussCorrectionValue = 0.65 + (10 - S) * 0.0597;
+    }
+
+    // Две расчетные высоты для сравнения
+    const fullWallHeightBeam = H + purlinHeight + supportHeight;
+    const fullWallHeightTruss = fullWallHeightBeam + trussCorrectionValue;
+
+    // Итоговая высота стены для текущего выбора
+    const fullWallHeight =
+      frameType === "truss" ? fullWallHeightTruss : fullWallHeightBeam;
+    // -----------------------------------------
 
     const getTrussDiscount = (w, h) => {
       const hList = trussTable.heights;
@@ -334,16 +342,12 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         }
       }
       try {
-        const Q11 = trussTable.data[h1][s1];
-        const Q12 = trussTable.data[h1][s2];
-        const Q21 = trussTable.data[h2][s1];
-        const Q22 = trussTable.data[h2][s2];
-
-        const interpolate = (x, x1, y1, x2, y2) => {
-          if (x2 === x1) return y1;
-          return y1 + ((x - x1) * (y2 - y1)) / (x2 - x1);
-        };
-
+        const Q11 = trussTable.data[h1][s1],
+          Q12 = trussTable.data[h1][s2];
+        const Q21 = trussTable.data[h2][s1],
+          Q22 = trussTable.data[h2][s2];
+        const interpolate = (x, x1, y1, x2, y2) =>
+          x2 === x1 ? y1 : y1 + ((x - x1) * (y2 - y1)) / (x2 - x1);
         const R1 = interpolate(wSafe, s1, Q11, s2, Q12);
         const R2 = interpolate(wSafe, s1, Q21, s2, Q22);
         return interpolate(hSafe, h1, R1, h2, R2);
@@ -360,50 +364,77 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     let totalFrameKgRaw = 0;
     let totalPurlinsKg = 0;
     let totalCraneSystemKg = 0;
+    let totalTiesKg = 0;
+    let totalSavingsKg = 0;
 
     cranes.forEach((crane) => {
       const capVal = Number(crane.cap);
       const hasThisCrane = capVal > 0;
       let spanSnow = baseSnow;
 
-      // НОВАЯ ЛОГИКА: База 210 + коэффициент снега
+      if (hasThisCrane && crane.type === "suspension") spanSnow += 140;
 
-      // Корректируем снег для подвесного крана
-      if (hasThisCrane && crane.type === "suspension") {
-        spanSnow += 140;
-      }
-
-      // 1. Получаем базовый вес из матрицы 210
-      const baseWeight = interpolate2D(baseMatrix210, H, W);
-
-      // 2. Применяем коэффициент снега
+      // Получение баз и коэффициентов
+      const baseWeight210_Truss = interpolate2D(baseMatrix210, H, W);
+      const basePurlins210 = getRoofPurlinWeight(roofPurlins, 210);
+      const currentPurlinsRate = getRoofPurlinWeight(roofPurlins, spanSnow);
       const snowCoeff = getSnowCoefficient(snowCoefficients, spanSnow);
-      let frameRate = baseWeight * snowCoeff;
+      const windCoeff = getWindCoefficient(windCoefficients, currentWind);
 
-      // 3. Применяем коэффициент длины и этажности
-      frameRate *= lMult * floorMult;
+      // ДИНАМИЧЕСКАЯ СКИДКА
+      const baseTrussDiscountPercent = getTrussDiscount(W, H);
+      const columnStep = 6;
+      const totalFrames = Math.ceil(L / columnStep) + 1;
+      const framesWithTruss = Math.max(0, totalFrames - 2);
+      const finalDiscountPercent =
+        (baseTrussDiscountPercent * framesWithTruss) / totalFrames / 0.9;
+      const dynamicTrussCoeff = 1 - finalDiscountPercent / 100;
 
-      // 4. Применяем коэффициент опорного крана (не подвесного!)
+      // ВОССТАНАВЛИВАЕМ ПОЛНУЮ МАССУ БАЛКИ
+      const baseBeamTotal210 = baseWeight210_Truss / dynamicTrussCoeff;
+      let pureBeamFramesAndTies210 = baseBeamTotal210 - basePurlins210;
+      if (pureBeamFramesAndTies210 < 0) pureBeamFramesAndTies210 = 0;
+
+      pureBeamFramesAndTies210 *= lMult * floorMult;
+
       if (hasThisCrane && crane.type === "support") {
-        if (capVal <= 5) frameRate *= 1.15;
-        else frameRate *= 1.25;
+        if (capVal <= 5) pureBeamFramesAndTies210 *= 1.15;
+        else pureBeamFramesAndTies210 *= 1.25;
       }
 
-      // 5. Применяем скидку на ферму
-      let trussDiscount = 0;
+      // Корректировка балочного каркаса
+      const adjustedBeamFramesAndTies =
+        pureBeamFramesAndTies210 * snowCoeff * windCoeff;
+      const fullBeamBuildingRate =
+        adjustedBeamFramesAndTies + currentPurlinsRate;
+
+      // ПРИМЕНЯЕМ СКИДКУ КО ВСЕЙ МАССЕ ЗДАНИЯ
+      let totalReducedBuildingRate = fullBeamBuildingRate;
       if (frameType === "truss") {
-        trussDiscount = getTrussDiscount(W, H);
+        totalReducedBuildingRate = fullBeamBuildingRate * dynamicTrussCoeff;
       }
-      frameRate *= 1 - trussDiscount / 100;
 
-      // 6. Прогоны кровли (из таблицы)
-      const purlinRate = getRoofPurlinWeight(roofPurlins, spanSnow);
+      // Неизменные массы связей и прогонов от БАЛКИ
+      const tiesRate = adjustedBeamFramesAndTies * COEFFS.tiesRatio;
+      const purlinsRate = currentPurlinsRate;
 
+      // МАССА РАМ
+      let framesRate = totalReducedBuildingRate - tiesRate - purlinsRate;
+      if (framesRate < 0) framesRate = 0;
+
+      // Накопление
       const spanArea = W * L;
-      totalFrameKgRaw += frameRate * spanArea;
-      totalPurlinsKg += purlinRate * spanArea;
+      totalFrameKgRaw += framesRate * spanArea;
+      totalTiesKg += tiesRate * spanArea;
+      totalPurlinsKg += purlinsRate * spanArea;
 
-      // Крановая система
+      // Точный расчет сэкономленных килограммов
+      if (frameType === "truss") {
+        totalSavingsKg +=
+          (fullBeamBuildingRate - totalReducedBuildingRate) * spanArea;
+      }
+
+      // Краны
       if (hasThisCrane) {
         const trackLength = L * 2;
         let trackLinW = 0;
@@ -421,10 +452,10 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const totalWidth = W * N;
     const floorAreaTotal = totalWidth * L;
 
-    // Прогоны стен (фахверк) - считаем отдельно как раньше
+    // Прогоны стен (Фахверк считается от новой fullWallHeight)
     let wallPurlinWeight = 0;
     if (useSandwich && layoutMode === "vertical") {
-      const wPress = (Number(windLoad) * 30) / 100;
+      const wPress = (currentWind * 30) / 100;
       let purlinStep = 4.5;
       if (wPress <= 0.23) purlinStep = 4.5;
       else if (wPress <= 0.42) purlinStep = 3.0;
@@ -434,16 +465,13 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       const perimeter = (totalWidth + L) * 2;
       let lines = 0;
       if (wPress > 0.6) {
-        lines = Math.ceil(H / purlinStep);
+        lines = Math.ceil(fullWallHeight / purlinStep);
         wallPurlinWeight = perimeter * lines * 6.375;
       } else {
-        wallPurlinWeight = perimeter * H * 10;
+        wallPurlinWeight = perimeter * fullWallHeight * 10;
       }
     }
     totalPurlinsKg += wallPurlinWeight;
-
-    // Связи (15% от рам)
-    const totalTiesKg = totalFrameKgRaw * COEFFS.tiesRatio;
 
     const totalFrameKg = totalFrameKgRaw + totalPurlinsKg + totalTiesKg;
     const totalMetalKg = totalFrameKg + totalCraneSystemKg;
@@ -458,11 +486,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const purlinsCost = purlinsWeightTons * metalPrice;
     const tiesCost = tiesWeightTons * metalPrice;
 
-    let savingsAmount = 0;
-    if (frameType === "truss") {
-      const discount = getTrussDiscount(W, H);
-      savingsAmount = (framesCost * discount) / 100;
-    }
+    const savingsAmount = (totalSavingsKg / 1000) * metalPrice;
 
     const axesLong = Math.ceil(L / 6) + 1;
     const axesWidth = N + 1;
@@ -480,56 +504,79 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     let wallAreaBox = 0,
       gableAreaTotal = 0,
       roofAreaTotal = 0;
+    let envelopeDiffAmount = 0;
 
+    // УМНЫЙ РАСЧЕТ ОГРАЖДАЮЩИХ КОНСТРУКЦИЙ (Выделен в отдельную функцию для сравнения)
     if (useSandwich) {
-      const angleRad = Math.atan(S / 100);
-      const ridgeRise =
-        roofShape === "gable" ? (W / 2) * (S / 100) : W * (S / 100);
-      const slopeLengthGeom =
-        roofShape === "gable"
-          ? W / 2 / Math.cos(angleRad)
-          : W / Math.cos(angleRad);
-      const slopeLengthPurchase = slopeLengthGeom + OVERHANG;
-      const roofLengthAlongL = L + OVERHANG * 2;
+      const calcEnvelope = (wallH) => {
+        const angleRad = Math.atan(S / 100);
+        const ridgeRise =
+          roofShape === "gable" ? (W / 2) * (S / 100) : W * (S / 100);
+        const slopeLengthGeom =
+          roofShape === "gable"
+            ? W / 2 / Math.cos(angleRad)
+            : W / Math.cos(angleRad);
+        const slopeLengthPurchase = slopeLengthGeom + OVERHANG;
+        const roofLengthAlongL = L + OVERHANG * 2;
 
-      if (roofShape === "gable")
-        roofAreaTotal = slopeLengthPurchase * roofLengthAlongL * 2 * N;
-      else roofAreaTotal = slopeLengthPurchase * roofLengthAlongL * N;
+        let rArea = 0;
+        if (roofShape === "gable")
+          rArea = slopeLengthPurchase * roofLengthAlongL * 2 * N;
+        else rArea = slopeLengthPurchase * roofLengthAlongL * N;
 
-      const perimeter = (totalWidth + L) * 2;
-      if (layoutMode === "horizontal") {
-        const rowsBox = Math.ceil(H / pMod);
-        const boxHeightFact = rowsBox * pMod;
-        const panelsInRing = Math.ceil(perimeter / pStock);
-        wallAreaBox = panelsInRing * pStock * boxHeightFact;
-      } else {
-        wallAreaBox = Math.ceil(perimeter / pMod) * pMod * H;
-      }
-
-      wallAreaBox = Math.max(0, wallAreaBox - openingsTotal);
-
-      let singleEndArea = 0;
-      if (layoutMode === "horizontal") {
-        const boxHfact = Math.ceil(H / pMod) * pMod;
-        let startH = boxHfact - H;
-        let currentH = startH;
-        let loopSafe = 0;
-        while (currentH < ridgeRise && loopSafe < 1000) {
-          loopSafe++;
-          let wAtBottom = W * (1 - currentH / ridgeRise);
-          if (wAtBottom < 0) wAtBottom = 0;
-          const pieces = Math.ceil(wAtBottom / pStock);
-          singleEndArea += pieces * pStock * pMod;
-          currentH += pMod;
+        const perimeter = (totalWidth + L) * 2;
+        let wAreaBox = 0;
+        if (layoutMode === "horizontal") {
+          const rowsBox = Math.ceil(wallH / pMod);
+          const boxHeightFact = rowsBox * pMod;
+          const panelsInRing = Math.ceil(perimeter / pStock);
+          wAreaBox = panelsInRing * pStock * boxHeightFact;
+        } else {
+          wAreaBox = Math.ceil(perimeter / pMod) * pMod * wallH;
         }
-      } else {
-        singleEndArea = (W * ridgeRise) / 2;
-      }
-      gableAreaTotal = singleEndArea * 2 * N;
 
-      wallCost = (wallAreaBox + gableAreaTotal) * wallPrice;
-      roofCost = roofAreaTotal * roofPrice;
-      trimCost = (wallAreaBox + gableAreaTotal + roofAreaTotal) * trimPrice;
+        wAreaBox = Math.max(0, wAreaBox - openingsTotal);
+
+        let singleEndArea = 0;
+        if (layoutMode === "horizontal") {
+          const boxHfact = Math.ceil(wallH / pMod) * pMod;
+          let startH = boxHfact - wallH;
+          let currentH = startH;
+          let loopSafe = 0;
+          while (currentH < ridgeRise && loopSafe < 1000) {
+            loopSafe++;
+            let wAtBottom = W * (1 - currentH / ridgeRise);
+            if (wAtBottom < 0) wAtBottom = 0;
+            const pieces = Math.ceil(wAtBottom / pStock);
+            singleEndArea += pieces * pStock * pMod;
+            currentH += pMod;
+          }
+        } else {
+          singleEndArea = (W * ridgeRise) / 2;
+        }
+        const gArea = singleEndArea * 2 * N;
+
+        const wCost = (wAreaBox + gArea) * wallPrice;
+        const rCost = rArea * roofPrice;
+        const tCost = (wAreaBox + gArea + rArea) * trimPrice;
+
+        return { wAreaBox, gArea, rArea, wCost, rCost, tCost };
+      };
+
+      // 1. Считаем фактическую стоимость ограждающих (балка или ферма)
+      const actualEnv = calcEnvelope(fullWallHeight);
+      wallAreaBox = actualEnv.wAreaBox;
+      gableAreaTotal = actualEnv.gArea;
+      roofAreaTotal = actualEnv.rArea;
+      wallCost = actualEnv.wCost;
+      roofCost = actualEnv.rCost;
+      trimCost = actualEnv.tCost;
+
+      // 2. Считаем разницу в рублях между фермой и балкой
+      const beamEnv = calcEnvelope(fullWallHeightBeam);
+      const trussEnv = calcEnvelope(fullWallHeightTruss);
+      envelopeDiffAmount =
+        trussEnv.wCost + trussEnv.tCost - (beamEnv.wCost + beamEnv.tCost);
     }
 
     const cranesSummary = cranes
@@ -537,8 +584,16 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       .map((c, i) => `№${i + 1}:${c.cap}т`)
       .join(", ");
 
-    const currentDiscount =
-      frameType === "truss" ? getTrussDiscount(W, H).toFixed(1) : "0";
+    let currentDiscount = "0";
+    if (frameType === "truss") {
+      const baseTrussDiscountPercent = getTrussDiscount(W, H);
+      const columnStep = 6;
+      const totalFrames = Math.ceil(L / columnStep) + 1;
+      const framesWithTruss = Math.max(0, totalFrames - 2);
+      const finalDiscountPercent =
+        (baseTrussDiscountPercent * framesWithTruss) / totalFrames / 0.9;
+      currentDiscount = Math.max(0, finalDiscountPercent).toFixed(1);
+    }
 
     const totalCostNum =
       metalCost + wallCost + roofCost + trimCost + foundationCost;
@@ -548,22 +603,18 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       metalRate: (totalMetalKg / floorAreaTotal).toFixed(1),
       metalWeight: metalWeightTons.toFixed(2),
       metalCost: Math.round(metalCost),
-
       framesWeight: framesWeightTons.toFixed(2),
       framesRate: (totalFrameKgRaw / floorAreaTotal).toFixed(1),
       framesCost: Math.round(framesCost),
-
       purlinsWeight: purlinsWeightTons.toFixed(2),
       purlinsRate: (totalPurlinsKg / floorAreaTotal).toFixed(1),
       purlinsCost: Math.round(purlinsCost),
-
       tiesWeight: tiesWeightTons.toFixed(2),
       tiesRate: (totalTiesKg / floorAreaTotal).toFixed(1),
       tiesCost: Math.round(tiesCost),
-
       currentDiscount,
       savingsAmount: Math.round(savingsAmount),
-
+      envelopeDiffAmount: Math.round(envelopeDiffAmount), // ДОБАВЛЕНА РАЗНИЦА ОГРАЖДАЮЩИХ
       craneSystemWeight:
         totalCraneSystemKg > 0 ? (totalCraneSystemKg / 1000).toFixed(2) : null,
       craneSystemCost:
@@ -571,12 +622,10 @@ export default function QuickEstimator({ onBack, projectsDb }) {
           ? Math.round((totalCraneSystemKg / 1000) * metalPrice)
           : 0,
       craneInfo: cranesSummary || "",
-
       foundationCount,
       concreteCubic,
       rebarWeight,
       foundationCost,
-
       wallAreaBox: wallAreaBox.toFixed(1),
       gableAreaTotal: gableAreaTotal.toFixed(1),
       roofArea: roofAreaTotal.toFixed(1),
@@ -584,7 +633,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       wallCost: Math.round(wallCost),
       roofCost: Math.round(roofCost),
       trimCost: Math.round(trimCost),
-
       totalCost: Math.round(totalCostNum).toLocaleString("ru-RU"),
     };
   }, [
@@ -611,6 +659,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     snowCoefficients,
     roofPurlins,
     trussTable,
+    windCoefficients,
     gatesArea,
     windowsArea,
     concretePrice,
@@ -628,32 +677,39 @@ export default function QuickEstimator({ onBack, projectsDb }) {
             gap: "5px",
           }}
         >
-          <h2 style={styles.h2}>Быстрый расчёт v11 (База 210)</h2>
+          <h2 style={styles.h2}>Быстрый расчёт v14 (ЕВРОАНГАР)</h2>
           <button
             style={styles.settingsBtn}
             onClick={() => setIsBaseMatrixOpen(true)}
-            title="📊 Базовая матрица 210"
+            title="📊 База 210"
           >
             📊 База
           </button>
           <button
             style={styles.settingsBtn}
             onClick={() => setIsSnowCoeffsOpen(true)}
-            title="❄️ Коэффициенты снега"
+            title="❄️ Снег"
           >
             ❄️ Снег
           </button>
           <button
             style={styles.settingsBtn}
+            onClick={() => setIsWindCoeffsOpen(true)}
+            title="💨 Ветер"
+          >
+            💨 Ветер
+          </button>
+          <button
+            style={styles.settingsBtn}
             onClick={() => setIsPurlinsOpen(true)}
-            title="🏗️ Прогоны кровли"
+            title="🏗️ Прогоны"
           >
             🏗️ Прогоны
           </button>
           <button
             style={styles.settingsBtn}
             onClick={() => setIsTrussEditorOpen(true)}
-            title="⚙️ Эффективность ферм"
+            title="⚙️ Ферма"
           >
             ⚙️ Ферма
           </button>
@@ -812,19 +868,21 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         onClose={() => setIsBaseMatrixOpen(false)}
         onSave={setBaseMatrix210}
       />
-
       <SnowCoefficientsEditor
         isOpen={isSnowCoeffsOpen}
         onClose={() => setIsSnowCoeffsOpen(false)}
         onSave={setSnowCoefficients}
       />
-
+      <WindCoefficientsEditor
+        isOpen={isWindCoeffsOpen}
+        onClose={() => setIsWindCoeffsOpen(false)}
+        onSave={setWindCoefficients}
+      />
       <RoofPurlinsEditor
         isOpen={isPurlinsOpen}
         onClose={() => setIsPurlinsOpen(false)}
         onSave={setRoofPurlins}
       />
-
       <TrussEfficiencyEditor
         isOpen={isTrussEditorOpen}
         onClose={() => setIsTrussEditorOpen(false)}
