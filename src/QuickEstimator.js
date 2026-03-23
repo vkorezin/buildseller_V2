@@ -892,10 +892,16 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         </div>
       )}
 
-      <QuickEstimatorResults
+     <QuickEstimatorResults
         estimation={estimation}
         useSandwich={useSandwich}
         frameType={frameType}
+        spanWidth={spanWidth}
+        height={height}
+        cranes={cranes}
+        gkPrice={gkPrice}
+        lstkPrice={lstkPrice}
+        fasonkaPrice={fasonkaPrice}
       />
 
       {/* Редакторы */}
