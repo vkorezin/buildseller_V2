@@ -159,7 +159,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [gkPrice, setGkPrice] = useState(DEFAULT_GK_PRICE);
   const [lstkPrice, setLstkPrice] = useState(DEFAULT_LSTK_PRICE);
   const [fasonkaPrice, setFasonkaPrice] = useState(DEFAULT_FASONKA_PRICE);
-  
+
   const [wallPrice, setWallPrice] = useState(DEFAULT_WALL_PRICE);
   const [roofPrice, setRoofPrice] = useState(DEFAULT_ROOF_PRICE);
   const [trimPrice, setTrimPrice] = useState(DEFAULT_TRIM_PRICE);
@@ -299,7 +299,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const S = Number(slope) || 0;
     const baseSnow = Number(snowLoad) || 0;
     const currentWind = Number(windLoad) || 38;
-    
+
     // Временная заглушка цены до внедрения 4х типов:
     const activeMetalPrice = Number(gkPrice) || 0;
 
@@ -404,8 +404,21 @@ export default function QuickEstimator({ onBack, projectsDb }) {
 
       // ВОССТАНАВЛИВАЕМ ПОЛНУЮ МАССУ БАЛКИ
       const baseBeamTotal210 = baseWeight210_Truss / dynamicTrussCoeff;
-      let pureBeamFramesAndTies210 = baseBeamTotal210 - basePurlins210;
+
+      // --- ИСПРАВЛЕНИЕ ЕВРОАНГАР: ВЫЧИТАЕМ ТЯЖЕЛЫЕ ПРОГОНЫ (ТИП 4) ---
+      const savedConf = localStorage.getItem("euroangar_building_types_config");
+      let pType4 = 0.47;
+      if (savedConf) {
+        try {
+          pType4 = JSON.parse(savedConf).purlinType4 || 0.47;
+        } catch (e) {}
+      }
+
+      const basePurlinsGK210 = basePurlins210 / pType4; // Переводим ЛСТК прогоны в тяжелые ГК
+
+      let pureBeamFramesAndTies210 = baseBeamTotal210 - basePurlinsGK210;
       if (pureBeamFramesAndTies210 < 0) pureBeamFramesAndTies210 = 0;
+      // ---------------------------------------------------------------
 
       pureBeamFramesAndTies210 *= lMult * floorMult;
 
@@ -892,7 +905,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         </div>
       )}
 
-     <QuickEstimatorResults
+      <QuickEstimatorResults
         estimation={estimation}
         useSandwich={useSandwich}
         frameType={frameType}
