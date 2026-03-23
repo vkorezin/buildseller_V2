@@ -86,6 +86,12 @@ export default function QuickEstimatorResults({
     blockType1 = "Ферма: пролет до 30м";
     blockType2 = "Ферма: пролет до 30м";
   }
+  
+  // Жесткое ограничение по высоте для ЛСТК-колонн
+  if (H > 7.5) {
+    blockType1 = "Тип 1: высота колонн не более 7.5м";
+  }
+
   if (hasAnyCrane) {
     blockType1 = "Краны недопустимы для полностью ЛСТК каркаса";
   }
