@@ -6,6 +6,7 @@ import BaseMatrix210Editor from "./BaseMatrix210Editor";
 import SnowCoefficientsEditor from "./SnowCoefficientsEditor";
 import RoofPurlinsEditor from "./RoofPurlinsEditor";
 import WindCoefficientsEditor from "./WindCoefficientsEditor";
+import BuildingTypesEditor from "./BuildingTypesEditor";
 import QuickEstimatorForm from "./QuickEstimatorForm";
 import QuickEstimatorAnalytics from "./QuickEstimatorAnalytics";
 import QuickEstimatorResults from "./QuickEstimatorResults";
@@ -32,7 +33,10 @@ const CRANE_DATA = {
   ties: 10.84,
 };
 
-const DEFAULT_METAL_PRICE = 140000;
+const DEFAULT_GK_PRICE = 140000;
+const DEFAULT_LSTK_PRICE = 160000;
+const DEFAULT_FASONKA_PRICE = 150000;
+
 const DEFAULT_WALL_PRICE = 3500;
 const DEFAULT_ROOF_PRICE = 3800;
 const DEFAULT_TRIM_PRICE = 450;
@@ -140,6 +144,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [isPurlinsOpen, setIsPurlinsOpen] = useState(false);
   const [isTrussEditorOpen, setIsTrussEditorOpen] = useState(false);
   const [isWindCoeffsOpen, setIsWindCoeffsOpen] = useState(false);
+  const [isBuildingTypesOpen, setIsBuildingTypesOpen] = useState(false);
 
   const [gatesArea, setGatesArea] = useState("0");
   const [windowsArea, setWindowsArea] = useState("0");
@@ -150,7 +155,11 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [panelModule, setPanelModule] = useState(1.0);
   const [panelStockLength, setPanelStockLength] = useState(6.0);
 
-  const [metalPrice, setMetalPrice] = useState(DEFAULT_METAL_PRICE);
+  // Новые цены
+  const [gkPrice, setGkPrice] = useState(DEFAULT_GK_PRICE);
+  const [lstkPrice, setLstkPrice] = useState(DEFAULT_LSTK_PRICE);
+  const [fasonkaPrice, setFasonkaPrice] = useState(DEFAULT_FASONKA_PRICE);
+  
   const [wallPrice, setWallPrice] = useState(DEFAULT_WALL_PRICE);
   const [roofPrice, setRoofPrice] = useState(DEFAULT_ROOF_PRICE);
   const [trimPrice, setTrimPrice] = useState(DEFAULT_TRIM_PRICE);
@@ -290,6 +299,9 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const S = Number(slope) || 0;
     const baseSnow = Number(snowLoad) || 0;
     const currentWind = Number(windLoad) || 38;
+    
+    // Временная заглушка цены до внедрения 4х типов:
+    const activeMetalPrice = Number(gkPrice) || 0;
 
     let pMod = Number(panelModule);
     if (!pMod) pMod = 1.0;
@@ -452,7 +464,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const totalWidth = W * N;
     const floorAreaTotal = totalWidth * L;
 
-    // Прогоны стен (Фахверк считается от новой fullWallHeight)
+    // Прогоны стен
     let wallPurlinWeight = 0;
     if (useSandwich && layoutMode === "vertical") {
       const wPress = (currentWind * 30) / 100;
@@ -476,17 +488,17 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const totalFrameKg = totalFrameKgRaw + totalPurlinsKg + totalTiesKg;
     const totalMetalKg = totalFrameKg + totalCraneSystemKg;
     const metalWeightTons = totalMetalKg / 1000;
-    const metalCost = metalWeightTons * metalPrice;
+    const metalCost = metalWeightTons * activeMetalPrice;
 
     const framesWeightTons = totalFrameKgRaw / 1000;
     const purlinsWeightTons = totalPurlinsKg / 1000;
     const tiesWeightTons = totalTiesKg / 1000;
 
-    const framesCost = framesWeightTons * metalPrice;
-    const purlinsCost = purlinsWeightTons * metalPrice;
-    const tiesCost = tiesWeightTons * metalPrice;
+    const framesCost = framesWeightTons * activeMetalPrice;
+    const purlinsCost = purlinsWeightTons * activeMetalPrice;
+    const tiesCost = tiesWeightTons * activeMetalPrice;
 
-    const savingsAmount = (totalSavingsKg / 1000) * metalPrice;
+    const savingsAmount = (totalSavingsKg / 1000) * activeMetalPrice;
 
     const axesLong = Math.ceil(L / 6) + 1;
     const axesWidth = N + 1;
@@ -506,7 +518,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       roofAreaTotal = 0;
     let envelopeDiffAmount = 0;
 
-    // УМНЫЙ РАСЧЕТ ОГРАЖДАЮЩИХ КОНСТРУКЦИЙ (Выделен в отдельную функцию для сравнения)
     if (useSandwich) {
       const calcEnvelope = (wallH) => {
         const angleRad = Math.atan(S / 100);
@@ -563,7 +574,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         return { wAreaBox, gArea, rArea, wCost, rCost, tCost };
       };
 
-      // 1. Считаем фактическую стоимость ограждающих (балка или ферма)
       const actualEnv = calcEnvelope(fullWallHeight);
       wallAreaBox = actualEnv.wAreaBox;
       gableAreaTotal = actualEnv.gArea;
@@ -572,7 +582,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       roofCost = actualEnv.rCost;
       trimCost = actualEnv.tCost;
 
-      // 2. Считаем разницу в рублях между фермой и балкой
       const beamEnv = calcEnvelope(fullWallHeightBeam);
       const trussEnv = calcEnvelope(fullWallHeightTruss);
       envelopeDiffAmount =
@@ -614,12 +623,12 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       tiesCost: Math.round(tiesCost),
       currentDiscount,
       savingsAmount: Math.round(savingsAmount),
-      envelopeDiffAmount: Math.round(envelopeDiffAmount), // ДОБАВЛЕНА РАЗНИЦА ОГРАЖДАЮЩИХ
+      envelopeDiffAmount: Math.round(envelopeDiffAmount),
       craneSystemWeight:
         totalCraneSystemKg > 0 ? (totalCraneSystemKg / 1000).toFixed(2) : null,
       craneSystemCost:
         totalCraneSystemKg > 0
-          ? Math.round((totalCraneSystemKg / 1000) * metalPrice)
+          ? Math.round((totalCraneSystemKg / 1000) * activeMetalPrice)
           : 0,
       craneInfo: cranesSummary || "",
       foundationCount,
@@ -646,7 +655,9 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     windLoad,
     cranes,
     stories,
-    metalPrice,
+    gkPrice,
+    lstkPrice,
+    fasonkaPrice,
     useSandwich,
     layoutMode,
     panelModule,
@@ -712,6 +723,13 @@ export default function QuickEstimator({ onBack, projectsDb }) {
             title="⚙️ Ферма"
           >
             ⚙️ Ферма
+          </button>
+          <button
+            style={styles.settingsBtn}
+            onClick={() => setIsBuildingTypesOpen(true)}
+            title="⚙️ Типы зданий"
+          >
+            ⚙️ Типы
           </button>
         </div>
         <button style={styles.closeButton} onClick={onBack}>
@@ -800,12 +818,30 @@ export default function QuickEstimator({ onBack, projectsDb }) {
             </div>
           )}
           <div style={styles.field}>
-            <label style={styles.label}>Цена металла (₽/т)</label>
+            <label style={styles.label}>Цена ГК (₽/т)</label>
             <input
               style={styles.input}
               type="number"
-              value={metalPrice}
-              onChange={(e) => setMetalPrice(e.target.value)}
+              value={gkPrice}
+              onChange={(e) => setGkPrice(e.target.value)}
+            />
+          </div>
+          <div style={styles.field}>
+            <label style={styles.label}>Цена ЛСТК (₽/т)</label>
+            <input
+              style={styles.input}
+              type="number"
+              value={lstkPrice}
+              onChange={(e) => setLstkPrice(e.target.value)}
+            />
+          </div>
+          <div style={styles.field}>
+            <label style={styles.label}>Цена фасонки (₽/т)</label>
+            <input
+              style={styles.input}
+              type="number"
+              value={fasonkaPrice}
+              onChange={(e) => setFasonkaPrice(e.target.value)}
             />
           </div>
           <div style={styles.field}>
@@ -888,6 +924,9 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         onClose={() => setIsTrussEditorOpen(false)}
         onSave={setTrussTable}
       />
+      {isBuildingTypesOpen && (
+        <BuildingTypesEditor onClose={() => setIsBuildingTypesOpen(false)} />
+      )}
     </div>
   );
 }
