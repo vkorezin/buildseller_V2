@@ -66,7 +66,7 @@ export const generateRoofPurlins = () => [
   { snow: 350, weight: 5.5 },
   { snow: 420, weight: 5.84 },
   { snow: 490, weight: 6.18 },
-  { snow: 560, weight: 7.68 }
+  { snow: 560, weight: 7.68 },
 ];
 
 // Интерполяция в 2D таблице
