@@ -59,14 +59,14 @@ export function generateSnowCoefficients() {
 
 // Генерация металлоемкости прогонов (массив объектов)
 export const generateRoofPurlins = () => [
-  { snow: 70, weight: 6.34 },
-  { snow: 140, weight: 7.32 },
-  { snow: 210, weight: 8.77 },
-  { snow: 280, weight: 10.23 },
-  { snow: 350, weight: 11.69 },
-  { snow: 420, weight: 12.42 },
-  { snow: 490, weight: 13.14 },
-  { snow: 560, weight: 16.34 }
+  { snow: 70, weight: 2.98 },
+  { snow: 140, weight: 3.44 },
+  { snow: 210, weight: 4.13 },
+  { snow: 280, weight: 4.8 },
+  { snow: 350, weight: 5.5 },
+  { snow: 420, weight: 5.84 },
+  { snow: 490, weight: 6.18 },
+  { snow: 560, weight: 7.68 }
 ];
 
 // Интерполяция в 2D таблице
