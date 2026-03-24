@@ -49,9 +49,17 @@ export default function QuickEstimatorResults({
 
   // Извлечение БАЗОВЫХ весов (Тип 3) из главной математики
   const baseFramesKg = parseFloat(estimation.framesWeight || 0) * 1000;
-  const basePurlinsKg = parseFloat(estimation.purlinsWeight || 0) * 1000;
   const baseTiesKg = parseFloat(estimation.tiesWeight || 0) * 1000;
   const baseCraneKg = estimation.craneSystemWeight ? parseFloat(estimation.craneSystemWeight) * 1000 : 0;
+
+  // Новая математика прогонов (Кровля + Стены раздельно)
+  const roofPurlinsKg = estimation.roofPurlinsKg || 0;
+  const wLen = estimation.wallPurlinsLength || 0;
+
+  // Компоненты стеновых прогонов по типам материалов
+  const wpLstk = wLen * 5.1;
+  const wpFas = wLen * 1.275;
+  const wpGk = wLen * (10.84 * 1.05); // 11.382 кг/п.м для ЧМ
 
   const envelopeCost = useSandwich ? ((estimation.wallCost || 0) + (estimation.roofCost || 0) + (estimation.trimCost || 0)) : 0;
   const foundationCost = estimation.foundationCost || 0;
@@ -111,11 +119,12 @@ export default function QuickEstimatorResults({
       desc: "Оцинкованные рамы + фасонка",
       blocked: blockType1,
       calc: () => {
+        const purlinsCost = (roofPurlinsKg / 1000 * pLstk) + (wpLstk / 1000 * pLstk) + (wpFas / 1000 * pFas);
         const metalCost = ((framesKg1 * (1 - config.type1Fastener)) / 1000 * pLstk) +
                           ((framesKg1 * config.type1Fastener) / 1000 * pFas) +
                           (baseTiesKg / 1000 * pFas) +
-                          (basePurlinsKg / 1000 * pLstk);
-        return { frames: framesKg1, purlins: basePurlinsKg, metalCost };
+                          purlinsCost;
+        return { frames: framesKg1, purlins: roofPurlinsKg + wpLstk + wpFas, metalCost };
       }
     },
     {
@@ -125,12 +134,13 @@ export default function QuickEstimatorResults({
       blocked: blockType2,
       calc: () => {
         const framesKg2 = hasAnyCrane ? (baseFramesKg / (config.craneType2 || 1)) : ((framesKg1 + baseFramesKg) / 2);
+        const purlinsCost = (roofPurlinsKg / 1000 * pLstk) + (wpLstk / 1000 * pLstk) + (wpFas / 1000 * pFas);
         const metalCost = ((framesKg2 * config.type2Gk) / 1000 * pGk) +
                           ((framesKg2 * (1 - config.type2Gk)) / 1000 * pLstk) +
                           (baseTiesKg / 1000 * pGk) +
-                          (basePurlinsKg / 1000 * pLstk) +
-                          (baseCraneKg / 1000 * pGk);
-        return { frames: framesKg2, purlins: basePurlinsKg, metalCost };
+                          (baseCraneKg / 1000 * pGk) +
+                          purlinsCost;
+        return { frames: framesKg2, purlins: roofPurlinsKg + wpLstk + wpFas, metalCost };
       }
     },
     {
@@ -140,11 +150,12 @@ export default function QuickEstimatorResults({
       blocked: null,
       isBase: true,
       calc: () => {
+        const purlinsCost = (roofPurlinsKg / 1000 * pLstk) + (wpLstk / 1000 * pLstk) + (wpFas / 1000 * pFas);
         const metalCost = (baseFramesKg / 1000 * pGk) +
                           (baseTiesKg / 1000 * pGk) +
-                          (basePurlinsKg / 1000 * pLstk) +
-                          (baseCraneKg / 1000 * pGk);
-        return { frames: baseFramesKg, purlins: basePurlinsKg, metalCost };
+                          (baseCraneKg / 1000 * pGk) +
+                          purlinsCost;
+        return { frames: baseFramesKg, purlins: roofPurlinsKg + wpLstk + wpFas, metalCost };
       }
     },
     {
@@ -153,12 +164,13 @@ export default function QuickEstimatorResults({
       desc: "Полностью черный металл (ГК)",
       blocked: null,
       calc: () => {
-        const purlinsKg4 = basePurlinsKg / (config.purlinType4 || 0.47);
+        const roofPurlinsKg4 = roofPurlinsKg / (config.purlinType4 || 0.47);
+        const purlinsCost = (roofPurlinsKg4 / 1000 * pGk) + (wpGk / 1000 * pGk);
         const metalCost = (baseFramesKg / 1000 * pGk) +
                           (baseTiesKg / 1000 * pGk) +
-                          (purlinsKg4 / 1000 * pGk) +
-                          (baseCraneKg / 1000 * pGk);
-        return { frames: baseFramesKg, purlins: purlinsKg4, metalCost };
+                          (baseCraneKg / 1000 * pGk) +
+                          purlinsCost;
+        return { frames: baseFramesKg, purlins: roofPurlinsKg4 + wpGk, metalCost };
       }
     }
   ];
