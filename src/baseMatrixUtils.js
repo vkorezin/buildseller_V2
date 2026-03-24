@@ -226,3 +226,4 @@ export function getWindCoefficient(windArray, targetWind) {
   }
   return 1.0;
 }
+
