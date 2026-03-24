@@ -258,6 +258,8 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       !windCoefficients
     ) {
       return {
+        roofPurlinsKg: 0,
+        wallPurlinsLength: 0,
         floorArea: 0,
         metalRate: "0.0",
         metalWeight: "0.00",
@@ -477,8 +479,10 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const totalWidth = W * N;
     const floorAreaTotal = totalWidth * L;
 
-    // Прогоны стен
-    let wallPurlinWeight = 0;
+    // --- ПРОГОНЫ СТЕН (Точный расчет рядов по ветру) ---
+    let wallPurlinsLength = 0;
+    let wallPurlinsBaseKg = 0;
+
     if (useSandwich && layoutMode === "vertical") {
       const wPress = (currentWind * 30) / 100;
       let purlinStep = 4.5;
@@ -488,15 +492,16 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       else purlinStep = 1.2;
 
       const perimeter = (totalWidth + L) * 2;
-      let lines = 0;
-      if (wPress > 0.6) {
-        lines = Math.ceil(fullWallHeight / purlinStep);
-        wallPurlinWeight = perimeter * lines * 6.375;
-      } else {
-        wallPurlinWeight = perimeter * fullWallHeight * 10;
-      }
+      const lines = Math.ceil(fullWallHeight / purlinStep);
+      wallPurlinsLength = perimeter * lines; // Итого погонных метров стен
+
+      // Базовая масса для Типа 3 (5.1 ОЦ + 1.275 Фасонка = 6.375 кг/п.м.)
+      wallPurlinsBaseKg = wallPurlinsLength * 6.375;
     }
-    totalPurlinsKg += wallPurlinWeight;
+
+    const totalRoofPurlinsKg = totalPurlinsKg; // Чистый вес прогонов кровли
+    totalPurlinsKg += wallPurlinsBaseKg; // Прибавляем стены для общих итогов
+    // --------------------------------------------------
 
     const totalFrameKg = totalFrameKgRaw + totalPurlinsKg + totalTiesKg;
     const totalMetalKg = totalFrameKg + totalCraneSystemKg;
@@ -621,6 +626,8 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       metalCost + wallCost + roofCost + trimCost + foundationCost;
 
     return {
+      roofPurlinsKg: totalRoofPurlinsKg, // Новая переменная для матрицы
+      wallPurlinsLength: wallPurlinsLength, // Новая переменная для матрицы
       floorArea: floorAreaTotal,
       metalRate: (totalMetalKg / floorAreaTotal).toFixed(1),
       metalWeight: metalWeightTons.toFixed(2),
