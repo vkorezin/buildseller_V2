@@ -46,14 +46,14 @@ export function generateBase210Matrix() {
 // Генерация коэффициентов снега (теперь массив объектов)
 export function generateSnowCoefficients() {
   return [
-    { snow: 70, coefficient: 0.7 },
-    { snow: 140, coefficient: 0.85 },
+    { snow: 70, coefficient: 0.82 },
+    { snow: 140, coefficient: 0.93 },
     { snow: 210, coefficient: 1.0 }, // база
-    { snow: 280, coefficient: 1.12 },
-    { snow: 350, coefficient: 1.23 },
-    { snow: 420, coefficient: 1.35 },
-    { snow: 490, coefficient: 1.46 },
-    { snow: 560, coefficient: 1.58 },
+    { snow: 280, coefficient: 1.08 },
+    { snow: 350, coefficient: 1.17 },
+    { snow: 420, coefficient: 1.25 },
+    { snow: 490, coefficient: 1.33 },
+    { snow: 560, coefficient: 1.40 },
   ];
 }
 
