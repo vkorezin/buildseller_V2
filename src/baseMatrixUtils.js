@@ -68,7 +68,6 @@ export const generateRoofPurlins = () => [
   { snow: 490, weight: 13.14 },
   { snow: 560, weight: 16.34 }
 ];
-}
 
 // Интерполяция в 2D таблице
 export function interpolate2D(matrix, targetH, targetW) {
