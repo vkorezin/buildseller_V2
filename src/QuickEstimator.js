@@ -484,11 +484,13 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     let wallPurlinsBaseKg = 0;
 
     if (useSandwich && layoutMode === "vertical") {
-      const wPress = (currentWind * 30) / 100;
+      // ИСПРАВЛЕННАЯ ФОРМУЛА: переводим кг/м² в кПа напрямую (38 кг/м² = 0.38 кПа)
+      const wPress = currentWind / 100; 
+      
       let purlinStep = 4.5;
       if (wPress <= 0.23) purlinStep = 4.5;
       else if (wPress <= 0.42) purlinStep = 3.0;
-      else if (wPress <= 0.6) purlinStep = 1.5;
+      else if (wPress <= 0.60) purlinStep = 1.5;
       else purlinStep = 1.2;
 
       const perimeter = (totalWidth + L) * 2;
@@ -502,7 +504,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const totalRoofPurlinsKg = totalPurlinsKg; // Чистый вес прогонов кровли
     totalPurlinsKg += wallPurlinsBaseKg; // Прибавляем стены для общих итогов
     // --------------------------------------------------
-
     const totalFrameKg = totalFrameKgRaw + totalPurlinsKg + totalTiesKg;
     const totalMetalKg = totalFrameKg + totalCraneSystemKg;
     const metalWeightTons = totalMetalKg / 1000;
