@@ -1,28 +1,20 @@
 import React from 'react';
-import { Page, Text, View, Document, StyleSheet, Font, Image } from '@react-pdf/renderer';
+import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
 
-// РЕШЕНИЕ ПРОБЛЕМЫ №1: Регистрируем правильные шрифты Google (и обычный, и жирный)
+// Надежные ссылки на шрифты с поддержкой кириллицы
 Font.register({
   family: 'Roboto',
   fonts: [
-    {
-      src: 'https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Me5WZLCzYlKw.ttf',
-      fontWeight: 'normal',
-    },
-    {
-      src: 'https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc9.ttf',
-      fontWeight: 'bold',
-    },
-  ],
+    { src: 'https://fonts.gstatic.com/s/roboto/v20/KFOmCnqEu92Fr1Me5Q.ttf' }, // Обычный
+    { src: 'https://fonts.gstatic.com/s/roboto/v20/KFOlCnqEu92Fr1MmWUlfChc9.ttf', fontWeight: 'bold' } // Жирный
+  ]
 });
 
 // Стили документа
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Roboto', fontSize: 10, color: '#333' },
-  header: { marginBottom: 20, borderBottom: 1, borderBottomColor: '#007bff', paddingBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  headerLeft: { flex: 1 },
-  logo: { width: 140, marginBottom: 10 },
-  brandFallback: { fontSize: 24, fontWeight: 'bold', color: '#007bff', marginBottom: 5 },
+  header: { marginBottom: 20, borderBottom: 1, borderBottomColor: '#007bff', paddingBottom: 10 },
+  brandText: { fontSize: 26, fontWeight: 'bold', color: '#007bff', marginBottom: 8, letterSpacing: 1 },
   title: { fontSize: 14, fontWeight: 'bold', marginBottom: 5 },
   subtitle: { fontSize: 10, color: '#666' },
   section: { marginBottom: 15 },
@@ -41,40 +33,32 @@ const styles = StyleSheet.create({
   disclaimer: { marginTop: 20, fontSize: 8, fontStyle: 'italic', color: '#999', textAlign: 'justify' }
 });
 
-const CommercialProposalPDF = ({ data, types, managerName, managerPhone, managerEmail }) => {
+const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhone, managerEmail }) => {
   const date = new Date().toLocaleDateString('ru-RU');
   const kpNumber = `КП-${Date.now().toString().slice(-6)}`;
 
-  // Расчет экономии (Балка vs Ферма)
-  const netSavings = data.savingsAmount - (data.envelopeDiffAmount || 0);
-
-  // РЕШЕНИЕ ПРОБЛЕМЫ №2: Формируем абсолютный URL для картинки
-  const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}/logo.jpg` : '';
+  // Безопасный расчет экономии
+  const savings = Number(data.savingsAmount) || 0;
+  const diff = Number(data.envelopeDiffAmount) || 0;
+  const netSavings = savings - diff;
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         
-        {/* ШАПКА */}
+        {/* ШАПКА БЕЗ КАРТИНКИ (Защита от падений) */}
         <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            {/* Если картинка почему-то не загрузится, генератор не упадет */}
-            {logoUrl ? (
-               <Image src={logoUrl} style={styles.logo} />
-            ) : (
-               <Text style={styles.brandFallback}>ЕВРОАНГАР</Text>
-            )}
-            <Text style={styles.title}>Коммерческое предложение № {kpNumber}</Text>
-            <Text style={styles.subtitle}>Дата формирования: {date}</Text>
-          </View>
+          <Text style={styles.brandText}>ЕВРОАНГАР</Text>
+          <Text style={styles.title}>Коммерческое предложение № {kpNumber}</Text>
+          <Text style={styles.subtitle}>Дата формирования: {date}</Text>
         </View>
 
         {/* 1. ПАРАМЕТРЫ ОБЪЕКТА */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>1. ПАРАМЕТРЫ ОБЪЕКТА</Text>
-          <Text style={styles.listText}>• Габариты здания: Пролет {data.spanWidth} м × Длина {data.length} м × Высота {data.height} м</Text>
+          <Text style={styles.listText}>• Габариты здания: Пролет {data.spanWidth || '-'} м × Длина {data.length || '-'} м × Высота {data.height || '-'} м</Text>
           <Text style={styles.listText}>• Тип конструкции: {data.frameType === 'truss' ? 'Ферма' : 'Балка'}</Text>
-          <Text style={styles.listText}>• Климатические нагрузки: Снег {data.snowLoad} кг/м², Ветер {data.windLoad} кг/м²</Text>
+          <Text style={styles.listText}>• Климатические нагрузки: Снег {data.snowLoad || '-'} кг/м², Ветер {data.windLoad || '-'} кг/м²</Text>
           <Text style={styles.listText}>• Крановое оборудование: {data.craneInfo || 'Нет крана'}</Text>
         </View>
 
@@ -85,12 +69,12 @@ const CommercialProposalPDF = ({ data, types, managerName, managerPhone, manager
             Мы предлагаем 4 варианта реализации вашего проекта. Обратите внимание на Базовый тип (ЕВРОАНГАР) — за счет применения гибридных технологий он обеспечивает наилучшее соотношение массы и стоимости.
           </Text>
 
-          {/* Заголовки таблицы */}
+          {/* Заголовки */}
           <View style={[styles.row, { backgroundColor: '#f8f9fa' }]}>
             <Text style={styles.cellHeader}>Параметр</Text>
             {types.map(t => (
-              <Text key={t.id} style={t.isBase ? styles.cellBase : styles.cell}>
-                {t.name}{t.isBase ? ' (База)' : ''}
+              <Text key={t.id || Math.random()} style={t.isBase ? styles.cellBase : styles.cell}>
+                {t.name || '-'}{t.isBase ? ' (База)' : ''}
               </Text>
             ))}
           </View>
@@ -100,16 +84,16 @@ const CommercialProposalPDF = ({ data, types, managerName, managerPhone, manager
             <Text style={styles.labelCell}>Рамы / Колонны</Text>
             {types.map(t => {
               const d = !t.blocked ? t.calc() : null;
-              return <Text key={t.id} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${(d.frames / 1000).toFixed(2)} т` : '-'}</Text>;
+              return <Text key={t.id || Math.random()} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${(d.frames / 1000).toFixed(2)} т` : '-'}</Text>;
             })}
           </View>
 
           {/* Масса Прогонов */}
           <View style={styles.row}>
-            <Text style={styles.labelCell}>Прогоны (Кровля + Стены)</Text>
+            <Text style={styles.labelCell}>Прогоны (Кровля+Стены)</Text>
             {types.map(t => {
               const d = !t.blocked ? t.calc() : null;
-              return <Text key={t.id} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${(d.purlins / 1000).toFixed(2)} т` : '-'}</Text>;
+              return <Text key={t.id || Math.random()} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${(d.purlins / 1000).toFixed(2)} т` : '-'}</Text>;
             })}
           </View>
 
@@ -118,16 +102,8 @@ const CommercialProposalPDF = ({ data, types, managerName, managerPhone, manager
             <Text style={styles.labelCell}>Металлокаркас (₽)</Text>
             {types.map(t => {
               const d = !t.blocked ? t.calc() : null;
-              return <Text key={t.id} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${Math.round(d.metalCost).toLocaleString('ru-RU')} ₽` : 'Неприменимо'}</Text>;
+              return <Text key={t.id || Math.random()} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${Math.round(d.metalCost || 0).toLocaleString('ru-RU')} ₽` : 'Неприменимо'}</Text>;
             })}
-          </View>
-
-          {/* Обшивка */}
-          <View style={styles.row}>
-            <Text style={styles.labelCell}>Обшивка стен и кровли (₽)</Text>
-            {types.map(t => (
-              <Text key={t.id} style={t.isBase ? styles.cellBase : styles.cell}>{!t.blocked && data.envelopeCost ? `${Math.round(data.envelopeCost).toLocaleString('ru-RU')} ₽` : '-'}</Text>
-            ))}
           </View>
 
           {/* ИТОГО */}
@@ -135,9 +111,11 @@ const CommercialProposalPDF = ({ data, types, managerName, managerPhone, manager
             <Text style={[styles.labelCell, { fontSize: 10 }]}>ИТОГО ПО ЗДАНИЮ</Text>
             {types.map(t => {
               const d = !t.blocked ? t.calc() : null;
-              const totalAll = d ? d.metalCost + (data.envelopeCost || 0) + (data.foundationCost || 0) : 0;
+              const envCost = Number(data.envelopeCost) || 0;
+              const foundCost = Number(data.foundationCost) || 0;
+              const totalAll = d ? (Number(d.metalCost) || 0) + envCost + foundCost : 0;
               return (
-                <Text key={t.id} style={[t.isBase ? styles.cellBase : styles.cell, { fontSize: 10 }]}>
+                <Text key={t.id || Math.random()} style={[t.isBase ? styles.cellBase : styles.cell, { fontSize: 10 }]}>
                   {d ? `${Math.round(totalAll).toLocaleString('ru-RU')} ₽` : '-'}
                 </Text>
               );
@@ -156,20 +134,18 @@ const CommercialProposalPDF = ({ data, types, managerName, managerPhone, manager
         {/* 4. УСЛОВИЯ */}
         <View style={[styles.section, { marginTop: 20 }]}>
           <Text style={styles.sectionTitle}>4. УСЛОВИЯ ПОСТАВКИ И ОПЛАТЫ</Text>
-          <Text style={styles.listText}>• Срок поставки: Срок поставки первой партии товара составляет 43 рабочих дня с момента подписания договора.</Text>
-          <Text style={styles.listText}>• Условия оплаты: 70% — авансовый платеж, 30% — по готовности металлоконструкций к отгрузке.</Text>
+          <Text style={styles.listText}>• Срок поставки: Срок поставки первой партии товара составляет 43 рабочих дня.</Text>
+          <Text style={styles.listText}>• Условия оплаты: 70% — аванс, 30% — по готовности.</Text>
           <Text style={styles.listText}>• НДС: Все цены указаны с учетом НДС 22%.</Text>
         </View>
 
-        {/* ПОДВАЛ (Менеджер) */}
+        {/* ПОДВАЛ */}
         <View style={styles.footer}>
           <Text style={styles.managerName}>Ваш персональный менеджер:</Text>
           <Text>{managerName || 'Менеджер Проектов'}</Text>
           <Text>Телефон: {managerPhone || '+7 (495) 000-00-00'}</Text>
-          <Text>Email: {managerEmail || 'info@euroangar.ru'}</Text>
-          
           <Text style={styles.disclaimer}>
-            Данное коммерческое предложение носит исключительно индикативный характер, является предварительным расчетом стоимости на основе введенных параметров и не является публичной офертой. Окончательная стоимость формируется после разработки раздела КМ.
+            Данное коммерческое предложение носит исключительно индикативный характер и не является публичной офертой.
           </Text>
         </View>
 
