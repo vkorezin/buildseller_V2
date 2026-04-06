@@ -1,16 +1,23 @@
 import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Font, Image } from '@react-pdf/renderer';
 
-// Надежные ссылки на шрифты с поддержкой кириллицы (Только прямой и жирный, БЕЗ курсива!)
+// Надежные ссылки на полные шрифты с поддержкой КИРИЛЛИЦЫ
 Font.register({
   family: 'Roboto',
   fonts: [
-    { src: 'https://fonts.gstatic.com/s/roboto/v20/KFOmCnqEu92Fr1Me5Q.ttf', fontWeight: 'normal' },
-    { src: 'https://fonts.gstatic.com/s/roboto/v20/KFOlCnqEu92Fr1MmWUlfChc9.ttf', fontWeight: 'bold' }
+    { 
+      src: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.9/fonts/Roboto/Roboto-Regular.ttf', 
+      fontWeight: 'normal' 
+    },
+    { 
+      src: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.9/fonts/Roboto/Roboto-Medium.ttf', 
+      fontWeight: 'bold' 
+    }
   ]
 });
 
 // Стили документа
+// ... (весь остальной код ниже остается без изменений)
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Roboto', fontSize: 10, color: '#333' },
   header: { marginBottom: 20, borderBottom: 1, borderBottomColor: '#007bff', paddingBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
