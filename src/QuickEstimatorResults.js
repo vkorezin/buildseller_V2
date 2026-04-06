@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { PDFDownloadLink } from '@react-pdf/renderer';
+import CommercialProposalPDF from './CommercialProposalPDF';
 
 // Базовые константы на случай, если пользователь еще не открывал настройки
 const DEFAULT_CONFIG = {
@@ -18,7 +20,10 @@ export default function QuickEstimatorResults({
   useSandwich,
   frameType,
   spanWidth = "18",
+  length = "48", // Добавлено для корректного отображения в PDF
   height = "6",
+  snowLoad = "180", // Добавлено для корректного отображения в PDF
+  windLoad = "38", // Добавлено для корректного отображения в PDF
   cranes = [],
   gkPrice = 140000,
   lstkPrice = 160000,
@@ -339,9 +344,29 @@ export default function QuickEstimatorResults({
         </div>
       )}
 
-      <button style={styles.pdfBtn} onClick={() => alert("Функция генерации PDF находится в разработке")}>
-        📄 Скачать КП в PDF
-      </button>
+      <PDFDownloadLink 
+        document={
+          <CommercialProposalPDF 
+            data={{ 
+              spanWidth, length, height, snowLoad, windLoad, frameType,
+              craneInfo: estimation.craneInfo,
+              envelopeCost, foundationCost,
+              baseTiesKg,
+              savingsAmount: estimation.savingsAmount,
+              envelopeDiffAmount: estimation.envelopeDiffAmount
+            }}
+            types={types}
+          />
+        } 
+        fileName={`ЕВРОАНГАР_КП_${spanWidth}x${length}.pdf`}
+        style={{textDecoration: 'none'}}
+      >
+        {({ loading }) => (
+          <button style={{...styles.pdfBtn, opacity: loading ? 0.7 : 1}}>
+            {loading ? '⏳ Формирование PDF...' : '📄 Скачать КП в PDF'}
+          </button>
+        )}
+      </PDFDownloadLink>
     </div>
   );
 }
