@@ -1,23 +1,15 @@
 import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Font, Image } from '@react-pdf/renderer';
 
-// Надежные ссылки на полные шрифты с поддержкой КИРИЛЛИЦЫ
+// Надежные ссылки на шрифты с поддержкой кириллицы
 Font.register({
   family: 'Roboto',
   fonts: [
-    { 
-      src: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.9/fonts/Roboto/Roboto-Regular.ttf', 
-      fontWeight: 'normal' 
-    },
-    { 
-      src: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.9/fonts/Roboto/Roboto-Medium.ttf', 
-      fontWeight: 'bold' 
-    }
+    { src: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.9/fonts/Roboto/Roboto-Regular.ttf', fontWeight: 'normal' },
+    { src: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.9/fonts/Roboto/Roboto-Medium.ttf', fontWeight: 'bold' }
   ]
 });
 
-// Стили документа
-// ... (весь остальной код ниже остается без изменений)
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Roboto', fontSize: 10, color: '#333' },
   header: { marginBottom: 20, borderBottom: 1, borderBottomColor: '#007bff', paddingBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
@@ -37,6 +29,8 @@ const styles = StyleSheet.create({
   analyticsText: { color: '#2e7d32', fontSize: 11, fontWeight: 'bold' },
   analyticsSub: { color: '#555', fontSize: 8, marginTop: 4 },
   listText: { marginBottom: 4, lineHeight: 1.4 },
+  breakdownTitle: { fontWeight: 'bold', fontSize: 10, marginBottom: 4, marginTop: 8 },
+  breakdownNote: { fontSize: 8, color: '#666', marginTop: 3 }, // Без курсива!
   footer: { marginTop: 30, borderTop: 1, borderTopColor: '#ccc', paddingTop: 15, fontSize: 10 },
   managerName: { fontWeight: 'bold', fontSize: 11, marginBottom: 3 },
   disclaimer: { marginTop: 20, fontSize: 8, color: '#999', textAlign: 'justify' }
@@ -46,26 +40,20 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
   const date = new Date().toLocaleDateString('ru-RU');
   const kpNumber = `КП-${Date.now().toString().slice(-6)}`;
 
-  // Безопасный расчет экономии
   const savings = Number(data.savingsAmount) || 0;
   const diff = Number(data.envelopeDiffAmount) || 0;
   const netSavings = savings - diff;
 
-  // Формируем абсолютную ссылку на логотип (защита от ошибок путей в PDF)
   const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}/logo.jpg` : '';
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         
-        {/* ШАПКА С ЛОГОТИПОМ */}
+        {/* ШАПКА */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            {logoUrl ? (
-              <Image src={logoUrl} style={styles.logo} />
-            ) : (
-              <Text style={styles.brandFallback}>ЕВРОАНГАР</Text>
-            )}
+            {logoUrl ? <Image src={logoUrl} style={styles.logo} /> : <Text style={styles.brandFallback}>ЕВРОАНГАР</Text>}
             <Text style={styles.title}>Коммерческое предложение № {kpNumber}</Text>
             <Text style={styles.subtitle}>Дата формирования: {date}</Text>
           </View>
@@ -83,65 +71,64 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
         {/* 2. СРАВНИТЕЛЬНАЯ МАТРИЦА */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>2. СРАВНЕНИЕ ВАРИАНТОВ ИСПОЛНЕНИЯ</Text>
-          <Text style={{ fontSize: 9, marginBottom: 8, color: '#555' }}>
-            Мы предлагаем 4 варианта реализации вашего проекта. Обратите внимание на Базовый тип (ЕВРОАНГАР) — за счет применения гибридных технологий он обеспечивает наилучшее соотношение массы и стоимости.
-          </Text>
-
-          {/* Заголовки */}
           <View style={[styles.row, { backgroundColor: '#f8f9fa' }]}>
             <Text style={styles.cellHeader}>Параметр</Text>
-            {types.map((t, index) => (
-              <Text key={index} style={t.isBase ? styles.cellBase : styles.cell}>
-                {t.name || '-'}{t.isBase ? ' (База)' : ''}
-              </Text>
-            ))}
+            {types.map((t, index) => <Text key={index} style={t.isBase ? styles.cellBase : styles.cell}>{t.name || '-'}{t.isBase ? ' (База)' : ''}</Text>)}
           </View>
-          
-          {/* Масса Рам */}
           <View style={styles.row}>
             <Text style={styles.labelCell}>Рамы / Колонны</Text>
-            {types.map((t, index) => {
-              const d = !t.blocked ? t.calc() : null;
-              return <Text key={index} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${(d.frames / 1000).toFixed(2)} т` : '-'}</Text>;
-            })}
+            {types.map((t, index) => { const d = !t.blocked ? t.calc() : null; return <Text key={index} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${(d.frames / 1000).toFixed(2)} т` : '-'}</Text>; })}
           </View>
-
-          {/* Масса Прогонов */}
           <View style={styles.row}>
             <Text style={styles.labelCell}>Прогоны (Кровля+Стены)</Text>
-            {types.map((t, index) => {
-              const d = !t.blocked ? t.calc() : null;
-              return <Text key={index} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${(d.purlins / 1000).toFixed(2)} т` : '-'}</Text>;
-            })}
+            {types.map((t, index) => { const d = !t.blocked ? t.calc() : null; return <Text key={index} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${(d.purlins / 1000).toFixed(2)} т` : '-'}</Text>; })}
           </View>
-
-          {/* Стоимость Каркаса */}
           <View style={styles.row}>
             <Text style={styles.labelCell}>Металлокаркас (₽)</Text>
-            {types.map((t, index) => {
-              const d = !t.blocked ? t.calc() : null;
-              return <Text key={index} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${Math.round(d.metalCost || 0).toLocaleString('ru-RU')} ₽` : 'Неприменимо'}</Text>;
-            })}
+            {types.map((t, index) => { const d = !t.blocked ? t.calc() : null; return <Text key={index} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${Math.round(d.metalCost || 0).toLocaleString('ru-RU')} ₽` : 'Неприменимо'}</Text>; })}
           </View>
-
-          {/* ИТОГО */}
           <View style={[styles.row, { borderBottomWidth: 2, borderBottomColor: '#333' }]}>
             <Text style={[styles.labelCell, { fontSize: 10 }]}>ИТОГО ПО ЗДАНИЮ</Text>
             {types.map((t, index) => {
               const d = !t.blocked ? t.calc() : null;
-              const envCost = Number(data.envelopeCost) || 0;
-              const foundCost = Number(data.foundationCost) || 0;
-              const totalAll = d ? (Number(d.metalCost) || 0) + envCost + foundCost : 0;
-              return (
-                <Text key={index} style={[t.isBase ? styles.cellBase : styles.cell, { fontSize: 10 }]}>
-                  {d ? `${Math.round(totalAll).toLocaleString('ru-RU')} ₽` : '-'}
-                </Text>
-              );
+              const totalAll = d ? (Number(d.metalCost) || 0) + (Number(data.envelopeCost) || 0) + (Number(data.foundationCost) || 0) : 0;
+              return <Text key={index} style={[t.isBase ? styles.cellBase : styles.cell, { fontSize: 10 }]}>{d ? `${Math.round(totalAll).toLocaleString('ru-RU')} ₽` : '-'}</Text>;
             })}
           </View>
         </View>
 
-        {/* 3. АНАЛИТИКА */}
+        {/* 3. ДЕТАЛИЗАЦИЯ КОМПЛЕКТАЦИИ */}
+        {(data.useSandwich || data.foundationCost > 0) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>3. ДЕТАЛИЗАЦИЯ ОГРАЖДАЮЩИХ КОНСТРУКЦИЙ И ФУНДАМЕНТА</Text>
+            
+            {/* Детализация Обшивки */}
+            {data.useSandwich && (
+              <View>
+                <Text style={styles.breakdownTitle}>Ограждающие конструкции (Сэндвич-панели):</Text>
+                <Text style={styles.listText}>• Стеновые панели: {Math.round(data.wallCost || 0).toLocaleString('ru-RU')} ₽</Text>
+                <Text style={styles.listText}>• Кровельные панели: {Math.round(data.roofCost || 0).toLocaleString('ru-RU')} ₽</Text>
+                <Text style={styles.listText}>• Фасонные элементы (нащельники, отливы) и крепеж: {Math.round(data.trimCost || 0).toLocaleString('ru-RU')} ₽</Text>
+                <Text style={styles.breakdownNote}>
+                  * Стоимость обшивки рассчитана на основе габаритов здания (периметр стен и площадь скатов кровли) с учетом коэффициента на подрезку и отходы.
+                </Text>
+              </View>
+            )}
+
+            {/* Детализация Фундамента */}
+            {data.foundationCost > 0 && (
+              <View>
+                <Text style={styles.breakdownTitle}>Фундаментные работы (Справочно):</Text>
+                <Text style={styles.listText}>• Ориентировочная стоимость материалов и работ: {Math.round(data.foundationCost || 0).toLocaleString('ru-RU')} ₽</Text>
+                <Text style={styles.breakdownNote}>
+                  * Расчет фундамента является укрупненным (ж/б фундамент стаканного типа / буронабивные сваи). Итоговая стоимость зависит от результатов геологических изысканий грунта на вашем участке застройки.
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* 4. АНАЛИТИКА */}
         {data.frameType === 'truss' && netSavings > 0 && (
           <View style={styles.analyticsBox}>
             <Text style={styles.analyticsText}>💎 ВЫГОДА ОТ ЗАМЕНЫ БАЛКИ НА ФЕРМУ: {netSavings.toLocaleString('ru-RU')} ₽</Text>
@@ -149,21 +136,22 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
           </View>
         )}
 
-        {/* 4. УСЛОВИЯ */}
-        <View style={[styles.section, { marginTop: 20 }]}>
-          <Text style={styles.sectionTitle}>4. УСЛОВИЯ ПОСТАВКИ И ОПЛАТЫ</Text>
+        {/* 5. УСЛОВИЯ */}
+        <View style={[styles.section, { marginTop: 15 }]}>
+          <Text style={styles.sectionTitle}>УСЛОВИЯ ПОСТАВКИ И ОПЛАТЫ</Text>
           <Text style={styles.listText}>• Срок поставки: Срок поставки первой партии товара составляет 43 рабочих дня.</Text>
-          <Text style={styles.listText}>• Условия оплаты: 70% — аванс, 30% — по готовности.</Text>
+          <Text style={styles.listText}>• Условия оплаты: 70% — аванс, 30% — по готовности к отгрузке.</Text>
           <Text style={styles.listText}>• НДС: Все цены указаны с учетом НДС 22%.</Text>
         </View>
 
-        {/* ПОДВАЛ */}
+        {/* ПОДВАЛ С КОНТАКТАМИ */}
         <View style={styles.footer}>
-          <Text style={styles.managerName}>Ваш персональный менеджер:</Text>
-          <Text>{managerName || 'Менеджер Проектов'}</Text>
-          <Text>Телефон: {managerPhone || '+7 (495) 000-00-00'}</Text>
+          <Text style={styles.managerName}>Ваш персональный менеджер: {managerName}</Text>
+          <Text>Телефон: {managerPhone}</Text>
+          <Text>Email: {managerEmail}</Text>
+          
           <Text style={styles.disclaimer}>
-            Данное коммерческое предложение носит исключительно индикативный характер и не является публичной офертой.
+            Данное коммерческое предложение носит исключительно индикативный характер, является предварительным расчетом стоимости на основе введенных параметров и не является публичной офертой. Окончательная стоимость формируется после разработки раздела КМ.
           </Text>
         </View>
 
