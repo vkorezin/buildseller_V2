@@ -1,20 +1,22 @@
 import React from 'react';
-import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
+import { Page, Text, View, Document, StyleSheet, Font, Image } from '@react-pdf/renderer';
 
-// Надежные ссылки на шрифты с поддержкой кириллицы
+// Надежные ссылки на шрифты с поддержкой кириллицы (Только прямой и жирный, БЕЗ курсива!)
 Font.register({
   family: 'Roboto',
   fonts: [
-    { src: 'https://fonts.gstatic.com/s/roboto/v20/KFOmCnqEu92Fr1Me5Q.ttf' }, // Обычный
-    { src: 'https://fonts.gstatic.com/s/roboto/v20/KFOlCnqEu92Fr1MmWUlfChc9.ttf', fontWeight: 'bold' } // Жирный
+    { src: 'https://fonts.gstatic.com/s/roboto/v20/KFOmCnqEu92Fr1Me5Q.ttf', fontWeight: 'normal' },
+    { src: 'https://fonts.gstatic.com/s/roboto/v20/KFOlCnqEu92Fr1MmWUlfChc9.ttf', fontWeight: 'bold' }
   ]
 });
 
 // Стили документа
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Roboto', fontSize: 10, color: '#333' },
-  header: { marginBottom: 20, borderBottom: 1, borderBottomColor: '#007bff', paddingBottom: 10 },
-  brandText: { fontSize: 26, fontWeight: 'bold', color: '#007bff', marginBottom: 8, letterSpacing: 1 },
+  header: { marginBottom: 20, borderBottom: 1, borderBottomColor: '#007bff', paddingBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  headerLeft: { flex: 1 },
+  logo: { width: 150, marginBottom: 12 },
+  brandFallback: { fontSize: 26, fontWeight: 'bold', color: '#007bff', marginBottom: 8, letterSpacing: 1 },
   title: { fontSize: 14, fontWeight: 'bold', marginBottom: 5 },
   subtitle: { fontSize: 10, color: '#666' },
   section: { marginBottom: 15 },
@@ -30,7 +32,7 @@ const styles = StyleSheet.create({
   listText: { marginBottom: 4, lineHeight: 1.4 },
   footer: { marginTop: 30, borderTop: 1, borderTopColor: '#ccc', paddingTop: 15, fontSize: 10 },
   managerName: { fontWeight: 'bold', fontSize: 11, marginBottom: 3 },
-  disclaimer: { marginTop: 20, fontSize: 8, fontStyle: 'italic', color: '#999', textAlign: 'justify' }
+  disclaimer: { marginTop: 20, fontSize: 8, color: '#999', textAlign: 'justify' }
 });
 
 const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhone, managerEmail }) => {
@@ -42,15 +44,24 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
   const diff = Number(data.envelopeDiffAmount) || 0;
   const netSavings = savings - diff;
 
+  // Формируем абсолютную ссылку на логотип (защита от ошибок путей в PDF)
+  const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}/logo.jpg` : '';
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         
-        {/* ШАПКА БЕЗ КАРТИНКИ (Защита от падений) */}
+        {/* ШАПКА С ЛОГОТИПОМ */}
         <View style={styles.header}>
-          <Text style={styles.brandText}>ЕВРОАНГАР</Text>
-          <Text style={styles.title}>Коммерческое предложение № {kpNumber}</Text>
-          <Text style={styles.subtitle}>Дата формирования: {date}</Text>
+          <View style={styles.headerLeft}>
+            {logoUrl ? (
+              <Image src={logoUrl} style={styles.logo} />
+            ) : (
+              <Text style={styles.brandFallback}>ЕВРОАНГАР</Text>
+            )}
+            <Text style={styles.title}>Коммерческое предложение № {kpNumber}</Text>
+            <Text style={styles.subtitle}>Дата формирования: {date}</Text>
+          </View>
         </View>
 
         {/* 1. ПАРАМЕТРЫ ОБЪЕКТА */}
@@ -72,8 +83,8 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
           {/* Заголовки */}
           <View style={[styles.row, { backgroundColor: '#f8f9fa' }]}>
             <Text style={styles.cellHeader}>Параметр</Text>
-            {types.map(t => (
-              <Text key={t.id || Math.random()} style={t.isBase ? styles.cellBase : styles.cell}>
+            {types.map((t, index) => (
+              <Text key={index} style={t.isBase ? styles.cellBase : styles.cell}>
                 {t.name || '-'}{t.isBase ? ' (База)' : ''}
               </Text>
             ))}
@@ -82,40 +93,40 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
           {/* Масса Рам */}
           <View style={styles.row}>
             <Text style={styles.labelCell}>Рамы / Колонны</Text>
-            {types.map(t => {
+            {types.map((t, index) => {
               const d = !t.blocked ? t.calc() : null;
-              return <Text key={t.id || Math.random()} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${(d.frames / 1000).toFixed(2)} т` : '-'}</Text>;
+              return <Text key={index} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${(d.frames / 1000).toFixed(2)} т` : '-'}</Text>;
             })}
           </View>
 
           {/* Масса Прогонов */}
           <View style={styles.row}>
             <Text style={styles.labelCell}>Прогоны (Кровля+Стены)</Text>
-            {types.map(t => {
+            {types.map((t, index) => {
               const d = !t.blocked ? t.calc() : null;
-              return <Text key={t.id || Math.random()} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${(d.purlins / 1000).toFixed(2)} т` : '-'}</Text>;
+              return <Text key={index} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${(d.purlins / 1000).toFixed(2)} т` : '-'}</Text>;
             })}
           </View>
 
           {/* Стоимость Каркаса */}
           <View style={styles.row}>
             <Text style={styles.labelCell}>Металлокаркас (₽)</Text>
-            {types.map(t => {
+            {types.map((t, index) => {
               const d = !t.blocked ? t.calc() : null;
-              return <Text key={t.id || Math.random()} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${Math.round(d.metalCost || 0).toLocaleString('ru-RU')} ₽` : 'Неприменимо'}</Text>;
+              return <Text key={index} style={t.isBase ? styles.cellBase : styles.cell}>{d ? `${Math.round(d.metalCost || 0).toLocaleString('ru-RU')} ₽` : 'Неприменимо'}</Text>;
             })}
           </View>
 
           {/* ИТОГО */}
           <View style={[styles.row, { borderBottomWidth: 2, borderBottomColor: '#333' }]}>
             <Text style={[styles.labelCell, { fontSize: 10 }]}>ИТОГО ПО ЗДАНИЮ</Text>
-            {types.map(t => {
+            {types.map((t, index) => {
               const d = !t.blocked ? t.calc() : null;
               const envCost = Number(data.envelopeCost) || 0;
               const foundCost = Number(data.foundationCost) || 0;
               const totalAll = d ? (Number(d.metalCost) || 0) + envCost + foundCost : 0;
               return (
-                <Text key={t.id || Math.random()} style={[t.isBase ? styles.cellBase : styles.cell, { fontSize: 10 }]}>
+                <Text key={index} style={[t.isBase ? styles.cellBase : styles.cell, { fontSize: 10 }]}>
                   {d ? `${Math.round(totalAll).toLocaleString('ru-RU')} ₽` : '-'}
                 </Text>
               );
