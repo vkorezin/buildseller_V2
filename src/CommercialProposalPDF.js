@@ -1,10 +1,19 @@
 import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Font, Image } from '@react-pdf/renderer';
 
-// Регистрируем шрифт для кириллицы
+// РЕШЕНИЕ ПРОБЛЕМЫ №1: Регистрируем правильные шрифты Google (и обычный, и жирный)
 Font.register({
   family: 'Roboto',
-  src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-light-webfont.ttf',
+  fonts: [
+    {
+      src: 'https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Me5WZLCzYlKw.ttf',
+      fontWeight: 'normal',
+    },
+    {
+      src: 'https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc9.ttf',
+      fontWeight: 'bold',
+    },
+  ],
 });
 
 // Стили документа
@@ -12,7 +21,7 @@ const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Roboto', fontSize: 10, color: '#333' },
   header: { marginBottom: 20, borderBottom: 1, borderBottomColor: '#007bff', paddingBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   headerLeft: { flex: 1 },
-  logo: { width: 140, marginBottom: 10 }, // Размер логотипа
+  logo: { width: 140, marginBottom: 10 },
   brandFallback: { fontSize: 24, fontWeight: 'bold', color: '#007bff', marginBottom: 5 },
   title: { fontSize: 14, fontWeight: 'bold', marginBottom: 5 },
   subtitle: { fontSize: 10, color: '#666' },
@@ -39,6 +48,9 @@ const CommercialProposalPDF = ({ data, types, managerName, managerPhone, manager
   // Расчет экономии (Балка vs Ферма)
   const netSavings = data.savingsAmount - (data.envelopeDiffAmount || 0);
 
+  // РЕШЕНИЕ ПРОБЛЕМЫ №2: Формируем абсолютный URL для картинки
+  const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}/logo.jpg` : '';
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -46,8 +58,12 @@ const CommercialProposalPDF = ({ data, types, managerName, managerPhone, manager
         {/* ШАПКА */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            {/* Берем логотип из папки public */}
-            <Image src="/logo.png" style={styles.logo} />
+            {/* Если картинка почему-то не загрузится, генератор не упадет */}
+            {logoUrl ? (
+               <Image src={logoUrl} style={styles.logo} />
+            ) : (
+               <Text style={styles.brandFallback}>ЕВРОАНГАР</Text>
+            )}
             <Text style={styles.title}>Коммерческое предложение № {kpNumber}</Text>
             <Text style={styles.subtitle}>Дата формирования: {date}</Text>
           </View>
@@ -148,8 +164,8 @@ const CommercialProposalPDF = ({ data, types, managerName, managerPhone, manager
         {/* ПОДВАЛ (Менеджер) */}
         <View style={styles.footer}>
           <Text style={styles.managerName}>Ваш персональный менеджер:</Text>
-          <Text>{managerName || 'Иванов Иван Иванович'}</Text>
-          <Text>Телефон: {managerPhone || '+7 (999) 000-00-00'}</Text>
+          <Text>{managerName || 'Менеджер Проектов'}</Text>
+          <Text>Телефон: {managerPhone || '+7 (495) 000-00-00'}</Text>
           <Text>Email: {managerEmail || 'info@euroangar.ru'}</Text>
           
           <Text style={styles.disclaimer}>
