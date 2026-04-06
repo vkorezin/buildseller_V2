@@ -20,16 +20,20 @@ export default function QuickEstimatorResults({
   useSandwich,
   frameType,
   spanWidth = "18",
-  length = "48", // Добавлено для корректного отображения в PDF
+  length = "48", // Добавлено по умолчанию, если не передано
   height = "6",
-  snowLoad = "180", // Добавлено для корректного отображения в PDF
-  windLoad = "38", // Добавлено для корректного отображения в PDF
+  snowLoad = "180", // Добавлено по умолчанию, если не передано
+  windLoad = "38", // Добавлено по умолчанию, если не передано
   cranes = [],
   gkPrice = 140000,
   lstkPrice = 160000,
-  fasonkaPrice = 150000
+  fasonkaPrice = 150000,
+  managerName, // Передаем имя менеджера
+  managerPhone, // Передаем телефон менеджера
+  managerEmail // Передаем email менеджера
 }) {
   const [config, setConfig] = useState(DEFAULT_CONFIG);
+  const [showPdf, setShowPdf] = useState(false); // Состояние для отображения ссылки на скачивание PDF
 
   useEffect(() => {
     const saved = localStorage.getItem('euroangar_building_types_config');
@@ -344,29 +348,42 @@ export default function QuickEstimatorResults({
         </div>
       )}
 
-      <PDFDownloadLink 
-        document={
-          <CommercialProposalPDF 
-            data={{ 
-              spanWidth, length, height, snowLoad, windLoad, frameType,
-              craneInfo: estimation.craneInfo,
-              envelopeCost, foundationCost,
-              baseTiesKg,
-              savingsAmount: estimation.savingsAmount,
-              envelopeDiffAmount: estimation.envelopeDiffAmount
-            }}
-            types={types}
-          />
-        } 
-        fileName={`ЕВРОАНГАР_КП_${spanWidth}x${length}.pdf`}
-        style={{textDecoration: 'none'}}
-      >
-        {({ loading }) => (
-          <button style={{...styles.pdfBtn, opacity: loading ? 0.7 : 1}}>
-            {loading ? '⏳ Формирование PDF...' : '📄 Скачать КП в PDF'}
-          </button>
-        )}
-      </PDFDownloadLink>
+      {/* Безопасная кнопка генерации PDF */}
+      {!showPdf ? (
+        <button 
+          style={styles.pdfBtn} 
+          onClick={() => setShowPdf(true)}
+        >
+          📄 Подготовить КП в PDF
+        </button>
+      ) : (
+        <PDFDownloadLink 
+          document={
+            <CommercialProposalPDF 
+              data={{ 
+                spanWidth, length, height, snowLoad, windLoad, frameType,
+                craneInfo: estimation.craneInfo,
+                envelopeCost, foundationCost,
+                baseTiesKg,
+                savingsAmount: estimation.savingsAmount,
+                envelopeDiffAmount: estimation.envelopeDiffAmount
+              }}
+              types={types}
+              managerName={managerName} 
+              managerPhone={managerPhone} 
+              managerEmail={managerEmail}
+            />
+          } 
+          fileName={`ЕВРОАНГАР_КП_${spanWidth}x${length}.pdf`}
+          style={{textDecoration: 'none'}}
+        >
+          {({ loading, error }) => (
+            <button style={{...styles.pdfBtn, backgroundColor: error ? '#ffcdd2' : '#4caf50', color: '#fff'}}>
+              {loading ? '⏳ Формирование PDF...' : error ? '❌ Ошибка генерации' : '⬇️ Скачать готовый PDF'}
+            </button>
+          )}
+        </PDFDownloadLink>
+      )}
     </div>
   );
 }
