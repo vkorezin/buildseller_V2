@@ -31,7 +31,7 @@ export default function QuickEstimatorResults({
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [showPdf, setShowPdf] = useState(false);
 
-  // Состояния для данных специалиста с автоматическим чтением из памяти
+  // Считывание контактов менеджера из localStorage
   const [managerName, setManagerName] = useState(() => localStorage.getItem('euroangar_pdf_m_name') || "");
   const [managerPhone, setManagerPhone] = useState(() => localStorage.getItem('euroangar_pdf_m_phone') || "");
   const [managerEmail, setManagerEmail] = useState(() => localStorage.getItem('euroangar_pdf_m_email') || "");
@@ -43,7 +43,7 @@ export default function QuickEstimatorResults({
     }
   }, []);
 
-  // Сохраняем контакты менеджера при их изменении
+  // Синхронизация контактов менеджера
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_name', managerName); }, [managerName]);
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_phone', managerPhone); }, [managerPhone]);
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_email', managerEmail); }, [managerEmail]);
@@ -174,13 +174,16 @@ export default function QuickEstimatorResults({
     totalPriceVal: { fontSize: "1.4em", fontWeight: "bold", color: "#1b5e20" },
     envelopeWarning: { color: "#d9534f", fontWeight: "bold", marginTop: "15px", fontSize: "0.95em" },
     netSavingsCard: { backgroundColor: "#e8f5e9", border: "2px solid #4caf50", padding: "20px", borderRadius: "8px", textAlign: "center", marginTop: "20px" },
-    // Стили для формы ввода данных специалиста
     managerForm: { backgroundColor: "#f8f9fa", border: "1px solid #ccc", borderRadius: "8px", padding: "15px", marginTop: "25px" },
     formTitle: { margin: "0 0 12px 0", fontSize: "1.1em", color: "#333", fontWeight: "bold" },
     inputGroup: { display: "flex", gap: "10px", flexWrap: "wrap" },
     input: { flex: "1 1 30%", minWidth: "200px", padding: "10px", borderRadius: "4px", border: "1px solid #ccc", fontSize: "0.95em" },
-    pdfBtn: { display: "block", width: "100%", padding: "15px", marginTop: "15px", backgroundColor: "#ffc107", color: "#212529", border: "none", borderRadius: "8px", fontSize: "1.2em", fontWeight: "bold", cursor: "pointer", boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }
+    pdfBtn: { display: "block", width: "100%", padding: "15px", marginTop: "15px", backgroundColor: "#ffc107", color: "#212529", border: "none", borderRadius: "8px", fontSize: "1.2em", fontWeight: "bold", cursor: "pointer", boxShadow: "0 4px 6px rgba(0,0,0,0.1)" },
+    blockedValidationMsg: { backgroundColor: "#ffebee", color: "#c62828", border: "1px solid #ef9a9a", padding: "15px", borderRadius: "8px", textAlign: "center", marginTop: "15px", fontWeight: "bold" }
   };
+
+  // Вычисляем массив типов, у которых blocked === null
+  const visibleTypes = types.filter(t => !t.blocked);
 
   return (
     <div style={styles.container}>
@@ -210,14 +213,10 @@ export default function QuickEstimatorResults({
               ) : (
                 <>
                   <div style={styles.cardBody}>
-                    <div style={styles.dataRow}><span>Рамы/Колонны:</span><span style={styles.dataVal}>{(data.frames / 1000).toFixed(2)} т</span></div>
-                    <div style={styles.dataRow}><span>Прогоны:</span><span style={styles.dataVal}>{(data.purlins / 1000).toFixed(2)} т</span></div>
-                    <div style={styles.dataRow}><span>Связи:</span><span style={styles.dataVal}>{(baseTiesKg / 1000).toFixed(2)} т</span></div>
-                    {baseCraneKg > 0 && <div style={styles.dataRow}><span>Крановые пути:</span><span style={styles.dataVal}>{(baseCraneKg / 1000).toFixed(2)} т</span></div>}
-                    <div style={styles.divider}></div>
-                    <div style={styles.dataRow}><span>Металлокаркас:</span><span style={styles.dataVal}>{Math.round(data.metalCost).toLocaleString("ru-RU")} ₽</span></div>
-                    {useSandwich && <div style={styles.dataRow}><span>Обшивка:</span><span style={styles.dataVal}>{Math.round(envelopeCost).toLocaleString("ru-RU")} ₽</span></div>}
-                    <div style={styles.dataRow}><span>Фундамент:</span><span style={styles.dataVal}>{Math.round(foundationCost).toLocaleString("ru-RU")} ₽</span></div>
+                    {/* Коммерческая форма: Массы скрыты от клиента, выводятся только стоимости */}
+                    <div style={styles.dataRow}><span>Металлокаркас здания:</span><span style={styles.dataVal}>{Math.round(data.metalCost).toLocaleString("ru-RU")} ₽</span></div>
+                    {useSandwich && <div style={styles.dataRow}><span>Стеновое и кровельное ограждение:</span><span style={styles.dataVal}>{Math.round(envelopeCost).toLocaleString("ru-RU")} ₽</span></div>}
+                    <div style={styles.dataRow}><span>Опорные фундаменты:</span><span style={styles.dataVal}>{Math.round(foundationCost).toLocaleString("ru-RU")} ₽</span></div>
                   </div>
                   <div style={styles.totalPriceBox}>
                     <div style={styles.totalPriceLabel}>ИТОГО ПО ЗДАНИЮ</div>
@@ -255,38 +254,47 @@ export default function QuickEstimatorResults({
         </div>
       </div>
 
-      {!showPdf ? (
-        <button style={styles.pdfBtn} onClick={() => setShowPdf(true)}>📄 Подготовить КП в PDF</button>
+      {/* Защита от выгрузки при превышении перфорации */}
+      {estimation.isBlockedByValidation ? (
+        <div style={styles.blockedValidationMsg}>
+          ⚠️ Генерация коммерческого предложения невозможна: критическое превышение допустимой площади проемов стен (более 40%). Скоentryктируйте размеры или количество проемов.
+        </div>
       ) : (
-        <PDFDownloadLink 
-          document={
-            <CommercialProposalPDF 
-              data={{ 
-                spanWidth, length, height, snowLoad, windLoad, frameType,
-                craneInfo: estimation.craneInfo,
-                envelopeCost, foundationCost,
-                useSandwich,
-                wallCost: estimation.wallCost,
-                roofCost: estimation.roofCost,
-                trimCost: estimation.trimCost,
-                savingsAmount: estimation.savingsAmount,
-                envelopeDiffAmount: estimation.envelopeDiffAmount
-              }}
-              types={types}
-              managerName={managerName}
-              managerPhone={managerPhone}
-              managerEmail={managerEmail}
-            />
-          } 
-          fileName={`ЕВРОАНГАР_КП_${spanWidth}x${length}.pdf`}
-          style={{textDecoration: 'none'}}
-        >
-          {({ loading, error }) => (
-            <button style={{...styles.pdfBtn, backgroundColor: error ? '#ffcdd2' : '#4caf50', color: '#fff'}}>
-              {loading ? '⏳ Формирование PDF...' : error ? '❌ Ошибка генерации' : '⬇️ Скачать готовый PDF'}
-            </button>
+        <>
+          {!showPdf ? (
+            <button style={styles.pdfBtn} onClick={() => setShowPdf(true)}>📄 Подготовить КП в PDF</button>
+          ) : (
+            <PDFDownloadLink 
+              document={
+                <CommercialProposalPDF 
+                  data={{ 
+                    spanWidth, length, height, snowLoad, windLoad, frameType,
+                    craneInfo: estimation.craneInfo,
+                    envelopeCost, foundationCost,
+                    useSandwich,
+                    wallCost: estimation.wallCost,
+                    roofCost: estimation.roofCost,
+                    trimCost: estimation.trimCost,
+                    savingsAmount: estimation.savingsAmount,
+                    envelopeDiffAmount: estimation.envelopeDiffAmount
+                  }}
+                  visibleTypes={visibleTypes}
+                  managerName={managerName}
+                  managerPhone={managerPhone}
+                  managerEmail={managerEmail}
+                />
+              } 
+              fileName={`ЕВРОАНГАР_КП_${spanWidth}x${length}.pdf`}
+              style={{textDecoration: 'none'}}
+            >
+              {({ loading, error }) => (
+                <button style={{...styles.pdfBtn, backgroundColor: error ? '#ffcdd2' : '#4caf50', color: '#fff'}}>
+                  {loading ? '⏳ Формирование PDF...' : error ? '❌ Ошибка генерации' : '⬇️ Скачать готовый PDF'}
+                </button>
+              )}
+            </PDFDownloadLink>
           )}
-        </PDFDownloadLink>
+        </>
       )}
     </div>
   );
