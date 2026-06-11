@@ -138,7 +138,7 @@ export default function QuickEstimatorResults({
     {
       id: 4,
       name: "Тип 4: Классика",
-      desc: "Полностью черный металл",
+      desc: "Полностью черный metal",
       blocked: null,
       calc: () => {
         const roofPurlinsKg4 = roofPurlinsKg / (config.purlinType4 || 0.47);
@@ -180,6 +180,7 @@ export default function QuickEstimatorResults({
     blockedValidationMsg: { backgroundColor: "#ffebee", color: "#c62828", border: "1px solid #ef9a9a", padding: "15px", borderRadius: "8px", textAlign: "center", marginTop: "15px", fontWeight: "bold" }
   };
 
+  // Фильтруем типы, исключая неприменимые варианты
   const visibleTypes = types.filter(t => !t.blocked);
 
   return (
@@ -249,7 +250,6 @@ export default function QuickEstimatorResults({
         </div>
       </div>
 
-      {/* Теперь блокировка происходит только при физически невозможной перфорации > 100% */}
       {estimation.isBlockedByValidation ? (
         <div style={styles.blockedValidationMsg}>
           ⚠️ Ошибка: Суммарная площадь проемов физически превышает общую геометрическую площадь стен здания (более 100%). Пожалуйста, проверьте корректность введенных размеров.
@@ -273,7 +273,7 @@ export default function QuickEstimatorResults({
                     savingsAmount: estimation.savingsAmount,
                     envelopeDiffAmount: estimation.envelopeDiffAmount
                   }}
-                  visibleTypes={visibleTypes}
+                  types={visibleTypes} /* ИСПРАВЛЕНО: имя пропса приведено к жесткому ожиданию 'types' внутри PDF */
                   managerName={managerName}
                   managerPhone={managerPhone}
                   managerEmail={managerEmail}
