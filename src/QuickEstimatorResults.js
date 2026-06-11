@@ -21,8 +21,8 @@ export default function QuickEstimatorResults({
   spanWidth = "18",
   length = "48",
   height = "6",
-  snowLoad = "180",
-  windLoad = "38",
+  snowLoad = "210",
+  windLoad = "23",
   cranes = [],
   gkPrice = 140000,
   lstkPrice = 160000,
@@ -45,6 +45,17 @@ export default function QuickEstimatorResults({
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_name', managerName); }, [managerName]);
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_phone', managerPhone); }, [managerPhone]);
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_email', managerEmail); }, [managerEmail]);
+
+  // ХУК ДЛЯ ИСПРАВЛЕНИЯ КЭШИРОВАНИЯ PDF:
+  // При изменении любого входного параметра или данных менеджера мы сбрасываем showPdf в false.
+  // Это заставляет кнопку "Подготовить КП" появиться снова и гарантирует генерацию PDF с актуальными данными.
+  useEffect(() => {
+    setShowPdf(false);
+  }, [
+    spanWidth, length, height, snowLoad, windLoad, frameType, useSandwich, 
+    cranes, gkPrice, lstkPrice, fasonkaPrice, estimation,
+    managerName, managerPhone, managerEmail
+  ]);
 
   if (!estimation) return null;
 
@@ -180,7 +191,6 @@ export default function QuickEstimatorResults({
     blockedValidationMsg: { backgroundColor: "#ffebee", color: "#c62828", border: "1px solid #ef9a9a", padding: "15px", borderRadius: "8px", textAlign: "center", marginTop: "15px", fontWeight: "bold" }
   };
 
-  // Фильтруем типы, исключая неприменимые варианты
   const visibleTypes = types.filter(t => !t.blocked);
 
   return (
@@ -273,7 +283,7 @@ export default function QuickEstimatorResults({
                     savingsAmount: estimation.savingsAmount,
                     envelopeDiffAmount: estimation.envelopeDiffAmount
                   }}
-                  types={visibleTypes} /* ИСПРАВЛЕНО: имя пропса приведено к жесткому ожиданию 'types' внутри PDF */
+                  types={visibleTypes}
                   managerName={managerName}
                   managerPhone={managerPhone}
                   managerEmail={managerEmail}
