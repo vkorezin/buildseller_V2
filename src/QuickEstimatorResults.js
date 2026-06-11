@@ -21,8 +21,8 @@ export default function QuickEstimatorResults({
   spanWidth = "18",
   length = "48",
   height = "6",
-  snowLoad = "210",
-  windLoad = "23",
+  snowLoad = "180",
+  windLoad = "38",
   cranes = [],
   gkPrice = 140000,
   lstkPrice = 160000,
@@ -46,9 +46,7 @@ export default function QuickEstimatorResults({
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_phone', managerPhone); }, [managerPhone]);
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_email', managerEmail); }, [managerEmail]);
 
-  // ХУК ДЛЯ ИСПРАВЛЕНИЯ КЭШИРОВАНИЯ PDF:
-  // При изменении любого входного параметра или данных менеджера мы сбрасываем showPdf в false.
-  // Это заставляет кнопку "Подготовить КП" появиться снова и гарантирует генерацию PDF с актуальными данными.
+  // Сброс кэша PDF при изменении любых параметров калькулятора
   useEffect(() => {
     setShowPdf(false);
   }, [
@@ -149,7 +147,7 @@ export default function QuickEstimatorResults({
     {
       id: 4,
       name: "Тип 4: Классика",
-      desc: "Полностью черный metal",
+      desc: "Полностью черный металл",
       blocked: null,
       calc: () => {
         const roofPurlinsKg4 = roofPurlinsKg / (config.purlinType4 || 0.47);
@@ -175,6 +173,7 @@ export default function QuickEstimatorResults({
     cardBody: { padding: "15px", flexGrow: 1, display: "flex", flexDirection: "column", gap: "10px" },
     dataRow: { display: "flex", justifyContent: "space-between", fontSize: "0.9em", color: "#444" },
     dataVal: { fontWeight: "bold", color: "#222" },
+    techDataTitle: { fontSize: "0.8em", fontWeight: "bold", color: "#007bff", marginTop: "5px", textTransform: "uppercase" },
     divider: { height: "1px", backgroundColor: "#eee", margin: "5px 0" },
     blockedOverlay: { flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "20px", textAlign: "center", backgroundColor: "#fff5f5", color: "#d9534f" },
     blockedIcon: { fontSize: "2.5em", marginBottom: "10px" },
@@ -221,10 +220,28 @@ export default function QuickEstimatorResults({
               ) : (
                 <>
                   <div style={styles.cardBody}>
+                    {/* Коммерческие стоимостные показатели */}
                     <div style={styles.dataRow}><span>Металлокаркас здания:</span><span style={styles.dataVal}>{Math.round(data.metalCost).toLocaleString("ru-RU")} ₽</span></div>
                     {useSandwich && <div style={styles.dataRow}><span>Стеновое и кровельное ограждение:</span><span style={styles.dataVal}>{Math.round(envelopeCost).toLocaleString("ru-RU")} ₽</span></div>}
                     <div style={styles.dataRow}><span>Опорные фундаменты:</span><span style={styles.dataVal}>{Math.round(foundationCost).toLocaleString("ru-RU")} ₽</span></div>
+                    
+                    <div style={styles.divider}></div>
+                    
+                    {/* ВНУТРЕННИЕ ИНЖЕНЕРНЫЕ ДАННЫЕ (Выводятся ТОЛЬКО на экран, в PDF их не будет!) */}
+                    <div style={styles.techDataTitle}>📐 Спецификация масс и площадей:</div>
+                    <div style={styles.dataRow}><span>Рамы / Колонны:</span><span style={styles.dataVal}>{(data.frames / 1000).toFixed(2)} т</span></div>
+                    <div style={styles.dataRow}><span>Прогоны системы:</span><span style={styles.dataVal}>{(data.purlins / 1000).toFixed(2)} т</span></div>
+                    <div style={styles.dataRow}><span>Связевые панели:</span><span style={styles.dataVal}>{(baseTiesKg / 1000).toFixed(2)} т</span></div>
+                    {baseCraneKg > 0 && <div style={styles.dataRow}><span>Крановые пути:</span><span style={styles.dataVal}>{(baseCraneKg / 1000).toFixed(2)} т</span></div>}
+                    
+                    {useSandwich && (
+                      <>
+                        <div style={styles.dataRow}><span>Площадь стен (факт):</span><span style={styles.dataVal}>{estimation.wallAreaBox} м²</span></div>
+                        <div style={styles.dataRow}><span>Площадь кровли (факт):</span><span style={styles.dataVal}>{estimation.roofArea} м²</span></div>
+                      </>
+                    )}
                   </div>
+                  
                   <div style={styles.totalPriceBox}>
                     <div style={styles.totalPriceLabel}>ИТОГО ПО ЗДАНИЮ</div>
                     <div style={styles.totalPriceVal}>{Math.round(totalAll).toLocaleString("ru-RU")} ₽</div>
