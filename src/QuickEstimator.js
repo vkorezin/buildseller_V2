@@ -169,14 +169,14 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [cranes, setCranes] = useState([{ id: 0, cap: "0", type: "support" }]);
   const [frameType, setFrameType] = useState("beam");
 
-  // Таблицы баз
+  // Таблицы инженерных баз данных
   const [baseMatrix210, setBaseMatrix210] = useState(null);
   const [snowCoefficients, setSnowCoefficients] = useState(null);
   const [roofPurlins, setRoofPurlins] = useState(null);
   const [trussTable, setTrussTable] = useState(null);
   const [windCoefficients, setWindCoefficients] = useState(null);
 
-  // Состояния редакторов
+  // Состояния модальных окон/редакторов коэффициентов
   const [isBaseMatrixOpen, setIsBaseMatrixOpen] = useState(false);
   const [isSnowCoeffsOpen, setIsSnowCoeffsOpen] = useState(false);
   const [isPurlinsOpen, setIsPurlinsOpen] = useState(false);
@@ -184,7 +184,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [isWindCoeffsOpen, setIsWindCoeffsOpen] = useState(false);
   const [isBuildingTypesOpen, setIsBuildingTypesOpen] = useState(false);
 
-  // Единый массив проемов комплекса ЕВРОАНГАР (Старые стейты удалены)
+  // Единый массив динамических проемов (Старые ручные поля полностью удалены)
   const [aperturesList, setAperturesList] = useState([]); 
 
   const [strictFilter, setStrictFilter] = useState(true);
@@ -193,7 +193,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [panelModule, setPanelModule] = useState(1.0);
   const [panelStockLength, setPanelStockLength] = useState(6.0);
 
-  // Цены
+  // Ценовые коэффициенты коммерческого блока
   const [gkPrice, setGkPrice] = useState(DEFAULT_GK_PRICE);
   const [lstkPrice, setLstkPrice] = useState(DEFAULT_LSTK_PRICE);
   const [fasonkaPrice, setFasonkaPrice] = useState(DEFAULT_FASONKA_PRICE);
@@ -204,7 +204,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [concretePrice, setConcretePrice] = useState(DEFAULT_CONCRETE_PRICE);
   const [rebarPrice, setRebarPrice] = useState(DEFAULT_REBAR_PRICE);
 
-  // Загрузка таблиц
+  // Загрузка табличных справочников из localStorage или генерация дефолтных
   useEffect(() => {
     const savedBase = localStorage.getItem("baseMatrix210");
     setBaseMatrix210(
@@ -230,6 +230,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     );
   }, []);
 
+  // Синхронизация количества кранов с количеством пролетов здания
   useEffect(() => {
     const count = Math.max(1, Number(spansCount) || 1);
     setCranes((prev) => {
@@ -251,7 +252,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     setCranes(newCranes);
   };
 
-  // --- УПРАВЛЕНИЕ ДИНАМИЧЕСКИМИ ПРОЕМАМИ ---
+  // --- УПРАВЛЕНИЕ ДИНАМИЧЕСКИМИ ПРОЕМАМИ КОМПЛЕКСА ЕВРОАНГАР ---
   const addAperture = (type) => {
     const H_val = Number(height) || 0;
     const pMod_val = Number(panelModule) || 1.0;
@@ -313,6 +314,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
             updated.eTop = String((b + h).toFixed(2));
           }
         } else {
+          // Ворота и двери всегда принудительно фиксируются на отметке чистого пола (0.00)
           updated.eBot = "0.00";
           if (field === 'height') {
             updated.eTop = String(h.toFixed(2));
@@ -331,7 +333,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     setAperturesList(prev => prev.filter(ap => ap.id !== id));
   };
 
-  // Геометрический расчет площадей и валидация перфорации до 100%
+  // Геометрический расчет перфорации и контроль емкости проемов до 100%
   const validationMetrics = useMemo(() => {
     const W = Number(spanWidth) || 0;
     const N = cranes.length;
@@ -350,7 +352,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     });
 
     const perforationPercent = totalWallsGeomArea > 0 ? (totalAperturesArea / totalWallsGeomArea) * 100 : 0;
-    const isOverloaded = perforationPercent > 100.0;
+    const isOverloaded = perforationPercent > 100.0; // Блокировка только при физическом абсурде > 100%
 
     return {
       totalWallsGeomArea: totalWallsGeomArea.toFixed(1),
@@ -360,7 +362,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     };
   }, [spanWidth, cranes.length, length, height, aperturesList]);
 
-  // --------------------------
+  // -------------------------------------------------------------
 
   const dbAnalytics = useMemo(() => {
     if (!projectsDb || projectsDb.length === 0) return null;
@@ -397,7 +399,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     };
   }, [spanWidth, projectsDb, strictFilter, cranes, stories]);
 
-  // ГЛАВНЫЙ РАСЧЕТНЫЙ БЛОК ЕВРОАНГАР
+  // ГЛАВНЫЙ МАТЕМАТИЧЕСКИЙ БЛОК РАСЧЕТА ЕВРОАНГАР
   const estimation = useMemo(() => {
     if (
       !baseMatrix210 ||
@@ -633,7 +635,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const totalRoofPurlinsKg = totalPurlinsKg;
     totalPurlinsKg += wallPurlinsBaseKg; 
 
-    // Расчет проемов
+    // --- МАТЕМАТИЧЕСКИЙ РАСЧЕТ ПРОЕМА (Масса фахверка + Кратный вычет СП строго ВНИЗ) ---
     let aperturesFrameKg = 0;
     let aperturesDeductArea = 0;
     let physicalAperturesAreaTotal = 0;
@@ -648,8 +650,9 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       if (h_ap > 0 && L_ap > 0 && n > 0) {
         physicalAperturesAreaTotal += (h_ap * L_ap * n);
 
+        // 1. Конструктив фахверка. При eBot === 0.0 отменяем нижний ригель (перемычку)
         let lFrame = 0;
-        const horizLinesCount = (eBot === 0.0) ? 1 : 2; 
+        const horizLinesCount = (Math.abs(eBot) < 0.01) ? 1 : 2; 
         
         lFrame = (Math.ceil(L_ap / 6) * 6) * horizLinesCount + (2 * h_ap);
 
@@ -659,27 +662,34 @@ export default function QuickEstimator({ onBack, projectsDb }) {
           aperturesFrameKg += lFrame * 5.1 * 1.11 * n;
         }
 
+        // 2. Вычет площади сэндвич-панелей строго КРАТНО ВНИЗ (Math.floor)
         if (useSandwich) {
           if (layoutMode === "vertical") {
+            // Вертикальная раскладка: вычет целых панелей по ширине проема
             const w_panels = Math.floor(L_ap / pMod);
             aperturesDeductArea += w_panels * pMod * h_ap * n;
           } else {
+            // Горизонтальная раскладка: поштучный учет рядов
             const eps = 0.01;
             const eTopRem = eTop % pMod;
-            const hwRem = h_ap % pMod;
-            const isTopAligned = eTopRem < eps || (pMod - eTopRem) < eps;
-            const isHeightAligned = hwRem < eps || (pMod - hwRem) < eps;
+            const eBotRem = eBot % pMod;
 
-            if (isTopAligned && isHeightAligned) {
-              const h_panels = Math.floor(h_ap / pMod);
-              aperturesDeductArea += h_panels * pMod * L_ap * n;
+            const isTopAligned = eTopRem < eps || (pMod - eTopRem) < eps;
+            const isBotAligned = eBotRem < eps || (pMod - eBotRem) < eps;
+
+            if (isTopAligned || isBotAligned) {
+              const rowsCount = Math.floor(h_ap / pMod);
+              aperturesDeductArea += rowsCount * pMod * L_ap * n;
+            } else {
+              const rowsCount = Math.floor(h_ap / pMod);
+              aperturesDeductArea += rowsCount * pMod * L_ap * n;
             }
           }
         }
       }
     });
 
-    totalFrameKgRaw += aperturesFrameKg; 
+    totalFrameKgRaw += aperturesFrameKg; // Суммируем фахверк в массу рам здания
 
     const totalFrameKg = totalFrameKgRaw + totalPurlinsKg + totalTiesKg;
     const totalMetalKg = totalFrameKg + totalCraneSystemKg;
@@ -867,7 +877,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         <button style={styles.closeButton} onClick={onBack}>Закрыть</button>
       </div>
 
-      {/* Вызов дочерней формы без старых параметров площадей проемов */}
       <QuickEstimatorForm
         spanWidth={spanWidth}
         setSpanWidth={setSpanWidth}
@@ -959,6 +968,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
 
       <div style={styles.sectionTitle}>3. Модуль инженерных проемов комплекса ЕВРОАНГАР</div>
       
+      {/* Живой информер контроля перфорации до 100% */}
       <div style={{
         ...styles.validationBox,
         backgroundColor: Number(validationMetrics.perforationPercent) > 70.0 ? "#fff3e0" : "#f1f8e9",
@@ -1052,6 +1062,14 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         lstkPrice={lstkPrice}
         fasonkaPrice={fasonkaPrice}
       />
+
+      {/* Встроенные модули управления справочниками и коэффициентами баз */}
+      <BaseMatrix210Editor isOpen={isBaseMatrixOpen} onClose={() => setIsBaseMatrixOpen(false)} onSave={setBaseMatrix210} />
+      <SnowCoefficientsEditor isOpen={isSnowCoeffsOpen} onClose={() => setIsSnowCoeffsOpen(false)} onSave={setSnowCoefficients} />
+      <WindCoefficientsEditor isOpen={isWindCoeffsOpen} onClose={() => setIsWindCoeffsOpen(false)} onSave={setWindCoefficients} />
+      <RoofPurlinsEditor isOpen={isPurlinsOpen} onClose={() => setIsPurlinsOpen(false)} onSave={setRoofPurlins} />
+      <TrussEfficiencyEditor isOpen={isTrussEditorOpen} onClose={() => setIsTrussEditorOpen(false)} onSave={setTrussTable} />
+      {isBuildingTypesOpen && <BuildingTypesEditor onClose={() => setIsBuildingTypesOpen(false)} />}
     </div>
   );
 }
