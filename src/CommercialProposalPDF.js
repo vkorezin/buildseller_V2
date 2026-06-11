@@ -11,7 +11,7 @@ Font.register({
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Roboto', fontSize: 10, color: '#333' },
-  header: { marginBottom: 20, borderBottom: 1, borderBottomColor: '#007bff', paddingBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  header: { marginBottom: 20, borderBottomWidth: 1, borderBottomColor: '#007bff', paddingBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   headerLeft: { flex: 1 },
   logo: { width: 150, marginBottom: 12 },
   brandFallback: { fontSize: 26, fontWeight: 'bold', color: '#007bff', marginBottom: 8, letterSpacing: 1 },
@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
   analyticsBox: { backgroundColor: '#e8f5e9', padding: 10, borderRadius: 4, marginTop: 10, borderLeftWidth: 3, borderLeftColor: '#4caf50' },
   analyticsText: { color: '#2e7d32', fontSize: 11, fontWeight: 'bold' },
   analyticsSub: { color: '#555', fontSize: 8, marginTop: 4 },
-  footer: { marginTop: 30, borderTop: 1, borderTopColor: '#ccc', paddingTop: 15, fontSize: 10 },
+  footer: { marginTop: 30, borderTopWidth: 1, borderTopColor: '#ccc', paddingTop: 15, fontSize: 10 },
   managerName: { fontWeight: 'bold', fontSize: 11, marginBottom: 3 },
   disclaimer: { marginTop: 20, fontSize: 8, color: '#999', textAlign: 'justify' }
 });
@@ -41,10 +41,10 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
 
   const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}/logo.jpg` : '';
 
-  // ТРЕБОВАНИЕ 1: Фильтруем типы, оставляем только доступные (не заблокированные)
+  // Фильтруем типы, оставляем только доступные (не заблокированные)
   const visibleTypes = types.filter(t => !t.blocked);
   
-  // Рассчитываем динамическую ширину колонок в таблице в зависимости от их количества
+  // Рассчитываем динамическую ширину колонок таблицы в зависимости от их фактического количества
   const labelCellWidth = '31%';
   const valueCellWidth = visibleTypes.length > 0 ? `${69 / visibleTypes.length}%` : '69%';
 
@@ -52,7 +52,7 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
     <Document>
       <Page size="A4" style={styles.page}>
         
-        {/* ШАПКА */}
+        {/* ШАПКА ДОКУМЕНТА */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             {logoUrl ? <Image src={logoUrl} style={styles.logo} /> : <Text style={styles.brandFallback}>ЕВРОАНГАР</Text>}
@@ -73,7 +73,7 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
         {/* 2. СРАВНИТЕЛЬНАЯ МАТРИЦА СТОИМОСТИ */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>2. СРАВНЕНИЕ ВАРИАНТОВ ИСПОЛНЕНИЯ</Text>
-          <Text style={{ fontSize: 9, marginBottom: 8, color: '#555' }}>
+          <Text style={{ fontSize: 9, marginBottom: 8, color: '#555', lineHeight: 1.3 }}>
             Мы предлагаем оптимальные варианты реализации вашего проекта. Вариант ЕВРОАНГАР (База) обеспечивает наилучшие прочностные и стоимостные показатели за счет гибридной технологии.
           </Text>
 
@@ -81,20 +81,19 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
           <View style={[styles.row, { backgroundColor: '#f8f9fa' }]}>
             <Text style={{ width: labelCellWidth, fontWeight: 'bold', fontSize: 9 }}>Вариант каркаса</Text>
             {visibleTypes.map((t, index) => (
-              <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 9, fontWeight: 'bold', backgroundColor: t.isBase ? '#e8f4fd' : 'transparent', paddingVertical: t.isBase ? 4 : 0 }}>
+              <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 9, fontWeight: 'bold', backgroundColor: t.isBase ? '#e8f4fd' : '#ffffff', paddingVertical: t.isBase ? 4 : 0 }}>
                 {t.name || '-'}{t.isBase ? ' (База)' : ''}
               </Text>
             ))}
           </View>
           
-          {/* ТРЕБОВАНИЕ 3: Строки массы удалены! Оставляем только стоимости */}
           {/* Стоимость Каркаса */}
           <View style={styles.row}>
             <Text style={{ width: labelCellWidth, fontSize: 9, fontWeight: 'bold' }}>Металлокаркас (₽)</Text>
             {visibleTypes.map((t, index) => {
               const d = t.calc();
               return (
-                <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 9, backgroundColor: t.isBase ? '#e8f4fd' : 'transparent', paddingVertical: t.isBase ? 4 : 0 }}>
+                <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 9, backgroundColor: t.isBase ? '#e8f4fd' : '#ffffff', paddingVertical: t.isBase ? 4 : 0 }}>
                   {Math.round(d.metalCost || 0).toLocaleString('ru-RU')} ₽
                 </Text>
               );
@@ -106,7 +105,7 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
             <View style={styles.row}>
               <Text style={{ width: labelCellWidth, fontSize: 9, fontWeight: 'bold' }}>Обшивка (Сэндвич-панели) (₽)</Text>
               {visibleTypes.map((t, index) => (
-                <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 9, backgroundColor: t.isBase ? '#e8f4fd' : 'transparent', paddingVertical: t.isBase ? 4 : 0 }}>
+                <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 9, backgroundColor: t.isBase ? '#e8f4fd' : '#ffffff', paddingVertical: t.isBase ? 4 : 0 }}>
                   {Math.round(data.envelopeCost || 0).toLocaleString('ru-RU')} ₽
                 </Text>
               ))}
@@ -118,7 +117,7 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
             <View style={styles.row}>
               <Text style={{ width: labelCellWidth, fontSize: 9, fontWeight: 'bold' }}>Фундамент (Справочно) (₽)</Text>
               {visibleTypes.map((t, index) => (
-                <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 9, backgroundColor: t.isBase ? '#e8f4fd' : 'transparent', paddingVertical: t.isBase ? 4 : 0 }}>
+                <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 9, backgroundColor: t.isBase ? '#e8f4fd' : '#ffffff', paddingVertical: t.isBase ? 4 : 0 }}>
                   {Math.round(data.foundationCost || 0).toLocaleString('ru-RU')} ₽
                 </Text>
               ))}
@@ -142,7 +141,7 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
           </View>
         </View>
 
-        {/* 3. ДЕТАЛИЗАЦИЯ КОМПЛЕКТАЦИИ (Только стоимости, без площадей и объемов!) */}
+        {/* 3. ПОЯСНЕНИЯ К СТОИМОСТИ СМЕТНЫХ РАЗДЕЛОВ */}
         {(data.useSandwich || data.foundationCost > 0) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>3. ПОЯСНЕНИЯ К СТОИМОСТИ СМЕТНЫХ РАЗДЕЛОВ</Text>
@@ -179,7 +178,7 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
           </View>
         )}
 
-        {/* 5. УСЛОВИЯ */}
+        {/* 5. УСЛОВИЯ ПОСТАВКИ */}
         <View style={[styles.section, { marginTop: 15 }]}>
           <Text style={styles.sectionTitle}>5. СРОКИ И КОММЕРЧЕСКИЕ УСЛОВИЯ</Text>
           <Text style={styles.listText}>• Срок поставки: Период отгрузки первой технологической партии конструкций на площадку — 43 рабочих дня.</Text>
@@ -187,12 +186,12 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
           <Text style={styles.listText}>• Налоговый режим: Все цены сформированы и указаны с учетом НДС 22%.</Text>
         </View>
 
-        {/* ТРЕБОВАНИЕ 2: ДИНАМИЧЕСКИЙ ПОДВАЛ С ДАННЫМИ МЕНЕДЖЕРА */}
+        {/* ПОДВАЛ МЕНЕДЖЕРА */}
         <View style={styles.footer}>
           <Text style={styles.managerName}>Коммерческое предложение подготовил специалист:</Text>
-          <Text>ФИО: {managerName || '________________________________________'}</Text>
-          <Text>Телефон: {managerPhone || '____________________'}</Text>
-          {managerEmail ? <Text>Email: {managerEmail}</Text> : null}
+          <Text style={{ marginBottom: 2 }}>ФИО: {managerName || '________________________________________'}</Text>
+          <Text style={{ marginBottom: 2 }}>Телефон: {managerPhone || '____________________'}</Text>
+          {managerEmail ? <Text style={{ marginBottom: 2 }}>Email: {managerEmail}</Text> : null}
           
           <Text style={styles.disclaimer}>
             Данное технико-коммерческое предложение носит исключительно индикативный (ознакомительный) характер, основано на предварительных экспресс-расчетах параметров здания и не является публичной офертой. Полная юридическая и техническая гарантия стоимости формируется исключительно по итогам разработки стадии КМ.
