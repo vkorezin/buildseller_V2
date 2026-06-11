@@ -47,23 +47,32 @@ export default function QuickEstimatorResults({
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_phone', managerPhone); }, [managerPhone]);
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_email', managerEmail); }, [managerEmail]);
 
-  // Смягчили защиту: теперь белый экран полностью исключен
+  // Защита от падения: если объекта нет, просто не рендерим ничего, но не падаем
   if (!estimation) return null;
 
-  const W = Number(spanWidth);
-  const H = Number(height);
-  const L = Number(length);
-  const pGk = Number(gkPrice);
-  const pLstk = Number(lstkPrice);
-  const pFas = Number(fasonkaPrice);
+  // Если ядро зафиксировало перегрузку проемами — выводим сообщение об ошибке прямо здесь, красиво
+  if (estimation.isOverloaded) {
+    return (
+      <div style={{ backgroundColor: "#f8d7da", color: "#721c24", padding: "15px", borderRadius: "8px", border: "1px solid #f5c6cb", marginTop: "20px", fontWeight: "bold", textAlign: "center" }}>
+        🚫 ОШИБКА: Суммарная площадь проемов превышает общую площадь стен здания! Уменьшите габариты или количество ворот/окон.
+      </div>
+    );
+  }
 
-  const hasAnyCrane = cranes.some(c => Number(c.cap) > 0);
-  const hasSuspensionCrane = cranes.some(c => Number(c.cap) > 0 && c.type === "suspension");
+  const W = Number(spanWidth) || 18;
+  const H = Number(height) || 6;
+  const L = Number(length) || 48;
+  const pGk = Number(gkPrice) || 140000;
+  const pLstk = Number(lstkPrice) || 160000;
+  const pFas = Number(fasonkaPrice) || 150000;
 
-  // Безопасное извлечение масс с защитой от NaN
-  const baseFramesKg = parseFloat(estimation.framesWeight || 0) * 1000;
+  const hasAnyCrane = Array.isArray(cranes) && cranes.some(c => Number(c?.cap) > 0);
+  const hasSuspensionCrane = Array.isArray(cranes) && cranes.some(c => Number(c?.cap) > 0 && c?.type === "suspension");
+
+  // Безопасное приведение типов с защитой от пустых строк
+  const baseFramesKg = (parseFloat(estimation.framesWeight) || 0) * 1000;
   const baseTiesKg = Number(estimation.baseTiesKg) || 0;
-  const baseCraneKg = estimation.craneSystemWeight ? parseFloat(estimation.craneSystemWeight) * 1000 : 0;
+  const baseCraneKg = estimation.craneSystemWeight ? (parseFloat(estimation.craneSystemWeight) * 1000) : 0;
 
   const roofPurlinsKg = Number(estimation.roofPurlinsKg) || 0;
   const wLen = Number(estimation.wallPurlinsLength) || 0;
@@ -167,7 +176,7 @@ export default function QuickEstimatorResults({
         {types.map(t => {
           const isBase = t.isBase;
           const data = !t.blocked ? t.calc() : null;
-          const totalAll = data ? (data.metalCost + envelopeCost + foundationCost) : 0;
+          const totalAll = data ? (Number(data.metalCost || 0) + envelopeCost + foundationCost) : 0;
 
           return (
             <div key={t.id} style={{...styles.card, ...(isBase ? styles.cardBase : {})}}>
@@ -184,7 +193,7 @@ export default function QuickEstimatorResults({
               ) : (
                 <>
                   <div style={styles.cardBody}>
-                    <div style={styles.dataRow}><span>Металлокаркас:</span><span style={styles.dataVal}>{Math.round(data.metalCost || 0).toLocaleString("ru-RU")} ₽</span></div>
+                    <div style={styles.dataRow}><span>Металлокаркас:</span><span style={styles.dataVal}>{Math.round(data?.metalCost || 0).toLocaleString("ru-RU")} ₽</span></div>
                     {useSandwich && <div style={styles.dataRow}><span>Обшивка стен/кровли:</span><span style={styles.dataVal}>{Math.round(envelopeCost).toLocaleString("ru-RU")} ₽</span></div>}
                     <div style={styles.dataRow}><span>Фундамент (справочно):</span><span style={styles.dataVal}>{Math.round(foundationCost).toLocaleString("ru-RU")} ₽</span></div>
                     <div style={styles.divider}></div>
