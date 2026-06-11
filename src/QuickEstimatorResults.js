@@ -47,8 +47,8 @@ export default function QuickEstimatorResults({
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_phone', managerPhone); }, [managerPhone]);
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_email', managerEmail); }, [managerEmail]);
 
-  // Защита от падения, если объект расчетов еще не готов
-  if (!estimation || estimation.isOverloaded) return null;
+  // Смягчили защиту: теперь белый экран полностью исключен
+  if (!estimation) return null;
 
   const W = Number(spanWidth);
   const H = Number(height);
@@ -60,7 +60,7 @@ export default function QuickEstimatorResults({
   const hasAnyCrane = cranes.some(c => Number(c.cap) > 0);
   const hasSuspensionCrane = cranes.some(c => Number(c.cap) > 0 && c.type === "suspension");
 
-  // Извлекаем базовые массы (обрамления окон/ворот уже внутри framesWeight на уровне ядра)
+  // Безопасное извлечение масс с защитой от NaN
   const baseFramesKg = parseFloat(estimation.framesWeight || 0) * 1000;
   const baseTiesKg = Number(estimation.baseTiesKg) || 0;
   const baseCraneKg = estimation.craneSystemWeight ? parseFloat(estimation.craneSystemWeight) * 1000 : 0;
@@ -184,11 +184,11 @@ export default function QuickEstimatorResults({
               ) : (
                 <>
                   <div style={styles.cardBody}>
-                    <div style={styles.dataRow}><span>Металлокаркас:</span><span style={styles.dataVal}>{Math.round(data.metalCost).toLocaleString("ru-RU")} ₽</span></div>
+                    <div style={styles.dataRow}><span>Металлокаркас:</span><span style={styles.dataVal}>{Math.round(data.metalCost || 0).toLocaleString("ru-RU")} ₽</span></div>
                     {useSandwich && <div style={styles.dataRow}><span>Обшивка стен/кровли:</span><span style={styles.dataVal}>{Math.round(envelopeCost).toLocaleString("ru-RU")} ₽</span></div>}
                     <div style={styles.dataRow}><span>Фундамент (справочно):</span><span style={styles.dataVal}>{Math.round(foundationCost).toLocaleString("ru-RU")} ₽</span></div>
                     <div style={styles.divider}></div>
-                    <div style={{...styles.dataRow, fontSize: "0.8em", color: "#666"}}><span>Учтено проемов:</span><span>{estimation.openingsArea} м²</span></div>
+                    <div style={{...styles.dataRow, fontSize: "0.8em", color: "#666"}}><span>Учтено проемов:</span><span>{estimation.openingsArea || 0} м²</span></div>
                   </div>
                   <div style={styles.totalPriceBox}>
                     <div style={{fontSize: "0.8em", color: "#2e7d32"}}>ИТОГО ПО ОБЪЕКТУ</div>
@@ -219,10 +219,10 @@ export default function QuickEstimatorResults({
             <CommercialProposalPDF 
               data={{ 
                 spanWidth, length, height, snowLoad, windLoad, frameType,
-                craneInfo: estimation.craneInfo,
+                craneInfo: estimation.craneInfo || "",
                 envelopeCost, foundationCost, useSandwich,
-                wallCost: estimation.wallCost, roofCost: estimation.roofCost, trimCost: estimation.trimCost,
-                savingsAmount: estimation.savingsAmount, openingsArea: estimation.openingsArea
+                wallCost: estimation.wallCost || 0, roofCost: estimation.roofCost || 0, trimCost: estimation.trimCost || 0,
+                savingsAmount: estimation.savingsAmount || 0, openingsArea: estimation.openingsArea || 0
               }}
               types={types} managerName={managerName} managerPhone={managerPhone} managerEmail={managerEmail}
             />
