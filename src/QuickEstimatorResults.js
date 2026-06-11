@@ -31,7 +31,6 @@ export default function QuickEstimatorResults({
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [showPdf, setShowPdf] = useState(false);
 
-  // Считывание контактов менеджера из localStorage
   const [managerName, setManagerName] = useState(() => localStorage.getItem('euroangar_pdf_m_name') || "");
   const [managerPhone, setManagerPhone] = useState(() => localStorage.getItem('euroangar_pdf_m_phone') || "");
   const [managerEmail, setManagerEmail] = useState(() => localStorage.getItem('euroangar_pdf_m_email') || "");
@@ -43,7 +42,6 @@ export default function QuickEstimatorResults({
     }
   }, []);
 
-  // Синхронизация контактов менеджера
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_name', managerName); }, [managerName]);
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_phone', managerPhone); }, [managerPhone]);
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_email', managerEmail); }, [managerEmail]);
@@ -182,7 +180,6 @@ export default function QuickEstimatorResults({
     blockedValidationMsg: { backgroundColor: "#ffebee", color: "#c62828", border: "1px solid #ef9a9a", padding: "15px", borderRadius: "8px", textAlign: "center", marginTop: "15px", fontWeight: "bold" }
   };
 
-  // Вычисляем массив типов, у которых blocked === null
   const visibleTypes = types.filter(t => !t.blocked);
 
   return (
@@ -213,7 +210,6 @@ export default function QuickEstimatorResults({
               ) : (
                 <>
                   <div style={styles.cardBody}>
-                    {/* Коммерческая форма: Массы скрыты от клиента, выводятся только стоимости */}
                     <div style={styles.dataRow}><span>Металлокаркас здания:</span><span style={styles.dataVal}>{Math.round(data.metalCost).toLocaleString("ru-RU")} ₽</span></div>
                     {useSandwich && <div style={styles.dataRow}><span>Стеновое и кровельное ограждение:</span><span style={styles.dataVal}>{Math.round(envelopeCost).toLocaleString("ru-RU")} ₽</span></div>}
                     <div style={styles.dataRow}><span>Опорные фундаменты:</span><span style={styles.dataVal}>{Math.round(foundationCost).toLocaleString("ru-RU")} ₽</span></div>
@@ -244,7 +240,6 @@ export default function QuickEstimatorResults({
         </div>
       )}
 
-      {/* ФОРМА ДЛЯ ВВОДА ДАННЫХ СПЕЦИАЛИСТА */}
       <div style={styles.managerForm}>
         <div style={styles.formTitle}>👤 Данные специалиста для выгрузки КП:</div>
         <div style={styles.inputGroup}>
@@ -254,10 +249,10 @@ export default function QuickEstimatorResults({
         </div>
       </div>
 
-      {/* Защита от выгрузки при превышении перфорации */}
+      {/* Теперь блокировка происходит только при физически невозможной перфорации > 100% */}
       {estimation.isBlockedByValidation ? (
         <div style={styles.blockedValidationMsg}>
-          ⚠️ Генерация коммерческого предложения невозможна: критическое превышение допустимой площади проемов стен (более 40%). Скоentryктируйте размеры или количество проемов.
+          ⚠️ Ошибка: Суммарная площадь проемов физически превышает общую геометрическую площадь стен здания (более 100%). Пожалуйста, проверьте корректность введенных размеров.
         </div>
       ) : (
         <>
