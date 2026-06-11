@@ -184,11 +184,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [isWindCoeffsOpen, setIsWindCoeffsOpen] = useState(false);
   const [isBuildingTypesOpen, setIsBuildingTypesOpen] = useState(false);
 
-  // Старые площади (сохранены для обратной совместимости с QuickEstimatorForm)
-  const [gatesArea, setGatesArea] = useState("0");
-  const [windowsArea, setWindowsArea] = useState("0"); 
-
-  // Единый детализированный массив проемов (Окна, Ворота, Двери)
+  // Единый массив проемов комплекса ЕВРОАНГАР (Старые стейты удалены)
   const [aperturesList, setAperturesList] = useState([]); 
 
   const [strictFilter, setStrictFilter] = useState(true);
@@ -197,7 +193,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [panelModule, setPanelModule] = useState(1.0);
   const [panelStockLength, setPanelStockLength] = useState(6.0);
 
-  // Новые цены
+  // Цены
   const [gkPrice, setGkPrice] = useState(DEFAULT_GK_PRICE);
   const [lstkPrice, setLstkPrice] = useState(DEFAULT_LSTK_PRICE);
   const [fasonkaPrice, setFasonkaPrice] = useState(DEFAULT_FASONKA_PRICE);
@@ -317,7 +313,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
             updated.eTop = String((b + h).toFixed(2));
           }
         } else {
-          // Ворота и двери всегда привязаны к отметке чистый пол (0.0)
           updated.eBot = "0.00";
           if (field === 'height') {
             updated.eTop = String(h.toFixed(2));
@@ -336,7 +331,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     setAperturesList(prev => prev.filter(ap => ap.id !== id));
   };
 
-  // Геометрический расчет площадей и валидация перегрузки
+  // Геометрический расчет площадей и валидация перфорации до 100%
   const validationMetrics = useMemo(() => {
     const W = Number(spanWidth) || 0;
     const N = cranes.length;
@@ -354,13 +349,8 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       totalAperturesArea += (w * h * c);
     });
 
-    // Учитываем старые поля, если они заполнены, а список пуст
-    if (aperturesList.length === 0) {
-      totalAperturesArea = (Number(gatesArea) || 0) + (Number(windowsArea) || 0);
-    }
-
     const perforationPercent = totalWallsGeomArea > 0 ? (totalAperturesArea / totalWallsGeomArea) * 100 : 0;
-    const isOverloaded = perforationPercent > 40.0;
+    const isOverloaded = perforationPercent > 100.0;
 
     return {
       totalWallsGeomArea: totalWallsGeomArea.toFixed(1),
@@ -368,7 +358,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       perforationPercent: perforationPercent.toFixed(1),
       isOverloaded
     };
-  }, [spanWidth, cranes.length, length, height, aperturesList, gatesArea, windowsArea]);
+  }, [spanWidth, cranes.length, length, height, aperturesList]);
 
   // --------------------------
 
@@ -643,7 +633,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const totalRoofPurlinsKg = totalPurlinsKg;
     totalPurlinsKg += wallPurlinsBaseKg; 
 
-    // --- РАСЧЕТ ИНЖЕНЕРНЫХ ПРОЕМОВ (Фахверк + Кратный вычет СП) ---
+    // Расчет проемов
     let aperturesFrameKg = 0;
     let aperturesDeductArea = 0;
     let physicalAperturesAreaTotal = 0;
@@ -658,9 +648,8 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       if (h_ap > 0 && L_ap > 0 && n > 0) {
         physicalAperturesAreaTotal += (h_ap * L_ap * n);
 
-        // 1. Конструктив фахверка. Для ворот/дверей на отметке 0.0 отменяем нижний ригель.
         let lFrame = 0;
-        const horizLinesCount = (eBot === 0.0) ? 1 : 2; // Если на полу — перемычка только сверху
+        const horizLinesCount = (eBot === 0.0) ? 1 : 2; 
         
         lFrame = (Math.ceil(L_ap / 6) * 6) * horizLinesCount + (2 * h_ap);
 
@@ -670,14 +659,11 @@ export default function QuickEstimator({ onBack, projectsDb }) {
           aperturesFrameKg += lFrame * 5.1 * 1.11 * n;
         }
 
-        // 2. Вычет площади сэндвич-панелей
         if (useSandwich) {
           if (layoutMode === "vertical") {
-            // Вычет кратно целым вертикальным панелям по ширине
             const w_panels = Math.floor(L_ap / pMod);
             aperturesDeductArea += w_panels * pMod * h_ap * n;
           } else {
-            // Горизонтальная раскладка: Проверка попадания в горизонтальные швы
             const eps = 0.01;
             const eTopRem = eTop % pMod;
             const hwRem = h_ap % pMod;
@@ -688,19 +674,12 @@ export default function QuickEstimator({ onBack, projectsDb }) {
               const h_panels = Math.floor(h_ap / pMod);
               aperturesDeductArea += h_panels * pMod * L_ap * n;
             }
-            // Если соосности нет — aperturesDeductArea не увеличивается (строители заплатят за обрезь)
           }
         }
       }
     });
 
-    // Обратная совместимость (если список пуст, берем старые примитивные площади)
-    if (aperturesList.length === 0) {
-      physicalAperturesAreaTotal = (Number(gatesArea) || 0) + (Number(windowsArea) || 0);
-      aperturesDeductArea = physicalAperturesAreaTotal;
-    }
-
-    totalFrameKgRaw += aperturesFrameKg; // Интегрируем массу фахверка в несущий каркас
+    totalFrameKgRaw += aperturesFrameKg; 
 
     const totalFrameKg = totalFrameKgRaw + totalPurlinsKg + totalTiesKg;
     const totalMetalKg = totalFrameKg + totalCraneSystemKg;
@@ -731,8 +710,8 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       roofCost = 0,
       trimCost = 0;
     let wallAreaBox = 0,
-      gableAreaTotal = 0,
-      roofAreaTotal = 0;
+      textGableArea = 0,
+      textRoofArea = 0;
     let envelopeDiffAmount = 0;
 
     if (useSandwich) {
@@ -763,7 +742,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
           wAreaBox = Math.ceil(perimeter / pMod) * pMod * wallH;
         }
 
-        // Вычитаем из площади стен строго рассчитанную величину кратного раскроя СП
         wAreaBox = Math.max(0, wAreaBox - aperturesDeductArea);
 
         let singleEndArea = 0;
@@ -794,8 +772,8 @@ export default function QuickEstimator({ onBack, projectsDb }) {
 
       const actualEnv = calcEnvelope(fullWallHeight);
       wallAreaBox = actualEnv.wAreaBox;
-      gableAreaTotal = actualEnv.gArea;
-      roofAreaTotal = actualEnv.rArea;
+      textGableArea = actualEnv.gArea;
+      textRoofArea = actualEnv.rArea;
       wallCost = actualEnv.wCost;
       roofCost = actualEnv.rCost;
       trimCost = actualEnv.tCost;
@@ -856,22 +834,22 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       rebarWeight,
       foundationCost,
       wallAreaBox: wallAreaBox.toFixed(1),
-      gableAreaTotal: gableAreaTotal.toFixed(1),
-      roofArea: roofAreaTotal.toFixed(1),
+      gableAreaTotal: textGableArea.toFixed(1),
+      roofArea: textRoofArea.toFixed(1),
       openingsArea: physicalAperturesAreaTotal.toFixed(1),
       wallCost: Math.round(wallCost),
       roofCost: Math.round(roofCost),
       trimCost: Math.round(trimCost),
       totalCost: Math.round(totalCostNum).toLocaleString("ru-RU"),
-      isBlockedByValidation: validationMetrics.isOverloaded
+      isBlockedByValidation: validationMetrics.isOverloaded 
     };
   }, [
     spanWidth, spansCount, length, height, slope, roofShape, snowLoad,
     windLoad, cranes, stories, gkPrice, lstkPrice, fasonkaPrice,
     useSandwich, layoutMode, panelModule, panelStockLength, wallPrice,
     roofPrice, trimPrice, frameType, baseMatrix210, snowCoefficients,
-    roofPurlins, trussTable, windCoefficients, gatesArea, windowsArea,
-    aperturesList, concretePrice, rebarPrice, validationMetrics.isOverloaded
+    roofPurlins, trussTable, windCoefficients, aperturesList, 
+    concretePrice, rebarPrice, validationMetrics.isOverloaded
   ]);
 
   return (
@@ -889,6 +867,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         <button style={styles.closeButton} onClick={onBack}>Закрыть</button>
       </div>
 
+      {/* Вызов дочерней формы без старых параметров площадей проемов */}
       <QuickEstimatorForm
         spanWidth={spanWidth}
         setSpanWidth={setSpanWidth}
@@ -913,10 +892,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         cranes={cranes}
         updateCrane={updateCrane}
         currentDiscount={estimation.currentDiscount}
-        gatesArea={gatesArea}
-        setGatesArea={setGatesArea}
-        windowsArea={windowsArea}
-        setWindowsArea={setWindowsArea}
       />
 
       <QuickEstimatorAnalytics dbAnalytics={dbAnalytics} />
@@ -982,23 +957,21 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         </div>
       )}
 
-      {/* ИНЖЕНЕРНАЯ СЕКЦИЯ: ДЕТАЛИЗАЦИЯ И УПРАВЛЕНИЕ ВСЕМИ ПРОЕМАМИ */}
       <div style={styles.sectionTitle}>3. Модуль инженерных проемов комплекса ЕВРОАНГАР</div>
       
-      {/* Живая валидация площади перфорации */}
       <div style={{
         ...styles.validationBox,
-        backgroundColor: validationMetrics.isOverloaded ? "#fff5f5" : "#f1f8e9",
-        border: validationMetrics.isOverloaded ? "2px solid #d9534f" : "1px solid #8bc34a",
-        color: validationMetrics.isOverloaded ? "#b71c1c" : "#33691e"
+        backgroundColor: Number(validationMetrics.perforationPercent) > 70.0 ? "#fff3e0" : "#f1f8e9",
+        border: Number(validationMetrics.perforationPercent) > 70.0 ? "2px solid #ff9800" : "1px solid #8bc34a",
+        color: Number(validationMetrics.perforationPercent) > 70.0 ? "#e65100" : "#33691e"
       }}>
         📐 <b>Контроль пространственной жесткости стен:</b><br />
         • Геометрическая площадь стен: <b>{validationMetrics.totalWallsGeomArea} м²</b><br />
         • Суммарная площадь всех проемов: <b>{validationMetrics.totalAperturesArea} м²</b><br />
-        • Процент перфорации каркаса: <b style={{ fontSize: "1.1em" }}>{validationMetrics.perforationPercent}%</b> из допустимых <b>40%</b>.<br />
-        {validationMetrics.isOverloaded && (
+        • Процент перфорации каркаса: <b style={{ fontSize: "1.1em" }}>{validationMetrics.perforationPercent}%</b> из доступных <b>100%</b>.<br />
+        {Number(validationMetrics.perforationPercent) > 70.0 && (
           <span style={{ display: "block", marginTop: "5px", fontWeight: "bold" }}>
-            ❌ ВНИМАНИЕ: Превышен лимит перфорации! Конструкция перегружена проемами. Выгрузка КП заблокирована!
+            ⚠️ ВНИМАНИЕ: Очень высокий процент проемов. Потребуется дополнительное усиление продольных связевых блоков каркаса.
           </span>
         )}
       </div>
@@ -1066,10 +1039,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         <button style={{...styles.addBtn, backgroundColor: "#007bff"}} onClick={() => addAperture("window")}>+ Окно</button>
         <button style={{...styles.addBtn, backgroundColor: "#fd7e14"}} onClick={() => addAperture("gate")}>+ Ворота</button>
         <button style={{...styles.addBtn, backgroundColor: "#6f42c1"}} onClick={() => addAperture("door")}>+ Дверь</button>
-      </div>
-
-      <div style={{fontSize: '0.85em', color: '#666', marginTop: '-10px', marginBottom: "20px"}}>
-        * Окна автоматически привязываются с отступом 0.5м от верха колонны. Ворота и двери жестко садятся на отметку 0.00 с автоматическим исключением нижнего ригеля фахверка. Точный вычет площади сэндвича активируется только при условии соосности проемов со швами панелей.
       </div>
 
       <QuickEstimatorResults
