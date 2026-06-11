@@ -31,7 +31,7 @@ export default function QuickEstimatorResults({
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [showPdf, setShowPdf] = useState(false);
 
-  // Состояния для данных специалиста с автоматическим чтением из памяти
+  // Данные менеджера с сохранением в память браузера
   const [managerName, setManagerName] = useState(() => localStorage.getItem('euroangar_pdf_m_name') || "");
   const [managerPhone, setManagerPhone] = useState(() => localStorage.getItem('euroangar_pdf_m_phone') || "");
   const [managerEmail, setManagerEmail] = useState(() => localStorage.getItem('euroangar_pdf_m_email') || "");
@@ -43,15 +43,16 @@ export default function QuickEstimatorResults({
     }
   }, []);
 
-  // Сохраняем контакты менеджера при их изменении
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_name', managerName); }, [managerName]);
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_phone', managerPhone); }, [managerPhone]);
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_email', managerEmail); }, [managerEmail]);
 
-  if (!estimation) return null;
+  // Защита от падения, если объект расчетов еще не готов
+  if (!estimation || estimation.isOverloaded) return null;
 
   const W = Number(spanWidth);
   const H = Number(height);
+  const L = Number(length);
   const pGk = Number(gkPrice);
   const pLstk = Number(lstkPrice);
   const pFas = Number(fasonkaPrice);
@@ -59,19 +60,20 @@ export default function QuickEstimatorResults({
   const hasAnyCrane = cranes.some(c => Number(c.cap) > 0);
   const hasSuspensionCrane = cranes.some(c => Number(c.cap) > 0 && c.type === "suspension");
 
+  // Извлекаем базовые массы (обрамления окон/ворот уже внутри framesWeight на уровне ядра)
   const baseFramesKg = parseFloat(estimation.framesWeight || 0) * 1000;
-  const baseTiesKg = parseFloat(estimation.tiesWeight || 0) * 1000;
+  const baseTiesKg = Number(estimation.baseTiesKg) || 0;
   const baseCraneKg = estimation.craneSystemWeight ? parseFloat(estimation.craneSystemWeight) * 1000 : 0;
 
-  const roofPurlinsKg = estimation.roofPurlinsKg || 0;
-  const wLen = estimation.wallPurlinsLength || 0;
+  const roofPurlinsKg = Number(estimation.roofPurlinsKg) || 0;
+  const wLen = Number(estimation.wallPurlinsLength) || 0;
 
   const wpLstk = wLen * 5.1;
   const wpFas = wLen * 1.275;
   const wpGk = wLen * (10.84 * 1.05);
 
-  const envelopeCost = useSandwich ? ((estimation.wallCost || 0) + (estimation.roofCost || 0) + (estimation.trimCost || 0)) : 0;
-  const foundationCost = estimation.foundationCost || 0;
+  const envelopeCost = useSandwich ? (Number(estimation.wallCost || 0) + Number(estimation.roofCost || 0) + Number(estimation.trimCost || 0)) : 0;
+  const foundationCost = Number(estimation.foundationCost) || 0;
 
   let cW = 1.0;
   if (W <= 12) cW = config.coeff12m;
@@ -103,124 +105,93 @@ export default function QuickEstimatorResults({
 
   const types = [
     {
-      id: 1,
-      name: "Тип 1: ЛСТК",
-      desc: "Оцинкованные рамы",
-      blocked: blockType1,
+      id: 1, name: "Тип 1: ЛСТК", desc: "Оцинкованные рамы", blocked: blockType1,
       calc: () => {
         const purlinsCost = (roofPurlinsKg / 1000 * pLstk) + (wpLstk / 1000 * pLstk) + (wpFas / 1000 * pFas);
         const metalCost = ((framesKg1 * (1 - config.type1Fastener)) / 1000 * pLstk) + ((framesKg1 * config.type1Fastener) / 1000 * pFas) + (baseTiesKg / 1000 * pFas) + purlinsCost;
-        return { frames: framesKg1, purlins: roofPurlinsKg + wpLstk + wpFas, metalCost };
+        return { metalCost };
       }
     },
     {
-      id: 2,
-      name: "Тип 2: Комби",
-      desc: "ГК колонны + ЛСТК кровля",
-      blocked: blockType2,
+      id: 2, name: "Тип 2: Комби", desc: "ГК колонны + ЛСТК кровля", blocked: blockType2,
       calc: () => {
         const framesKg2 = hasAnyCrane ? (baseFramesKg / (config.craneType2 || 1)) : ((framesKg1 + baseFramesKg) / 2);
         const purlinsCost = (roofPurlinsKg / 1000 * pLstk) + (wpLstk / 1000 * pLstk) + (wpFas / 1000 * pFas);
         const metalCost = ((framesKg2 * config.type2Gk) / 1000 * pGk) + ((framesKg2 * (1 - config.type2Gk)) / 1000 * pLstk) + (baseTiesKg / 1000 * pGk) + (baseCraneKg / 1000 * pGk) + purlinsCost;
-        return { frames: framesKg2, purlins: roofPurlinsKg + wpLstk + wpFas, metalCost };
+        return { metalCost };
       }
     },
     {
-      id: 3,
-      name: "Тип 3: ЕВРОАНГАР",
-      desc: "ГК каркас + ЛСТК прогоны",
-      blocked: null,
-      isBase: true,
+      id: 3, name: "Тип 3: ЕВРОАНГАР", desc: "ГК каркас + ЛСТК прогоны", blocked: null, isBase: true,
       calc: () => {
         const purlinsCost = (roofPurlinsKg / 1000 * pLstk) + (wpLstk / 1000 * pLstk) + (wpFas / 1000 * pFas);
         const metalCost = (baseFramesKg / 1000 * pGk) + (baseTiesKg / 1000 * pGk) + (baseCraneKg / 1000 * pGk) + purlinsCost;
-        return { frames: baseFramesKg, purlins: roofPurlinsKg + wpLstk + wpFas, metalCost };
+        return { metalCost };
       }
     },
     {
-      id: 4,
-      name: "Тип 4: Классика",
-      desc: "Полностью черный металл",
-      blocked: null,
+      id: 4, name: "Тип 4: Классика", desc: "Полностью черный металл", blocked: null,
       calc: () => {
         const roofPurlinsKg4 = roofPurlinsKg / (config.purlinType4 || 0.47);
         const purlinsCost = (roofPurlinsKg4 / 1000 * pGk) + (wpGk / 1000 * pGk);
         const metalCost = (baseFramesKg / 1000 * pGk) + (baseTiesKg / 1000 * pGk) + (baseCraneKg / 1000 * pGk) + purlinsCost;
-        return { frames: baseFramesKg, purlins: roofPurlinsKg4 + wpGk, metalCost };
+        return { metalCost };
       }
     }
   ];
 
-  const netSavings = estimation.savingsAmount - (estimation.envelopeDiffAmount || 0);
-
   const styles = {
-    container: { marginTop: "30px", fontFamily: "Arial, sans-serif" },
-    mainTitle: { fontSize: "1.4em", fontWeight: "bold", color: "#2c3e50", marginBottom: "20px" },
+    container: { marginTop: "20px", fontFamily: "Arial, sans-serif" },
     matrixContainer: { display: "flex", gap: "15px", overflowX: "auto", paddingBottom: "15px" },
-    card: { flex: "1 1 23%", minWidth: "260px", backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #e0e0e0", display: "flex", flexDirection: "column", boxShadow: "0 5px 15px rgba(0,0,0,0.05)", position: "relative", overflow: "hidden" },
-    cardBase: { borderColor: "#007bff", borderWidth: "2px", boxShadow: "0 8px 20px rgba(0,123,255,0.15)" },
-    baseBadge: { backgroundColor: "#007bff", color: "#fff", fontSize: "0.75em", padding: "4px 12px", borderRadius: "0 0 0 8px", position: "absolute", top: 0, right: 0, fontWeight: "bold" },
-    cardHeader: { padding: "15px", borderBottom: "1px solid #eee", backgroundColor: "#f8f9fa" },
-    typeName: { margin: 0, fontSize: "1.1em", fontWeight: "bold", color: "#333" },
-    typeDesc: { margin: "5px 0 0 0", fontSize: "0.85em", color: "#666", minHeight: "34px" },
-    cardBody: { padding: "15px", flexGrow: 1, display: "flex", flexDirection: "column", gap: "10px" },
-    dataRow: { display: "flex", justifyContent: "space-between", fontSize: "0.9em", color: "#444" },
-    dataVal: { fontWeight: "bold", color: "#222" },
-    divider: { height: "1px", backgroundColor: "#eee", margin: "5px 0" },
-    blockedOverlay: { flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "20px", textAlign: "center", backgroundColor: "#fff5f5", color: "#d9534f" },
-    blockedIcon: { fontSize: "2.5em", marginBottom: "10px" },
-    totalPriceBox: { backgroundColor: "#e8f5e9", padding: "15px", textAlign: "center", borderTop: "1px solid #c8e6c9" },
-    totalPriceLabel: { fontSize: "0.85em", color: "#2e7d32", marginBottom: "5px", fontWeight: "bold" },
-    totalPriceVal: { fontSize: "1.4em", fontWeight: "bold", color: "#1b5e20" },
-    envelopeWarning: { color: "#d9534f", fontWeight: "bold", marginTop: "15px", fontSize: "0.95em" },
-    netSavingsCard: { backgroundColor: "#e8f5e9", border: "2px solid #4caf50", padding: "20px", borderRadius: "8px", textAlign: "center", marginTop: "20px" },
-    // Стили для формы ввода данных специалиста
-    managerForm: { backgroundColor: "#f8f9fa", border: "1px solid #ccc", borderRadius: "8px", padding: "15px", marginTop: "25px" },
-    formTitle: { margin: "0 0 12px 0", fontSize: "1.1em", color: "#333", fontWeight: "bold" },
-    inputGroup: { display: "flex", gap: "10px", flexWrap: "wrap" },
-    input: { flex: "1 1 30%", minWidth: "200px", padding: "10px", borderRadius: "4px", border: "1px solid #ccc", fontSize: "0.95em" },
-    pdfBtn: { display: "block", width: "100%", padding: "15px", marginTop: "15px", backgroundColor: "#ffc107", color: "#212529", border: "none", borderRadius: "8px", fontSize: "1.2em", fontWeight: "bold", cursor: "pointer", boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }
+    card: { flex: "1 1 23%", minWidth: "250px", backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #e0e0e0", display: "flex", flexDirection: "column", boxShadow: "0 5px 15px rgba(0,0,0,0.05)", position: "relative", overflow: "hidden" },
+    cardBase: { borderColor: "#007bff", borderWidth: "2px" },
+    baseBadge: { backgroundColor: "#007bff", color: "#fff", fontSize: "0.75em", padding: "4px 12px", position: "absolute", top: 0, right: 0, fontWeight: "bold", borderRadius: "0 0 0 8px" },
+    cardHeader: { padding: "12px", backgroundColor: "#f8f9fa", borderBottom: "1px solid #eee" },
+    typeName: { margin: 0, fontSize: "1em", fontWeight: "bold" },
+    cardBody: { padding: "12px", flexGrow: 1, display: "flex", flexDirection: "column", gap: "8px", fontSize: "0.9em" },
+    dataRow: { display: "flex", justifyContent: "space-between" },
+    dataVal: { fontWeight: "bold" },
+    divider: { height: "1px", backgroundColor: "#eee", margin: "4px 0" },
+    blockedOverlay: { flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "15px", textAlign: "center", backgroundColor: "#fff5f5", color: "#d9534f" },
+    totalPriceBox: { backgroundColor: "#e8f5e9", padding: "12px", textAlign: "center", borderTop: "1px solid #c8e6c9" },
+    totalPriceVal: { fontSize: "1.3em", fontWeight: "bold", color: "#1b5e20" },
+    managerForm: { backgroundColor: "#f8f9fa", border: "1px solid #ccc", borderRadius: "8px", padding: "15px", marginTop: "20px" },
+    inputGroup: { display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "10px" },
+    input: { flex: "1 1 30%", minWidth: "180px", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" },
+    pdfBtn: { display: "block", width: "100%", padding: "14px", marginTop: "15px", backgroundColor: "#ffc107", color: "#212529", border: "none", borderRadius: "8px", fontSize: "1.1em", fontWeight: "bold", cursor: "pointer" }
   };
 
   return (
     <div style={styles.container}>
-      <h3 style={styles.mainTitle}>📊 Сравнительная матрица типов зданий ЕВРОАНГАР</h3>
-      
       <div style={styles.matrixContainer}>
         {types.map(t => {
           const isBase = t.isBase;
           const data = !t.blocked ? t.calc() : null;
-          let totalAll = 0;
-          if (data) { totalAll = data.metalCost + envelopeCost + foundationCost; }
+          const totalAll = data ? (data.metalCost + envelopeCost + foundationCost) : 0;
 
           return (
             <div key={t.id} style={{...styles.card, ...(isBase ? styles.cardBase : {})}}>
-              {isBase && <div style={styles.baseBadge}>БАЗОВЫЙ</div>}
+              {isBase && <div style={styles.baseBadge}>БАЗА</div>}
               <div style={styles.cardHeader}>
                 <h4 style={styles.typeName}>{t.name}</h4>
-                <p style={styles.typeDesc}>{t.desc}</p>
               </div>
 
               {t.blocked ? (
                 <div style={styles.blockedOverlay}>
-                  <div style={styles.blockedIcon}>🚫</div>
                   <div><b>Неприменимо:</b></div>
-                  <div style={{fontSize: "0.9em", marginTop: "5px"}}>{t.blocked}</div>
+                  <div style={{fontSize: "0.85em", marginTop: "5px"}}>{t.blocked}</div>
                 </div>
               ) : (
                 <>
                   <div style={styles.cardBody}>
-                    <div style={styles.dataRow}><span>Рамы/Колонны:</span><span style={styles.dataVal}>{(data.frames / 1000).toFixed(2)} т</span></div>
-                    <div style={styles.dataRow}><span>Прогоны:</span><span style={styles.dataVal}>{(data.purlins / 1000).toFixed(2)} т</span></div>
-                    <div style={styles.dataRow}><span>Связи:</span><span style={styles.dataVal}>{(baseTiesKg / 1000).toFixed(2)} т</span></div>
-                    {baseCraneKg > 0 && <div style={styles.dataRow}><span>Крановые пути:</span><span style={styles.dataVal}>{(baseCraneKg / 1000).toFixed(2)} т</span></div>}
-                    <div style={styles.divider}></div>
                     <div style={styles.dataRow}><span>Металлокаркас:</span><span style={styles.dataVal}>{Math.round(data.metalCost).toLocaleString("ru-RU")} ₽</span></div>
-                    {useSandwich && <div style={styles.dataRow}><span>Обшивка:</span><span style={styles.dataVal}>{Math.round(envelopeCost).toLocaleString("ru-RU")} ₽</span></div>}
-                    <div style={styles.dataRow}><span>Фундамент:</span><span style={styles.dataVal}>{Math.round(foundationCost).toLocaleString("ru-RU")} ₽</span></div>
+                    {useSandwich && <div style={styles.dataRow}><span>Обшивка стен/кровли:</span><span style={styles.dataVal}>{Math.round(envelopeCost).toLocaleString("ru-RU")} ₽</span></div>}
+                    <div style={styles.dataRow}><span>Фундамент (справочно):</span><span style={styles.dataVal}>{Math.round(foundationCost).toLocaleString("ru-RU")} ₽</span></div>
+                    <div style={styles.divider}></div>
+                    <div style={{...styles.dataRow, fontSize: "0.8em", color: "#666"}}><span>Учтено проемов:</span><span>{estimation.openingsArea} м²</span></div>
                   </div>
                   <div style={styles.totalPriceBox}>
-                    <div style={styles.totalPriceLabel}>ИТОГО ПО ЗДАНИЮ</div>
+                    <div style={{fontSize: "0.8em", color: "#2e7d32"}}>ИТОГО ПО ОБЪЕКТУ</div>
                     <div style={styles.totalPriceVal}>{Math.round(totalAll).toLocaleString("ru-RU")} ₽</div>
                   </div>
                 </>
@@ -230,24 +201,9 @@ export default function QuickEstimatorResults({
         })}
       </div>
 
-      {frameType === "truss" && estimation.envelopeDiffAmount > 0 && (
-        <div style={styles.envelopeWarning}>
-          * Внимание: Применена ферма. Удорожание сэндвич-панелей (из-за высоты фермы) составило +{estimation.envelopeDiffAmount.toLocaleString("ru-RU")} ₽. Эта сумма уже учтена в итогах выше.
-        </div>
-      )}
-
-      {frameType === "truss" && netSavings > 0 && (
-        <div style={styles.netSavingsCard}>
-          <div style={{ color: "#2e7d32", fontSize: "1.3em", fontWeight: "bold", marginBottom: "5px" }}>
-            💎 ВЫГОДА ОТ ЗАМЕНЫ БАЛКИ НА ФЕРМУ: {netSavings.toLocaleString("ru-RU")} ₽
-          </div>
-          <div style={{ color: "#555", fontSize: "0.95em" }}>Сравнение произведено по Базовому типу</div>
-        </div>
-      )}
-
-      {/* ФОРМА ДЛЯ ВВОДА ДАННЫХ СПЕЦИАЛИСТА */}
+      {/* ФОРМА МЕНЕДЖЕРА */}
       <div style={styles.managerForm}>
-        <div style={styles.formTitle}>👤 Данные специалиста для выгрузки КП:</div>
+        <div style={{fontWeight: "bold"}}>👤 Данные специалиста ЕВРОАНГАР для выгрузки КП:</div>
         <div style={styles.inputGroup}>
           <input type="text" placeholder="ФИО специалиста" value={managerName} onChange={(e) => setManagerName(e.target.value)} style={styles.input} />
           <input type="text" placeholder="Телефон" value={managerPhone} onChange={(e) => setManagerPhone(e.target.value)} style={styles.input} />
@@ -264,22 +220,14 @@ export default function QuickEstimatorResults({
               data={{ 
                 spanWidth, length, height, snowLoad, windLoad, frameType,
                 craneInfo: estimation.craneInfo,
-                envelopeCost, foundationCost,
-                useSandwich,
-                wallCost: estimation.wallCost,
-                roofCost: estimation.roofCost,
-                trimCost: estimation.trimCost,
-                savingsAmount: estimation.savingsAmount,
-                envelopeDiffAmount: estimation.envelopeDiffAmount
+                envelopeCost, foundationCost, useSandwich,
+                wallCost: estimation.wallCost, roofCost: estimation.roofCost, trimCost: estimation.trimCost,
+                savingsAmount: estimation.savingsAmount, openingsArea: estimation.openingsArea
               }}
-              types={types}
-              managerName={managerName}
-              managerPhone={managerPhone}
-              managerEmail={managerEmail}
+              types={types} managerName={managerName} managerPhone={managerPhone} managerEmail={managerEmail}
             />
           } 
-          fileName={`ЕВРОАНГАР_КП_${spanWidth}x${length}.pdf`}
-          style={{textDecoration: 'none'}}
+          fileName={`ЕВРОАНГАР_КП_${spanWidth}x${length}.pdf`} style={{textDecoration: 'none'}}
         >
           {({ loading, error }) => (
             <button style={{...styles.pdfBtn, backgroundColor: error ? '#ffcdd2' : '#4caf50', color: '#fff'}}>
