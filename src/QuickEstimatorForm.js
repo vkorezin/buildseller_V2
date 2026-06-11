@@ -86,10 +86,6 @@ export default function QuickEstimatorForm({
   cranes,
   updateCrane,
   currentDiscount,
-  gatesArea,
-  setGatesArea,
-  windowsArea,
-  setWindowsArea,
 }) {
   const H = Number(height) || 0;
   const showHeightWarning = H > 20;
@@ -285,28 +281,6 @@ export default function QuickEstimatorForm({
                 type="number"
                 value={slope}
                 onChange={(e) => setSlope(e.target.value)}
-              />
-            </div>
-            <div style={styles.field}>
-              <label style={styles.label}>Площадь ворот (м²)</label>
-              <input
-                style={styles.input}
-                type="number"
-                step="0.1"
-                value={gatesArea}
-                onChange={(e) => setGatesArea(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-            <div style={styles.field}>
-              <label style={styles.label}>Площадь окон (м²)</label>
-              <input
-                style={styles.input}
-                type="number"
-                step="0.1"
-                value={windowsArea}
-                onChange={(e) => setWindowsArea(e.target.value)}
-                placeholder="0"
               />
             </div>
           </div>
