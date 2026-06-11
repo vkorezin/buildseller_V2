@@ -116,8 +116,7 @@ const styles = {
     fontSize: "1em",
     backgroundColor: "#fff",
   },
-  // Новые стили для блока окон
-  windowRow: {
+  apertureRow: {
     display: "flex",
     gap: "10px",
     alignItems: "flex-end",
@@ -130,13 +129,13 @@ const styles = {
   },
   addBtn: {
     padding: "10px 15px",
-    backgroundColor: "#28a745",
     color: "#fff",
     border: "none",
     borderRadius: "5px",
     cursor: "pointer",
     fontWeight: "bold",
-    marginTop: "10px"
+    marginTop: "10px",
+    marginRight: "10px"
   },
   delBtn: {
     padding: "8px 12px",
@@ -146,6 +145,14 @@ const styles = {
     borderRadius: "5px",
     cursor: "pointer",
     height: "36px"
+  },
+  validationBox: {
+    padding: "15px",
+    borderRadius: "8px",
+    marginTop: "15px",
+    marginBottom: "15px",
+    fontSize: "0.95em",
+    lineHeight: "1.4"
   }
 };
 
@@ -177,9 +184,12 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [isWindCoeffsOpen, setIsWindCoeffsOpen] = useState(false);
   const [isBuildingTypesOpen, setIsBuildingTypesOpen] = useState(false);
 
+  // Старые площади (сохранены для обратной совместимости с QuickEstimatorForm)
   const [gatesArea, setGatesArea] = useState("0");
-  const [windowsArea, setWindowsArea] = useState("0"); // Оставлено для совместимости старой формы
-  const [windowsList, setWindowsList] = useState([]); // Новое состояние для детализированных окон
+  const [windowsArea, setWindowsArea] = useState("0"); 
+
+  // Единый детализированный массив проемов (Окна, Ворота, Двери)
+  const [aperturesList, setAperturesList] = useState([]); 
 
   const [strictFilter, setStrictFilter] = useState(true);
   const [useSandwich, setUseSandwich] = useState(true);
@@ -245,57 +255,121 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     setCranes(newCranes);
   };
 
-  // --- УПРАВЛЕНИЕ ОКНАМИ ---
-  const addWindow = () => {
+  // --- УПРАВЛЕНИЕ ДИНАМИЧЕСКИМИ ПРОЕМАМИ ---
+  const addAperture = (type) => {
     const H_val = Number(height) || 0;
     const pMod_val = Number(panelModule) || 1.0;
-    const h_w_default = 1.2;
-
-    let eTop = 0;
-    if (layoutMode === "vertical") {
-      eTop = H_val - 0.5;
-    } else {
-      eTop = Math.floor((H_val - 0.5) / pMod_val) * pMod_val;
-    }
     
-    setWindowsList([
-      ...windowsList,
+    let defaultWidth = "3.0";
+    let defaultHeight = "1.2";
+    let eTop = 0;
+    let eBot = 0;
+
+    if (type === "window") {
+      defaultWidth = "3.0";
+      defaultHeight = "1.2";
+      if (layoutMode === "vertical") {
+        eTop = H_val - 0.5;
+      } else {
+        eTop = Math.floor((H_val - 0.5) / pMod_val) * pMod_val;
+      }
+      eBot = eTop - Number(defaultHeight);
+    } else if (type === "gate") {
+      defaultWidth = "4.0";
+      defaultHeight = "4.2";
+      eTop = Number(defaultHeight);
+      eBot = 0.0;
+    } else if (type === "door") {
+      defaultWidth = "1.0";
+      defaultHeight = "2.1";
+      eTop = Number(defaultHeight);
+      eBot = 0.0;
+    }
+
+    setAperturesList([
+      ...aperturesList,
       {
-        id: Date.now(),
-        width: "3.0",
-        height: String(h_w_default),
+        id: Date.now() + Math.random(),
+        type,
+        width: defaultWidth,
+        height: defaultHeight,
         count: "1",
         eTop: String(Math.max(0, eTop).toFixed(2)),
-        eBot: String(Math.max(0, eTop - h_w_default).toFixed(2)),
-        profile: "СтОП"
+        eBot: String(Math.max(0, eBot).toFixed(2)),
+        profile: type === "window" ? "СтОП" : "ГКП"
       }
     ]);
   };
 
-  const updateWindow = (id, field, value) => {
-    setWindowsList(prev => prev.map(w => {
-      if (w.id === id) {
-        const updated = { ...w, [field]: value };
-        // Автоматический пересчет высот
-        if (field === 'height' || field === 'eTop') {
-          const t = Number(updated.eTop) || 0;
-          const h = Number(updated.height) || 0;
-          updated.eBot = String(Math.max(0, t - h).toFixed(2));
-        }
-        if (field === 'eBot') {
-          const b = Number(updated.eBot) || 0;
-          const h = Number(updated.height) || 0;
-          updated.eTop = String((b + h).toFixed(2));
+  const updateAperture = (id, field, value) => {
+    setAperturesList(prev => prev.map(ap => {
+      if (ap.id === id) {
+        const updated = { ...ap, [field]: value };
+        const h = Number(updated.height) || 0;
+
+        if (ap.type === "window") {
+          if (field === 'height' || field === 'eTop') {
+            const t = Number(updated.eTop) || 0;
+            updated.eBot = String(Math.max(0, t - h).toFixed(2));
+          }
+          if (field === 'eBot') {
+            const b = Number(updated.eBot) || 0;
+            updated.eTop = String((b + h).toFixed(2));
+          }
+        } else {
+          // Ворота и двери всегда привязаны к отметке чистый пол (0.0)
+          updated.eBot = "0.00";
+          if (field === 'height') {
+            updated.eTop = String(h.toFixed(2));
+          }
+          if (field === 'eTop') {
+            updated.height = value;
+          }
         }
         return updated;
       }
-      return w;
+      return ap;
     }));
   };
 
-  const removeWindow = (id) => {
-    setWindowsList(prev => prev.filter(w => w.id !== id));
+  const removeAperture = (id) => {
+    setAperturesList(prev => prev.filter(ap => ap.id !== id));
   };
+
+  // Геометрический расчет площадей и валидация перегрузки
+  const validationMetrics = useMemo(() => {
+    const W = Number(spanWidth) || 0;
+    const N = cranes.length;
+    const L = Number(length) || 0;
+    const H = Number(height) || 0;
+    const totalWidth = W * N;
+
+    const totalWallsGeomArea = 2 * (totalWidth + L) * H;
+    
+    let totalAperturesArea = 0;
+    aperturesList.forEach(ap => {
+      const w = Number(ap.width) || 0;
+      const h = Number(ap.height) || 0;
+      const c = Number(ap.count) || 0;
+      totalAperturesArea += (w * h * c);
+    });
+
+    // Учитываем старые поля, если они заполнены, а список пуст
+    if (aperturesList.length === 0) {
+      totalAperturesArea = (Number(gatesArea) || 0) + (Number(windowsArea) || 0);
+    }
+
+    const perforationPercent = totalWallsGeomArea > 0 ? (totalAperturesArea / totalWallsGeomArea) * 100 : 0;
+    const isOverloaded = perforationPercent > 40.0;
+
+    return {
+      totalWallsGeomArea: totalWallsGeomArea.toFixed(1),
+      totalAperturesArea: totalAperturesArea.toFixed(1),
+      perforationPercent: perforationPercent.toFixed(1),
+      isOverloaded
+    };
+  }, [spanWidth, cranes.length, length, height, aperturesList, gatesArea, windowsArea]);
+
   // --------------------------
 
   const dbAnalytics = useMemo(() => {
@@ -376,6 +450,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         roofCost: 0,
         trimCost: 0,
         totalCost: "0",
+        isBlockedByValidation: false
       };
     }
 
@@ -392,7 +467,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     let pMod = Number(panelModule);
     if (!pMod) pMod = 1.0;
     const pStock = Number(panelStockLength) || 6.0;
-    const openingsTotal = Number(gatesArea) + Number(windowsArea);
 
     const purlinHeight = baseSnow <= 400 ? 0.24 : 0.3;
 
@@ -569,49 +643,64 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const totalRoofPurlinsKg = totalPurlinsKg;
     totalPurlinsKg += wallPurlinsBaseKg; 
 
-    // --- РАСЧЕТ НОВЫХ ОКОН (Масса обрамлений и вычет СП) ---
-    let windowsFrameKg = 0;
-    let windowsDeductArea = 0;
+    // --- РАСЧЕТ ИНЖЕНЕРНЫХ ПРОЕМОВ (Фахверк + Кратный вычет СП) ---
+    let aperturesFrameKg = 0;
+    let aperturesDeductArea = 0;
+    let physicalAperturesAreaTotal = 0;
 
-    windowsList.forEach(w => {
-      const h_w = Number(w.height) || 0;
-      const L_w = Number(w.width) || 0;
-      const n = Number(w.count) || 0;
-      const eTop = Number(w.eTop) || 0;
+    aperturesList.forEach(ap => {
+      const h_ap = Number(ap.height) || 0;
+      const L_ap = Number(ap.width) || 0;
+      const n = Number(ap.count) || 0;
+      const eTop = Number(ap.eTop) || 0;
+      const eBot = Number(ap.eBot) || 0;
 
-      if (h_w > 0 && L_w > 0 && n > 0) {
-        // 1. Масса фахверка (2 горизонтальные + 2 боковые стойки)
-        const lFrame = (Math.ceil(L_w / 6) * 6) * 2 + (2 * h_w);
-        if (w.profile === "ГКП") {
-          windowsFrameKg += lFrame * 7.07 * 1.10 * n;
+      if (h_ap > 0 && L_ap > 0 && n > 0) {
+        physicalAperturesAreaTotal += (h_ap * L_ap * n);
+
+        // 1. Конструктив фахверка. Для ворот/дверей на отметке 0.0 отменяем нижний ригель.
+        let lFrame = 0;
+        const horizLinesCount = (eBot === 0.0) ? 1 : 2; // Если на полу — перемычка только сверху
+        
+        lFrame = (Math.ceil(L_ap / 6) * 6) * horizLinesCount + (2 * h_ap);
+
+        if (ap.profile === "ГКП") {
+          aperturesFrameKg += lFrame * 7.07 * 1.10 * n;
         } else {
-          windowsFrameKg += lFrame * 5.1 * 1.11 * n;
+          aperturesFrameKg += lFrame * 5.1 * 1.11 * n;
         }
 
-        // 2. Вычет сэндвич-панелей
+        // 2. Вычет площади сэндвич-панелей
         if (useSandwich) {
           if (layoutMode === "vertical") {
-            const w_panels = Math.floor(L_w / pMod);
-            windowsDeductArea += w_panels * pMod * h_w * n;
+            // Вычет кратно целым вертикальным панелям по ширине
+            const w_panels = Math.floor(L_ap / pMod);
+            aperturesDeductArea += w_panels * pMod * h_ap * n;
           } else {
-            // Проверка попадания окна в горизонтальные швы
+            // Горизонтальная раскладка: Проверка попадания в горизонтальные швы
             const eps = 0.01;
             const eTopRem = eTop % pMod;
-            const hwRem = h_w % pMod;
+            const hwRem = h_ap % pMod;
             const isTopAligned = eTopRem < eps || (pMod - eTopRem) < eps;
             const isHeightAligned = hwRem < eps || (pMod - hwRem) < eps;
 
             if (isTopAligned && isHeightAligned) {
-              const h_panels = Math.floor(h_w / pMod);
-              windowsDeductArea += h_panels * pMod * L_w * n;
+              const h_panels = Math.floor(h_ap / pMod);
+              aperturesDeductArea += h_panels * pMod * L_ap * n;
             }
+            // Если соосности нет — aperturesDeductArea не увеличивается (строители заплатят за обрезь)
           }
         }
       }
     });
 
-    totalFrameKgRaw += windowsFrameKg; // Прибавляем фахверк к каркасу здания
-    // -------------------------------------------------------
+    // Обратная совместимость (если список пуст, берем старые примитивные площади)
+    if (aperturesList.length === 0) {
+      physicalAperturesAreaTotal = (Number(gatesArea) || 0) + (Number(windowsArea) || 0);
+      aperturesDeductArea = physicalAperturesAreaTotal;
+    }
+
+    totalFrameKgRaw += aperturesFrameKg; // Интегрируем массу фахверка в несущий каркас
 
     const totalFrameKg = totalFrameKgRaw + totalPurlinsKg + totalTiesKg;
     const totalMetalKg = totalFrameKg + totalCraneSystemKg;
@@ -674,8 +763,8 @@ export default function QuickEstimator({ onBack, projectsDb }) {
           wAreaBox = Math.ceil(perimeter / pMod) * pMod * wallH;
         }
 
-        // Вычитаем площадь старых примитивных ворот и ТОЧНУЮ вычисленную площадь окон
-        wAreaBox = Math.max(0, wAreaBox - openingsTotal - windowsDeductArea);
+        // Вычитаем из площади стен строго рассчитанную величину кратного раскроя СП
+        wAreaBox = Math.max(0, wAreaBox - aperturesDeductArea);
 
         let singleEndArea = 0;
         if (layoutMode === "horizontal") {
@@ -769,11 +858,12 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       wallAreaBox: wallAreaBox.toFixed(1),
       gableAreaTotal: gableAreaTotal.toFixed(1),
       roofArea: roofAreaTotal.toFixed(1),
-      openingsArea: openingsTotal.toFixed(1),
+      openingsArea: physicalAperturesAreaTotal.toFixed(1),
       wallCost: Math.round(wallCost),
       roofCost: Math.round(roofCost),
       trimCost: Math.round(trimCost),
       totalCost: Math.round(totalCostNum).toLocaleString("ru-RU"),
+      isBlockedByValidation: validationMetrics.isOverloaded
     };
   }, [
     spanWidth, spansCount, length, height, slope, roofShape, snowLoad,
@@ -781,7 +871,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     useSandwich, layoutMode, panelModule, panelStockLength, wallPrice,
     roofPrice, trimPrice, frameType, baseMatrix210, snowCoefficients,
     roofPurlins, trussTable, windCoefficients, gatesArea, windowsArea,
-    windowsList, concretePrice, rebarPrice,
+    aperturesList, concretePrice, rebarPrice, validationMetrics.isOverloaded
   ]);
 
   return (
@@ -846,89 +936,141 @@ export default function QuickEstimator({ onBack, projectsDb }) {
             </select>
           </div>
           <div style={styles.field}>
-            <label style={styles.label}>{layoutMode === "horizontal" ? "Модуль (м)" : "Модуль вертик. (м)"}</label>
-            <input style={styles.input} type="number" step="0.01" value={panelModule} onChange={(e) => setPanelModule(e.target.value)} />
+            <label style={styles.label}>
+              {layoutMode === "horizontal" ? "Модуль (м)" : "Модуль вертик. (м)"}
+            </label>
+            <input style={styles.input} type="number" step="0.01" value={panelModule} onChange={(e) => setPanelModule(parseFloat(e.target.value) || 1.0)} />
           </div>
           {layoutMode === "horizontal" && (
             <div style={styles.field}>
               <label style={styles.label}>Длина панели (м)</label>
-              <input style={styles.input} type="number" value={panelStockLength} onChange={(e) => setPanelStockLength(e.target.value)} />
+              <input style={styles.input} type="number" value={panelStockLength} onChange={(e) => setPanelStockLength(parseFloat(e.target.value) || 6.0)} />
             </div>
           )}
           <div style={styles.field}>
             <label style={styles.label}>Цена ГК (₽/т)</label>
-            <input style={styles.input} type="number" value={gkPrice} onChange={(e) => setGkPrice(e.target.value)} />
+            <input style={styles.input} type="number" value={gkPrice} onChange={(e) => setGkPrice(Number(e.target.value))} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Цена ЛСТК (₽/т)</label>
-            <input style={styles.input} type="number" value={lstkPrice} onChange={(e) => setLstkPrice(e.target.value)} />
+            <input style={styles.input} type="number" value={lstkPrice} onChange={(e) => setLstkPrice(Number(e.target.value))} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Цена фасонки (₽/т)</label>
-            <input style={styles.input} type="number" value={fasonkaPrice} onChange={(e) => setFasonkaPrice(e.target.value)} />
+            <input style={styles.input} type="number" value={fasonkaPrice} onChange={(e) => setFasonkaPrice(Number(e.target.value))} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Цена стен (₽/м²)</label>
-            <input style={styles.input} type="number" value={wallPrice} onChange={(e) => setWallPrice(e.target.value)} />
+            <input style={styles.input} type="number" value={wallPrice} onChange={(e) => setWallPrice(Number(e.target.value))} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Цена кровли (₽/м²)</label>
-            <input style={styles.input} type="number" value={roofPrice} onChange={(e) => setRoofPrice(e.target.value)} />
+            <input style={styles.input} type="number" value={roofPrice} onChange={(e) => setRoofPrice(Number(e.target.value))} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Цена доборов (₽/м²)</label>
-            <input style={styles.input} type="number" value={trimPrice} onChange={(e) => setTrimPrice(e.target.value)} />
+            <input style={styles.input} type="number" value={trimPrice} onChange={(e) => setTrimPrice(Number(e.target.value))} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Цена бетона (₽/м³)</label>
-            <input style={styles.input} type="number" value={concretePrice} onChange={(e) => setConcretePrice(e.target.value)} />
+            <input style={styles.input} type="number" value={concretePrice} onChange={(e) => setConcretePrice(Number(e.target.value))} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Цена арматуры (₽/т)</label>
-            <input style={styles.input} type="number" value={rebarPrice} onChange={(e) => setRebarPrice(e.target.value)} />
+            <input style={styles.input} type="number" value={rebarPrice} onChange={(e) => setRebarPrice(Number(e.target.value))} />
           </div>
         </div>
       )}
 
-      {/* НОВАЯ СЕКЦИЯ: УПРАВЛЕНИЕ ОКНАМИ */}
-      <div style={styles.sectionTitle}>3. Детализация проемов (Окна)</div>
-      {windowsList.map((win) => (
-        <div key={win.id} style={styles.windowRow}>
+      {/* ИНЖЕНЕРНАЯ СЕКЦИЯ: ДЕТАЛИЗАЦИЯ И УПРАВЛЕНИЕ ВСЕМИ ПРОЕМАМИ */}
+      <div style={styles.sectionTitle}>3. Модуль инженерных проемов комплекса ЕВРОАНГАР</div>
+      
+      {/* Живая валидация площади перфорации */}
+      <div style={{
+        ...styles.validationBox,
+        backgroundColor: validationMetrics.isOverloaded ? "#fff5f5" : "#f1f8e9",
+        border: validationMetrics.isOverloaded ? "2px solid #d9534f" : "1px solid #8bc34a",
+        color: validationMetrics.isOverloaded ? "#b71c1c" : "#33691e"
+      }}>
+        📐 <b>Контроль пространственной жесткости стен:</b><br />
+        • Геометрическая площадь стен: <b>{validationMetrics.totalWallsGeomArea} м²</b><br />
+        • Суммарная площадь всех проемов: <b>{validationMetrics.totalAperturesArea} м²</b><br />
+        • Процент перфорации каркаса: <b style={{ fontSize: "1.1em" }}>{validationMetrics.perforationPercent}%</b> из допустимых <b>40%</b>.<br />
+        {validationMetrics.isOverloaded && (
+          <span style={{ display: "block", marginTop: "5px", fontWeight: "bold" }}>
+            ❌ ВНИМАНИЕ: Превышен лимит перфорации! Конструкция перегружена проемами. Выгрузка КП заблокирована!
+          </span>
+        )}
+      </div>
+
+      {aperturesList.map((ap) => (
+        <div key={ap.id} style={styles.apertureRow}>
           <div style={styles.field}>
-            <label style={styles.label}>Длина (м)</label>
-            <input style={{...styles.input, width: "80px"}} type="number" step="0.1" value={win.width} onChange={e => updateWindow(win.id, 'width', e.target.value)} />
+            <label style={styles.label}>Тип проема</label>
+            <select 
+              style={{...styles.select, width: "110px", fontWeight: "bold"}} 
+              value={ap.type} 
+              onChange={e => updateAperture(ap.id, 'type', e.target.value)}
+            >
+              <option value="window">🪟 Окно</option>
+              <option value="gate">🚪 Ворота</option>
+              <option value="door">🚪 Дверь</option>
+            </select>
+          </div>
+          <div style={styles.field}>
+            <label style={styles.label}>Ширина (м)</label>
+            <input style={{...styles.input, width: "70px"}} type="number" step="0.1" value={ap.width} onChange={e => updateAperture(ap.id, 'width', e.target.value)} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Высота (м)</label>
-            <input style={{...styles.input, width: "80px"}} type="number" step="0.1" value={win.height} onChange={e => updateWindow(win.id, 'height', e.target.value)} />
+            <input style={{...styles.input, width: "70px"}} type="number" step="0.1" value={ap.height} onChange={e => updateAperture(ap.id, 'height', e.target.value)} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Кол-во (шт)</label>
-            <input style={{...styles.input, width: "60px"}} type="number" value={win.count} onChange={e => updateWindow(win.id, 'count', e.target.value)} />
+            <input style={{...styles.input, width: "55px"}} type="number" value={ap.count} onChange={e => updateAperture(ap.id, 'count', e.target.value)} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Верх (E.top)</label>
-            <input style={{...styles.input, width: "80px"}} type="number" step="0.01" value={win.eTop} onChange={e => updateWindow(win.id, 'eTop', e.target.value)} />
+            <input 
+              style={{...styles.input, width: "75px"}} 
+              type="number" 
+              step="0.01" 
+              value={ap.eTop} 
+              disabled={ap.type !== "window"}
+              onChange={e => updateAperture(ap.id, 'eTop', e.target.value)} 
+            />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Низ (E.bot)</label>
-            <input style={{...styles.input, width: "80px"}} type="number" step="0.01" value={win.eBot} onChange={e => updateWindow(win.id, 'eBot', e.target.value)} />
+            <input 
+              style={{...styles.input, width: "75px", backgroundColor: ap.type !== "window" ? "#e9ecef" : "#fff"}} 
+              type="number" 
+              step="0.01" 
+              value={ap.eBot} 
+              disabled={ap.type !== "window"} 
+              onChange={e => updateAperture(ap.id, 'eBot', e.target.value)} 
+            />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Профиль</label>
-            <select style={styles.select} value={win.profile} onChange={e => updateWindow(win.id, 'profile', e.target.value)}>
-              <option value="СтОП">СтОП</option>
-              <option value="ГКП">ГКП</option>
+            <select style={styles.select} value={ap.profile} onChange={e => updateAperture(ap.id, 'profile', e.target.value)}>
+              <option value="СтОП">СтОП (ЛСТК)</option>
+              <option value="ГКП">ГКП (Черный)</option>
             </select>
           </div>
-          <button style={styles.delBtn} onClick={() => removeWindow(win.id)}>🗑️</button>
+          <button style={styles.delBtn} onClick={() => removeAperture(ap.id)}>🗑️</button>
         </div>
       ))}
-      <button style={styles.addBtn} onClick={addWindow}>+ Добавить окно</button>
-      <div style={{fontSize: '0.8em', color: '#666', marginTop: '5px'}}>
-        * Отметки по умолчанию рассчитываются автоматически при добавлении окна с учетом текущей высоты здания и модуля панели. Вычет сэндвича сработает, если окно точно вписывается в панельную сетку.
+
+      <div style={{ marginBottom: "20px" }}>
+        <button style={{...styles.addBtn, backgroundColor: "#007bff"}} onClick={() => addAperture("window")}>+ Окно</button>
+        <button style={{...styles.addBtn, backgroundColor: "#fd7e14"}} onClick={() => addAperture("gate")}>+ Ворота</button>
+        <button style={{...styles.addBtn, backgroundColor: "#6f42c1"}} onClick={() => addAperture("door")}>+ Дверь</button>
       </div>
-      {/* ------------------------------------- */}
+
+      <div style={{fontSize: '0.85em', color: '#666', marginTop: '-10px', marginBottom: "20px"}}>
+        * Окна автоматически привязываются с отступом 0.5м от верха колонны. Ворота и двери жестко садятся на отметку 0.00 с автоматическим исключением нижнего ригеля фахверка. Точный вычет площади сэндвича активируется только при условии соосности проемов со швами панелей.
+      </div>
 
       <QuickEstimatorResults
         estimation={estimation}
@@ -941,14 +1083,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         lstkPrice={lstkPrice}
         fasonkaPrice={fasonkaPrice}
       />
-
-      {/* Редакторы */}
-      <BaseMatrix210Editor isOpen={isBaseMatrixOpen} onClose={() => setIsBaseMatrixOpen(false)} onSave={setBaseMatrix210} />
-      <SnowCoefficientsEditor isOpen={isSnowCoeffsOpen} onClose={() => setIsSnowCoeffsOpen(false)} onSave={setSnowCoefficients} />
-      <WindCoefficientsEditor isOpen={isWindCoeffsOpen} onClose={() => setIsWindCoeffsOpen(false)} onSave={setWindCoefficients} />
-      <RoofPurlinsEditor isOpen={isPurlinsOpen} onClose={() => setIsPurlinsOpen(false)} onSave={setRoofPurlins} />
-      <TrussEfficiencyEditor isOpen={isTrussEditorOpen} onClose={() => setIsTrussEditorOpen(false)} onSave={setTrussTable} />
-      {isBuildingTypesOpen && <BuildingTypesEditor onClose={() => setIsBuildingTypesOpen(false)} />}
     </div>
   );
 }
