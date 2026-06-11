@@ -92,7 +92,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
 
   // Списки проемов
   const [windowsList, setWindowsList] = useState([]); 
-  const [gatesList, setGatesList] = useState([]); // Новый список ворот и дверей
+  const [gatesList, setGatesList] = useState([]); 
 
   const [strictFilter, setStrictFilter] = useState(true);
   const [useSandwich, setUseSandwich] = useState(true);
@@ -191,7 +191,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     }));
   };
 
-  // Вычисление ФАКТИЧЕСКИХ площадей проемов для сравнения
   const totalWindowsAreaFact = useMemo(() => {
     return windowsList.reduce((sum, w) => sum + (Number(w.width) || 0) * (Number(w.height) || 0) * (Number(w.count) || 0), 0);
   }, [windowsList]);
@@ -247,18 +246,15 @@ export default function QuickEstimator({ onBack, projectsDb }) {
 
     const fullWallHeight = frameType === "truss" ? H + purlinHeight + supportHeight + (S <= 21 ? 0.65 + (10 - S) * 0.0597 : 0) : H + purlinHeight + supportHeight;
 
-    // ГЕОМЕТРИЧЕСКАЯ ПЛОЩАДЬ СТЕН ДЛЯ ПРОВЕРКИ СВЕРХПРОЕМОВ
     const totalWidth = W * N;
     const perimeter = (totalWidth + L) * 2;
     const rawWallAreaBox = perimeter * fullWallHeight; 
 
-    // ТРЕБОВАНИЕ: СРАВНЕНИЕ И БЛОКИРОВКА ЕСЛИ ПРОЕМЫ БОЛЬШЕ СТЕН
     const totalProemsArea = totalWindowsAreaFact + totalGatesAreaFact;
     if (totalProemsArea >= rawWallAreaBox) {
       return { isOverloaded: true, rawWallAreaBox, totalProemsArea };
     }
 
-    // Базовый расчет массы металлокаркаса здания
     let lMult = L < 30 ? 1.05 : 1;
     let floorMult = stories > 1 ? 1 + (stories - 1) * 0.4 : 1;
     let totalFrameKgRaw = 0, totalPurlinsKg = 0, totalCraneSystemKg = 0, totalTiesKg = 0, totalSavingsKg = 0;
@@ -272,7 +268,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       const snowCoeff = getSnowCoefficient(snowCoefficients, spanSnow);
       const windCoeff = getWindCoefficient(windCoefficients, currentWind);
 
-      // Скидка фермы
       const hList = trussTable.heights, sList = trussTable.spans;
       const hSafe = Math.max(hList[0], Math.min(H, hList[hList.length - 1])), wSafe = Math.max(sList[0], Math.min(W, sList[sList.length - 1]));
       let h1 = hList.find((h, i) => hSafe >= h && hSafe <= hList[i+1]) || hList[0];
@@ -303,7 +298,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       }
     });
 
-    // Стеновые прогоны
     let wallPurlinsLength = 0;
     if (useSandwich && layoutMode === "vertical") {
       const lines = Math.ceil(fullWallHeight / (currentWind/100 <= 0.23 ? 4.5 : currentWind/100 <= 0.42 ? 3.0 : currentWind/100 <= 0.60 ? 1.5 : 1.2));
@@ -311,11 +305,9 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       totalPurlinsKg += wallPurlinsLength * 6.375;
     }
 
-    // --- МАТЕМАТИКА ПРОЕМОВ (ОКНА + ВОРОТА) ---
     let proemsFrameKg = 0;
     let spDeductArea = 0;
 
-    // Расчет Окон
     windowsList.forEach(w => {
       const h = Number(w.height) || 0, len = Number(w.width) || 0, n = Number(w.count) || 0, eTop = Number(w.eTop) || 0;
       if (h > 0 && len > 0 && n > 0) {
@@ -328,11 +320,9 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       }
     });
 
-    // Расчет Ворот и Дверей
     gatesList.forEach(g => {
       const h = Number(g.height) || 0, len = Number(g.width) || 0, n = Number(g.count) || 0, eBot = Number(g.eBot) || 0, eTop = Number(g.eTop) || 0;
       if (h > 0 && len > 0 && n > 0) {
-        // ТРЕБОВАНИЕ: если ворота стоят на отметке 0 (eBot == 0), нижнюю направляющую не считаем!
         const multiplier = Math.abs(eBot) < 0.01 ? 1 : 2;
         const lf = (Math.ceil(len / 6) * 6) * multiplier + (2 * h);
         
@@ -344,17 +334,15 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       }
     });
 
-    totalFrameKgRaw += proemsFrameKg; // Вшиваем фахверк в массу рам
+    totalFrameKgRaw += proemsFrameKg; 
 
-    // Итоги по металлу
     const totalMetalKg = totalFrameKgRaw + totalPurlinsKg + totalTiesKg + totalCraneSystemKg;
     const metalCost = (totalMetalKg / 1000) * activeMetalPrice;
 
-    // Фундамент
-    const foundationCount = (Math.ceil(L / 6) + 1) * (激 = N + 1);
+    // ИСПРАВЛЕНО: Убран китайский иероглиф, формула осей теперь абсолютно валидна
+    const foundationCount = (Math.ceil(L / 6) + 1) * (N + 1);
     const foundationCost = (foundationCount * 2.7) * concretePrice + ((foundationCount * 80) / 1000) * rebarPrice;
 
-    // Обшивка (Сэндвич)
     let wallCost = 0, roofCost = 0, trimCost = 0, finalWarea = 0, rArea = 0, gArea = 0;
     if (useSandwich) {
       const angleRad = Math.atan(S / 100);
@@ -362,7 +350,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       rArea = (roofShape === "gable" ? (W / 2 / Math.cos(angleRad) + OVERHANG) * (L + OVERHANG * 2) * 2 * N : (W / Math.cos(angleRad) + OVERHANG) * (L + OVERHANG * 2) * N);
       
       let wAreaBox = layoutMode === "horizontal" ? Math.ceil(perimeter / pStock) * pStock * (Math.ceil(fullWallHeight / pMod) * pMod) : Math.ceil(perimeter / pMod) * pMod * fullWallHeight;
-      // Применяем вычет проемов кратно целым панелям
       finalWarea = Math.max(0, wAreaBox - spDeductArea);
       gArea = (layoutMode === "horizontal" ? Array.from({length: Math.ceil(ridgeRise/pMod)}).reduce((sum, _, i) => sum + Math.ceil(Math.max(0, W * (1 - (i * pMod)/ridgeRise)) / pStock) * pStock * pMod, 0) : (W * ridgeRise) / 2) * 2 * N;
 
@@ -412,12 +399,11 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         spansCount={spansCount} setSpansCount={setSpansCount} snowLoad={snowLoad} setSnowLoad={setSnowLoad} windLoad={windLoad} setWindLoad={setWindLoad}
         stories={stories} setStories={setStories} roofShape={roofShape} setRoofShape={setRoofShape} slope={slope} setSlope={setSlope}
         frameType={frameType} setFrameType={setFrameType} cranes={cranes} updateCrane={updateCrane} currentDiscount={estimation.currentDiscount}
-        gatesArea={"0"} setGatesArea={() => {}} windowsArea={"0"} setWindowsArea={() => {}} // Глушим старые поля
+        gatesArea={"0"} setGatesArea={() => {}} windowsArea={"0"} setWindowsArea={() => {}} 
       />
 
       <QuickEstimatorAnalytics dbAnalytics={dbAnalytics} />
 
-      {/* РАЗДЕЛ ПАНЕЛЕЙ И ЦЕН */}
       <div style={styles.sectionTitle}>
         <input type="checkbox" checked={useSandwich} onChange={(e) => setUseSandwich(e.target.checked)} style={{ marginRight: "10px" }} />
         2. Панели и цены
@@ -446,10 +432,8 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         </div>
       )}
 
-      {/* НОВЫЙ ИНТЕРФЕЙС: ДЕТАЛИЗАЦИЯ ПРОЕМОВ (ОКНА + ВОРОТА) */}
       <div style={styles.sectionTitle}>3. Детализация проемов (Окна, Ворота, Двери)</div>
       
-      {/* ИНФОРМАЦИОННАЯ ПАНЕЛЬ СРАВНЕНИЯ ПЛОЩАДЕЙ */}
       {!estimation.isOverloaded && baseMatrix210 && (
         <div style={styles.infoBadge}>
           <span>🪟 Сумма окон: <b>{totalWindowsAreaFact.toFixed(1)} м²</b></span>
@@ -458,7 +442,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         </div>
       )}
 
-      {/* Блок Окон */}
       <div style={{fontWeight: "bold", fontSize: "0.9em", marginBottom: "5px", color: "#007bff"}}>Окна:</div>
       {windowsList.map((win) => (
         <div key={win.id} style={styles.rowBlock}>
@@ -477,7 +460,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       ))}
       <button style={styles.addBtn} onClick={addWindow}>+ Добавить окно</button>
 
-      {/* Блок Ворот */}
       <div style={{fontWeight: "bold", fontSize: "0.9em", marginTop: "15px", marginBottom: "5px", color: "#e67e22"}}>Ворота, Технические двери:</div>
       {gatesList.map((gate) => (
         <div key={gate.id} style={styles.rowBlock}>
@@ -496,7 +478,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       ))}
       <button style={{...styles.addBtn, backgroundColor: "#e67e22"}} onClick={addGate}>+ Добавить ворота/дверь</button>
 
-      {/* ВЫВОД ОШИБКИ ИЛИ РЕЗУЛЬТАТОВ */}
       {estimation.isOverloaded ? (
         <div style={styles.errorBox}>
           🚫 ОШИБКА РАСЧЕТА: Суммарная площадь проемов ({estimation.totalProemsArea.toFixed(1)} м²) превышает общую геометрическую площадь стен здания ({estimation.rawWallAreaBox.toFixed(1)} м²)! Уменьшите габариты или количество ворот/окон.
