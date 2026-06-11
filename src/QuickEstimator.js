@@ -153,6 +153,22 @@ const styles = {
     marginBottom: "15px",
     fontSize: "0.95em",
     lineHeight: "1.4"
+  },
+  wallsConfigBox: {
+    backgroundColor: "#f1f3f5",
+    padding: "15px",
+    borderRadius: "8px",
+    marginBottom: "20px",
+    border: "1px solid #ced4da"
+  },
+  checkboxLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    fontSize: "0.95em",
+    fontWeight: "bold",
+    color: "#495057",
+    cursor: "pointer"
   }
 };
 
@@ -169,14 +185,22 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [cranes, setCranes] = useState([{ id: 0, cap: "0", type: "support" }]);
   const [frameType, setFrameType] = useState("beam");
 
-  // Таблицы инженерных баз данных
+  // Новое состояние для управления активностью стен (Концепция сторон света)
+  const [activeWalls, setActiveWalls] = useState({
+    north: true, // Северная (продольная)
+    south: true, // Южная (продольная)
+    east: true,  // Восточная (торцевая)
+    west: true,  // Западная (торцевая)
+  });
+
+  // Таблицы баз данных
   const [baseMatrix210, setBaseMatrix210] = useState(null);
   const [snowCoefficients, setSnowCoefficients] = useState(null);
   const [roofPurlins, setRoofPurlins] = useState(null);
   const [trussTable, setTrussTable] = useState(null);
   const [windCoefficients, setWindCoefficients] = useState(null);
 
-  // Состояния модальных окон/редакторов коэффициентов
+  // Состояния редакторов
   const [isBaseMatrixOpen, setIsBaseMatrixOpen] = useState(false);
   const [isSnowCoeffsOpen, setIsSnowCoeffsOpen] = useState(false);
   const [isPurlinsOpen, setIsPurlinsOpen] = useState(false);
@@ -184,7 +208,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [isWindCoeffsOpen, setIsWindCoeffsOpen] = useState(false);
   const [isBuildingTypesOpen, setIsBuildingTypesOpen] = useState(false);
 
-  // Единый массив динамических проемов (Старые ручные поля полностью удалены)
+  // Динамические проемы комплекса ЕВРОАНГАР
   const [aperturesList, setAperturesList] = useState([]); 
 
   const [strictFilter, setStrictFilter] = useState(true);
@@ -193,7 +217,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [panelModule, setPanelModule] = useState(1.0);
   const [panelStockLength, setPanelStockLength] = useState(6.0);
 
-  // Ценовые коэффициенты коммерческого блока
+  // Цены
   const [gkPrice, setGkPrice] = useState(DEFAULT_GK_PRICE);
   const [lstkPrice, setLstkPrice] = useState(DEFAULT_LSTK_PRICE);
   const [fasonkaPrice, setFasonkaPrice] = useState(DEFAULT_FASONKA_PRICE);
@@ -204,33 +228,19 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [concretePrice, setConcretePrice] = useState(DEFAULT_CONCRETE_PRICE);
   const [rebarPrice, setRebarPrice] = useState(DEFAULT_REBAR_PRICE);
 
-  // Загрузка табличных справочников из localStorage или генерация дефолтных
   useEffect(() => {
     const savedBase = localStorage.getItem("baseMatrix210");
-    setBaseMatrix210(
-      savedBase ? JSON.parse(savedBase) : generateBase210Matrix()
-    );
-
+    setBaseMatrix210(savedBase ? JSON.parse(savedBase) : generateBase210Matrix());
     const savedSnow = localStorage.getItem("snowCoefficients");
-    setSnowCoefficients(
-      savedSnow ? JSON.parse(savedSnow) : generateSnowCoefficients()
-    );
-
+    setSnowCoefficients(savedSnow ? JSON.parse(savedSnow) : generateSnowCoefficients());
     const savedPurlins = localStorage.getItem("roofPurlins");
-    setRoofPurlins(
-      savedPurlins ? JSON.parse(savedPurlins) : generateRoofPurlins()
-    );
-
+    setRoofPurlins(savedPurlins ? JSON.parse(savedPurlins) : generateRoofPurlins());
     const savedTruss = localStorage.getItem("trussEfficiencyTable");
     setTrussTable(savedTruss ? JSON.parse(savedTruss) : generateDefaultTable());
-
     const savedWind = localStorage.getItem("windCoefficients");
-    setWindCoefficients(
-      savedWind ? JSON.parse(savedWind) : generateWindCoefficients()
-    );
+    setWindCoefficients(savedWind ? JSON.parse(savedWind) : generateWindCoefficients());
   }, []);
 
-  // Синхронизация количества кранов с количеством пролетов здания
   useEffect(() => {
     const count = Math.max(1, Number(spansCount) || 1);
     setCranes((prev) => {
@@ -252,7 +262,11 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     setCranes(newCranes);
   };
 
-  // --- УПРАВЛЕНИЕ ДИНАМИЧЕСКИМИ ПРОЕМАМИ КОМПЛЕКСА ЕВРОАНГАР ---
+  const toggleWall = (wallKey) => {
+    setActiveWalls(prev => ({ ...prev, [wallKey]: !prev[wallKey] }));
+  };
+
+  // --- УПРАВЛЕНИЕ ДИНАМИЧЕСКИМИ ПРОЕМАМИ ---
   const addAperture = (type) => {
     const H_val = Number(height) || 0;
     const pMod_val = Number(panelModule) || 1.0;
@@ -314,7 +328,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
             updated.eTop = String((b + h).toFixed(2));
           }
         } else {
-          // Ворота и двери всегда принудительно фиксируются на отметке чистого пола (0.00)
           updated.eBot = "0.00";
           if (field === 'height') {
             updated.eTop = String(h.toFixed(2));
@@ -333,7 +346,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     setAperturesList(prev => prev.filter(ap => ap.id !== id));
   };
 
-  // Геометрический расчет перфорации и контроль емкости проемов до 100%
+  // Геометрический расчет перфорации только по ОСТАВШИМСЯ активным стенам
   const validationMetrics = useMemo(() => {
     const W = Number(spanWidth) || 0;
     const N = cranes.length;
@@ -341,7 +354,13 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const H = Number(height) || 0;
     const totalWidth = W * N;
 
-    const totalWallsGeomArea = 2 * (totalWidth + L) * H;
+    // Считаем площадь индивидуально по каждой активной стороне
+    const sNorth = activeWalls.north ? (L * H) : 0;
+    const sSouth = activeWalls.south ? (L * H) : 0;
+    const sEast = activeWalls.east ? (totalWidth * H) : 0;
+    const sWest = activeWalls.west ? (totalWidth * H) : 0;
+
+    const totalWallsGeomArea = sNorth + sSouth + sEast + sWest;
     
     let totalAperturesArea = 0;
     aperturesList.forEach(ap => {
@@ -352,7 +371,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     });
 
     const perforationPercent = totalWallsGeomArea > 0 ? (totalAperturesArea / totalWallsGeomArea) * 100 : 0;
-    const isOverloaded = perforationPercent > 100.0; // Блокировка только при физическом абсурде > 100%
+    const isOverloaded = perforationPercent > 100.0;
 
     return {
       totalWallsGeomArea: totalWallsGeomArea.toFixed(1),
@@ -360,9 +379,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       perforationPercent: perforationPercent.toFixed(1),
       isOverloaded
     };
-  }, [spanWidth, cranes.length, length, height, aperturesList]);
-
-  // -------------------------------------------------------------
+  }, [spanWidth, cranes.length, length, height, aperturesList, activeWalls]);
 
   const dbAnalytics = useMemo(() => {
     if (!projectsDb || projectsDb.length === 0) return null;
@@ -378,9 +395,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       );
     }
     if (similar.length === 0) return { found: false };
-    let sumRate = 0,
-      sumWelded = 0,
-      sumRolled = 0;
+    let sumRate = 0, sumWelded = 0, sumRolled = 0;
     similar.forEach((p) => {
       sumRate += p.specificWeight;
       const area = p.width * p.length;
@@ -483,37 +498,26 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       const sList = trussTable.spans;
       const hSafe = Math.max(hList[0], Math.min(h, hList[hList.length - 1]));
       const wSafe = Math.max(sList[0], Math.min(w, sList[sList.length - 1]));
-      let h1 = hList[0],
-        h2 = hList[hList.length - 1];
+      let h1 = hList[0], h2 = hList[hList.length - 1];
       for (let i = 0; i < hList.length - 1; i++) {
         if (hSafe >= hList[i] && hSafe <= hList[i + 1]) {
-          h1 = hList[i];
-          h2 = hList[i + 1];
-          break;
+          h1 = hList[i]; h2 = hList[i + 1]; break;
         }
       }
-      let s1 = sList[0],
-        s2 = sList[sList.length - 1];
+      let s1 = sList[0], s2 = sList[sList.length - 1];
       for (let i = 0; i < sList.length - 1; i++) {
         if (wSafe >= sList[i] && wSafe <= sList[i + 1]) {
-          s1 = sList[i];
-          s2 = sList[i + 1];
-          break;
+          s1 = sList[i]; s2 = sList[i + 1]; break;
         }
       }
       try {
-        const Q11 = trussTable.data[h1][s1],
-          Q12 = trussTable.data[h1][s2];
-        const Q21 = trussTable.data[h2][s1],
-          Q22 = trussTable.data[h2][s2];
-        const interpolate = (x, x1, y1, x2, y2) =>
-          x2 === x1 ? y1 : y1 + ((x - x1) * (y2 - y1)) / (x2 - x1);
+        const Q11 = trussTable.data[h1][s1], Q12 = trussTable.data[h1][s2];
+        const Q21 = trussTable.data[h2][s1], Q22 = trussTable.data[h2][s2];
+        const interpolate = (x, x1, y1, x2, y2) => x2 === x1 ? y1 : y1 + ((x - x1) * (y2 - y1)) / (x2 - x1);
         const R1 = interpolate(wSafe, s1, Q11, s2, Q12);
         const R2 = interpolate(wSafe, s1, Q21, s2, Q22);
         return interpolate(hSafe, h1, R1, h2, R2);
-      } catch (e) {
-        return 0;
-      }
+      } catch (e) { return 0; }
     };
 
     let lMult = 1;
@@ -544,8 +548,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       const columnStep = 6;
       const totalFrames = Math.ceil(L / columnStep) + 1;
       const framesWithTruss = Math.max(0, totalFrames - 2);
-      const finalDiscountPercent =
-        (baseTrussDiscountPercent * framesWithTruss) / totalFrames / 0.9;
+      const finalDiscountPercent = (baseTrussDiscountPercent * framesWithTruss) / totalFrames / 0.9;
       const dynamicTrussCoeff = 1 - finalDiscountPercent / 100;
 
       const baseBeamTotal210 = baseWeight210_Truss / dynamicTrussCoeff;
@@ -553,9 +556,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       const savedConf = localStorage.getItem("euroangar_building_types_config");
       let pType4 = 0.47;
       if (savedConf) {
-        try {
-          pType4 = JSON.parse(savedConf).purlinType4 || 0.47;
-        } catch (e) {}
+        try { pType4 = JSON.parse(savedConf).purlinType4 || 0.47; } catch (e) {}
       }
 
       const basePurlinsGK210 = basePurlins210 / pType4;
@@ -570,10 +571,8 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         else pureBeamFramesAndTies210 *= 1.25;
       }
 
-      const adjustedBeamFramesAndTies =
-        pureBeamFramesAndTies210 * snowCoeff * windCoeff;
-      const fullBeamBuildingRate =
-        adjustedBeamFramesAndTies + currentPurlinsRate;
+      const adjustedBeamFramesAndTies = pureBeamFramesAndTies210 * snowCoeff * windCoeff;
+      const fullBeamBuildingRate = adjustedBeamFramesAndTies + currentPurlinsRate;
 
       let totalReducedBuildingRate = fullBeamBuildingRate;
       if (frameType === "truss") {
@@ -592,8 +591,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       totalPurlinsKg += purlinsRate * spanArea;
 
       if (frameType === "truss") {
-        totalSavingsKg +=
-          (fullBeamBuildingRate - totalReducedBuildingRate) * spanArea;
+        totalSavingsKg += (fullBeamBuildingRate - totalReducedBuildingRate) * spanArea;
       }
 
       if (hasThisCrane) {
@@ -605,37 +603,41 @@ export default function QuickEstimator({ onBack, projectsDb }) {
           else if (capVal <= 10) trackLinW = CRANE_DATA.support[10];
           else trackLinW = CRANE_DATA.support[20];
         }
-        totalCraneSystemKg +=
-          trackLength * trackLinW * 1.15 + trackLength * CRANE_DATA.ties * 1.1;
+        totalCraneSystemKg += trackLength * trackLinW * 1.15 + trackLength * CRANE_DATA.ties * 1.1;
       }
     });
 
     const totalWidth = W * N;
     const floorAreaTotal = totalWidth * L;
 
+    // ДИНАМИЧЕСКИЙ РАСЧЕТ ПЕРИМЕТРА СТЕН С УЧЕТОМ ОТКЛЮЧЕНИЯ (ВАРИАНТ А)
+    let dynamicPerimeter = 0;
+    if (activeWalls.north) dynamicPerimeter += L;
+    if (activeWalls.south) dynamicPerimeter += L;
+    if (activeWalls.east) dynamicPerimeter += totalWidth;
+    if (activeWalls.west) dynamicPerimeter += totalWidth;
+
     let wallPurlinsLength = 0;
     let wallPurlinsBaseKg = 0;
 
     if (useSandwich && layoutMode === "vertical") {
       const wPress = currentWind / 100; 
-      
       let purlinStep = 4.5;
       if (wPress <= 0.23) purlinStep = 4.5;
       else if (wPress <= 0.42) purlinStep = 3.0;
       else if (wPress <= 0.60) purlinStep = 1.5;
       else purlinStep = 1.2;
 
-      const perimeter = (totalWidth + L) * 2;
       const lines = Math.ceil(fullWallHeight / purlinStep);
-      wallPurlinsLength = perimeter * lines;
-
+      // Прогоны считаются только на активный периметр пристраиваемого здания!
+      wallPurlinsLength = dynamicPerimeter * lines;
       wallPurlinsBaseKg = wallPurlinsLength * 6.375;
     }
 
     const totalRoofPurlinsKg = totalPurlinsKg;
     totalPurlinsKg += wallPurlinsBaseKg; 
 
-    // --- МАТЕМАТИЧЕСКИЙ РАСЧЕТ ПРОЕМА (Масса фахверка + Кратный вычет СП строго ВНИЗ) ---
+    // Расчет проемов
     let aperturesFrameKg = 0;
     let aperturesDeductArea = 0;
     let physicalAperturesAreaTotal = 0;
@@ -650,10 +652,8 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       if (h_ap > 0 && L_ap > 0 && n > 0) {
         physicalAperturesAreaTotal += (h_ap * L_ap * n);
 
-        // 1. Конструктив фахверка. При eBot === 0.0 отменяем нижний ригель (перемычку)
         let lFrame = 0;
         const horizLinesCount = (Math.abs(eBot) < 0.01) ? 1 : 2; 
-        
         lFrame = (Math.ceil(L_ap / 6) * 6) * horizLinesCount + (2 * h_ap);
 
         if (ap.profile === "ГКП") {
@@ -662,14 +662,11 @@ export default function QuickEstimator({ onBack, projectsDb }) {
           aperturesFrameKg += lFrame * 5.1 * 1.11 * n;
         }
 
-        // 2. Вычет площади сэндвич-панелей строго КРАТНО ВНИЗ (Math.floor)
         if (useSandwich) {
           if (layoutMode === "vertical") {
-            // Вертикальная раскладка: вычет целых панелей по ширине проема
             const w_panels = Math.floor(L_ap / pMod);
             aperturesDeductArea += w_panels * pMod * h_ap * n;
           } else {
-            // Горизонтальная раскладка: поштучный учет рядов
             const eps = 0.01;
             const eTopRem = eTop % pMod;
             const eBotRem = eBot % pMod;
@@ -689,7 +686,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       }
     });
 
-    totalFrameKgRaw += aperturesFrameKg; // Суммируем фахверк в массу рам здания
+    totalFrameKgRaw += aperturesFrameKg; 
 
     const totalFrameKg = totalFrameKgRaw + totalPurlinsKg + totalTiesKg;
     const totalMetalKg = totalFrameKg + totalCraneSystemKg;
@@ -716,44 +713,33 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       concreteCubic * concretePrice + rebarWeight * rebarPrice
     );
 
-    let wallCost = 0,
-      roofCost = 0,
-      trimCost = 0;
-    let wallAreaBox = 0,
-      textGableArea = 0,
-      textRoofArea = 0;
+    let wallCost = 0, roofCost = 0, trimCost = 0;
+    let wallAreaBox = 0, textGableArea = 0, textRoofArea = 0;
     let envelopeDiffAmount = 0;
 
     if (useSandwich) {
       const calcEnvelope = (wallH) => {
         const angleRad = Math.atan(S / 100);
-        const ridgeRise =
-          roofShape === "gable" ? (W / 2) * (S / 100) : W * (S / 100);
-        const slopeLengthGeom =
-          roofShape === "gable"
-            ? W / 2 / Math.cos(angleRad)
-            : W / Math.cos(angleRad);
+        const ridgeRise = roofShape === "gable" ? (W / 2) * (S / 100) : W * (S / 100);
+        const slopeLengthGeom = roofShape === "gable" ? W / 2 / Math.cos(angleRad) : W / Math.cos(angleRad);
         const slopeLengthPurchase = slopeLengthGeom + OVERHANG;
         const roofLengthAlongL = L + OVERHANG * 2;
 
-        let rArea = 0;
-        if (roofShape === "gable")
-          rArea = slopeLengthPurchase * roofLengthAlongL * 2 * N;
-        else rArea = slopeLengthPurchase * roofLengthAlongL * N;
+        let rArea = roofShape === "gable" ? slopeLengthPurchase * roofLengthAlongL * 2 * N : slopeLengthPurchase * roofLengthAlongL * N;
 
-        const perimeter = (totalWidth + L) * 2;
         let wAreaBox = 0;
         if (layoutMode === "horizontal") {
           const rowsBox = Math.ceil(wallH / pMod);
           const boxHeightFact = rowsBox * pMod;
-          const panelsInRing = Math.ceil(perimeter / pStock);
+          const panelsInRing = Math.ceil(dynamicPerimeter / pStock); // Обшиваем только активный периметр сторон
           wAreaBox = panelsInRing * pStock * boxHeightFact;
         } else {
-          wAreaBox = Math.ceil(perimeter / pMod) * pMod * wallH;
+          wAreaBox = Math.ceil(dynamicPerimeter / pMod) * pMod * wallH;
         }
 
         wAreaBox = Math.max(0, wAreaBox - aperturesDeductArea);
 
+        // Расчет фронтонов (торцов) с учетом отключения Востока (N) или Запада (N)
         let singleEndArea = 0;
         if (layoutMode === "horizontal") {
           const boxHfact = Math.ceil(wallH / pMod) * pMod;
@@ -771,7 +757,11 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         } else {
           singleEndArea = (W * ridgeRise) / 2;
         }
-        const gArea = singleEndArea * 2 * N;
+
+        // Суммируем торцы только если соответствующие стены активны
+        let gArea = 0;
+        if (activeWalls.east) gArea += singleEndArea * N;
+        if (activeWalls.west) gArea += singleEndArea * N;
 
         const wCost = (wAreaBox + gArea) * wallPrice;
         const rCost = rArea * roofPrice;
@@ -790,14 +780,10 @@ export default function QuickEstimator({ onBack, projectsDb }) {
 
       const beamEnv = calcEnvelope(fullWallHeightBeam);
       const trussEnv = calcEnvelope(fullWallHeightTruss);
-      envelopeDiffAmount =
-        trussEnv.wCost + trussEnv.tCost - (beamEnv.wCost + beamEnv.tCost);
+      envelopeDiffAmount = trussEnv.wCost + trussEnv.tCost - (beamEnv.wCost + beamEnv.tCost);
     }
 
-    const cranesSummary = cranes
-      .filter((c) => c.cap !== "0")
-      .map((c, i) => `№${i + 1}:${c.cap}т`)
-      .join(", ");
+    const cranesSummary = cranes.filter((c) => c.cap !== "0").map((c, i) => `№${i + 1}:${c.cap}т`).join(", ");
 
     let currentDiscount = "0";
     if (frameType === "truss") {
@@ -805,13 +791,11 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       const columnStep = 6;
       const totalFrames = Math.ceil(L / columnStep) + 1;
       const framesWithTruss = Math.max(0, totalFrames - 2);
-      const finalDiscountPercent =
-        (baseTrussDiscountPercent * framesWithTruss) / totalFrames / 0.9;
+      const finalDiscountPercent = (baseTrussDiscountPercent * framesWithTruss) / totalFrames / 0.9;
       currentDiscount = Math.max(0, finalDiscountPercent).toFixed(1);
     }
 
-    const totalCostNum =
-      metalCost + wallCost + roofCost + trimCost + foundationCost;
+    const totalCostNum = metalCost + wallCost + roofCost + trimCost + foundationCost;
 
     return {
       roofPurlinsKg: totalRoofPurlinsKg, 
@@ -832,12 +816,8 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       currentDiscount,
       savingsAmount: Math.round(savingsAmount),
       envelopeDiffAmount: Math.round(envelopeDiffAmount),
-      craneSystemWeight:
-        totalCraneSystemKg > 0 ? (totalCraneSystemKg / 1000).toFixed(2) : null,
-      craneSystemCost:
-        totalCraneSystemKg > 0
-          ? Math.round((totalCraneSystemKg / 1000) * activeMetalPrice)
-          : 0,
+      craneSystemWeight: totalCraneSystemKg > 0 ? (totalCraneSystemKg / 1000).toFixed(2) : null,
+      craneSystemCost: totalCraneSystemKg > 0 ? Math.round((totalCraneSystemKg / 1000) * activeMetalPrice) : 0,
       craneInfo: cranesSummary || "",
       foundationCount,
       concreteCubic,
@@ -858,7 +838,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     windLoad, cranes, stories, gkPrice, lstkPrice, fasonkaPrice,
     useSandwich, layoutMode, panelModule, panelStockLength, wallPrice,
     roofPrice, trimPrice, frameType, baseMatrix210, snowCoefficients,
-    roofPurlins, trussTable, windCoefficients, aperturesList, 
+    roofPurlins, trussTable, windCoefficients, aperturesList, activeWalls,
     concretePrice, rebarPrice, validationMetrics.isOverloaded
   ]);
 
@@ -905,11 +885,33 @@ export default function QuickEstimator({ onBack, projectsDb }) {
 
       <QuickEstimatorAnalytics dbAnalytics={dbAnalytics} />
 
-      <div style={styles.sectionTitle}>
-        <input type="checkbox" checked={useSandwich} onChange={(e) => setUseSandwich(e.target.checked)} style={{ marginRight: "10px" }} />
-        2. Панели и цены
+      {/* НОВАЯ ИНТЕРФЕЙСНАЯ СЕКЦИЯ: УПРАВЛЕНИЕ АКТИВНОСТЬЮ СТЕН */}
+      <div style={styles.sectionTitle}>1.1. Конфигуратор сопряжения стен (Пристройки ЕВРОАНГАР)</div>
+      <div style={styles.wallsConfigBox}>
+        <div style={{fontSize: "0.85em", color: "#666", marginBottom: "10px"}}>
+          * Снимите чекбокс со стены, чтобы исключить её обшивку и стеновые прогоны (актуально для пристраиваемых пролетов к существующим цехам).
+        </div>
+        <div style={{display: "flex", gap: "20px", flexWrap: "wrap"}}>
+          <label style={styles.checkboxLabel}>
+            <input type="checkbox" checked={activeWalls.north} onChange={() => toggleWall("north")} />
+            🪵 Северная стена (Продольная {length}м)
+          </label>
+          <label style={styles.checkboxLabel}>
+            <input type="checkbox" checked={activeWalls.south} onChange={() => toggleWall("south")} />
+            🪵 Южная стена (Продольная {length}м)
+          </label>
+          <label style={styles.checkboxLabel}>
+            <input type="checkbox" checked={activeWalls.east} onChange={() => toggleWall("east")} />
+            📐 Восточная стена (Торцевая {Number(spanWidth) * Number(spansCount)}м)
+          </label>
+          <label style={styles.checkboxLabel}>
+            <input type="checkbox" checked={activeWalls.west} onChange={() => toggleWall("west")} />
+            📐 Западная стена (Торцевая {Number(spanWidth) * Number(spansCount)}м)
+          </label>
+        </div>
       </div>
 
+      <div style={styles.sectionTitle}>2. Панели и цены</div>
       {useSandwich && (
         <div style={styles.grid}>
           <div style={styles.field}>
@@ -968,7 +970,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
 
       <div style={styles.sectionTitle}>3. Модуль инженерных проемов комплекса ЕВРОАНГАР</div>
       
-      {/* Живой информер контроля перфорации до 100% */}
       <div style={{
         ...styles.validationBox,
         backgroundColor: Number(validationMetrics.perforationPercent) > 70.0 ? "#fff3e0" : "#f1f8e9",
@@ -976,12 +977,12 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         color: Number(validationMetrics.perforationPercent) > 70.0 ? "#e65100" : "#33691e"
       }}>
         📐 <b>Контроль пространственной жесткости стен:</b><br />
-        • Геометрическая площадь стен: <b>{validationMetrics.totalWallsGeomArea} м²</b><br />
+        • Геометрическая площадь активных стен: <b>{validationMetrics.totalWallsGeomArea} м²</b><br />
         • Суммарная площадь всех проемов: <b>{validationMetrics.totalAperturesArea} м²</b><br />
-        • Процент перфорации каркаса: <b style={{ fontSize: "1.1em" }}>{validationMetrics.perforationPercent}%</b> из доступных <b>100%</b>.<br />
+        • Процент перфорации оставшегося каркаса: <b style={{ fontSize: "1.1em" }}>{validationMetrics.perforationPercent}%</b> из доступных <b>100%</b>.<br />
         {Number(validationMetrics.perforationPercent) > 70.0 && (
           <span style={{ display: "block", marginTop: "5px", fontWeight: "bold" }}>
-            ⚠️ ВНИМАНИЕ: Очень высокий процент проемов. Потребуется дополнительное усиление продольных связевых блоков каркаса.
+            ⚠️ ВНИМАНИЕ: Проемы занимают большую часть оставшихся стен. Требуется усиление продольных связей каркаса!
           </span>
         )}
       </div>
@@ -1063,7 +1064,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         fasonkaPrice={fasonkaPrice}
       />
 
-      {/* Встроенные модули управления справочниками и коэффициентами баз */}
       <BaseMatrix210Editor isOpen={isBaseMatrixOpen} onClose={() => setIsBaseMatrixOpen(false)} onSave={setBaseMatrix210} />
       <SnowCoefficientsEditor isOpen={isSnowCoeffsOpen} onClose={() => setIsSnowCoeffsOpen(false)} onSave={setSnowCoefficients} />
       <WindCoefficientsEditor isOpen={isWindCoeffsOpen} onClose={() => setIsWindCoeffsOpen(false)} onSave={setWindCoefficients} />
