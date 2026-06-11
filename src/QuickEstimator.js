@@ -116,6 +116,37 @@ const styles = {
     fontSize: "1em",
     backgroundColor: "#fff",
   },
+  // Новые стили для блока окон
+  windowRow: {
+    display: "flex",
+    gap: "10px",
+    alignItems: "flex-end",
+    flexWrap: "wrap",
+    backgroundColor: "#f8f9fa",
+    padding: "15px",
+    borderRadius: "8px",
+    marginBottom: "10px",
+    border: "1px solid #e9ecef"
+  },
+  addBtn: {
+    padding: "10px 15px",
+    backgroundColor: "#28a745",
+    color: "#fff",
+    border: "none",
+    borderRadius: "5px",
+    cursor: "pointer",
+    fontWeight: "bold",
+    marginTop: "10px"
+  },
+  delBtn: {
+    padding: "8px 12px",
+    backgroundColor: "#dc3545",
+    color: "#fff",
+    border: "none",
+    borderRadius: "5px",
+    cursor: "pointer",
+    height: "36px"
+  }
 };
 
 export default function QuickEstimator({ onBack, projectsDb }) {
@@ -147,7 +178,8 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [isBuildingTypesOpen, setIsBuildingTypesOpen] = useState(false);
 
   const [gatesArea, setGatesArea] = useState("0");
-  const [windowsArea, setWindowsArea] = useState("0");
+  const [windowsArea, setWindowsArea] = useState("0"); // Оставлено для совместимости старой формы
+  const [windowsList, setWindowsList] = useState([]); // Новое состояние для детализированных окон
 
   const [strictFilter, setStrictFilter] = useState(true);
   const [useSandwich, setUseSandwich] = useState(true);
@@ -212,6 +244,59 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       newCranes[index].type = "support";
     setCranes(newCranes);
   };
+
+  // --- УПРАВЛЕНИЕ ОКНАМИ ---
+  const addWindow = () => {
+    const H_val = Number(height) || 0;
+    const pMod_val = Number(panelModule) || 1.0;
+    const h_w_default = 1.2;
+
+    let eTop = 0;
+    if (layoutMode === "vertical") {
+      eTop = H_val - 0.5;
+    } else {
+      eTop = Math.floor((H_val - 0.5) / pMod_val) * pMod_val;
+    }
+    
+    setWindowsList([
+      ...windowsList,
+      {
+        id: Date.now(),
+        width: "3.0",
+        height: String(h_w_default),
+        count: "1",
+        eTop: String(Math.max(0, eTop).toFixed(2)),
+        eBot: String(Math.max(0, eTop - h_w_default).toFixed(2)),
+        profile: "СтОП"
+      }
+    ]);
+  };
+
+  const updateWindow = (id, field, value) => {
+    setWindowsList(prev => prev.map(w => {
+      if (w.id === id) {
+        const updated = { ...w, [field]: value };
+        // Автоматический пересчет высот
+        if (field === 'height' || field === 'eTop') {
+          const t = Number(updated.eTop) || 0;
+          const h = Number(updated.height) || 0;
+          updated.eBot = String(Math.max(0, t - h).toFixed(2));
+        }
+        if (field === 'eBot') {
+          const b = Number(updated.eBot) || 0;
+          const h = Number(updated.height) || 0;
+          updated.eTop = String((b + h).toFixed(2));
+        }
+        return updated;
+      }
+      return w;
+    }));
+  };
+
+  const removeWindow = (id) => {
+    setWindowsList(prev => prev.filter(w => w.id !== id));
+  };
+  // --------------------------
 
   const dbAnalytics = useMemo(() => {
     if (!projectsDb || projectsDb.length === 0) return null;
@@ -302,7 +387,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const baseSnow = Number(snowLoad) || 0;
     const currentWind = Number(windLoad) || 38;
 
-    // Временная заглушка цены до внедрения 4х типов:
     const activeMetalPrice = Number(gkPrice) || 0;
 
     let pMod = Number(panelModule);
@@ -310,7 +394,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const pStock = Number(panelStockLength) || 6.0;
     const openingsTotal = Number(gatesArea) + Number(windowsArea);
 
-    // --- ВЫЧИСЛЕНИЕ ВЫСОТЫ СТЕНЫ ЕВРОАНГАР ---
     const purlinHeight = baseSnow <= 400 ? 0.24 : 0.3;
 
     let supportHeight = 0.35;
@@ -323,14 +406,11 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       trussCorrectionValue = 0.65 + (10 - S) * 0.0597;
     }
 
-    // Две расчетные высоты для сравнения
     const fullWallHeightBeam = H + purlinHeight + supportHeight;
     const fullWallHeightTruss = fullWallHeightBeam + trussCorrectionValue;
 
-    // Итоговая высота стены для текущего выбора
     const fullWallHeight =
       frameType === "truss" ? fullWallHeightTruss : fullWallHeightBeam;
-    // -----------------------------------------
 
     const getTrussDiscount = (w, h) => {
       const hList = trussTable.heights;
@@ -388,14 +468,12 @@ export default function QuickEstimator({ onBack, projectsDb }) {
 
       if (hasThisCrane && crane.type === "suspension") spanSnow += 140;
 
-      // Получение баз и коэффициентов
       const baseWeight210_Truss = interpolate2D(baseMatrix210, H, W);
       const basePurlins210 = getRoofPurlinWeight(roofPurlins, 210);
       const currentPurlinsRate = getRoofPurlinWeight(roofPurlins, spanSnow);
       const snowCoeff = getSnowCoefficient(snowCoefficients, spanSnow);
       const windCoeff = getWindCoefficient(windCoefficients, currentWind);
 
-      // ДИНАМИЧЕСКАЯ СКИДКА
       const baseTrussDiscountPercent = getTrussDiscount(W, H);
       const columnStep = 6;
       const totalFrames = Math.ceil(L / columnStep) + 1;
@@ -404,10 +482,8 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         (baseTrussDiscountPercent * framesWithTruss) / totalFrames / 0.9;
       const dynamicTrussCoeff = 1 - finalDiscountPercent / 100;
 
-      // ВОССТАНАВЛИВАЕМ ПОЛНУЮ МАССУ БАЛКИ
       const baseBeamTotal210 = baseWeight210_Truss / dynamicTrussCoeff;
 
-      // --- ИСПРАВЛЕНИЕ ЕВРОАНГАР: ВЫЧИТАЕМ ТЯЖЕЛЫЕ ПРОГОНЫ (ТИП 4) ---
       const savedConf = localStorage.getItem("euroangar_building_types_config");
       let pType4 = 0.47;
       if (savedConf) {
@@ -416,11 +492,10 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         } catch (e) {}
       }
 
-      const basePurlinsGK210 = basePurlins210 / pType4; // Переводим ЛСТК прогоны в тяжелые ГК
+      const basePurlinsGK210 = basePurlins210 / pType4;
 
       let pureBeamFramesAndTies210 = baseBeamTotal210 - basePurlinsGK210;
       if (pureBeamFramesAndTies210 < 0) pureBeamFramesAndTies210 = 0;
-      // ---------------------------------------------------------------
 
       pureBeamFramesAndTies210 *= lMult * floorMult;
 
@@ -429,39 +504,32 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         else pureBeamFramesAndTies210 *= 1.25;
       }
 
-      // Корректировка балочного каркаса
       const adjustedBeamFramesAndTies =
         pureBeamFramesAndTies210 * snowCoeff * windCoeff;
       const fullBeamBuildingRate =
         adjustedBeamFramesAndTies + currentPurlinsRate;
 
-      // ПРИМЕНЯЕМ СКИДКУ КО ВСЕЙ МАССЕ ЗДАНИЯ
       let totalReducedBuildingRate = fullBeamBuildingRate;
       if (frameType === "truss") {
         totalReducedBuildingRate = fullBeamBuildingRate * dynamicTrussCoeff;
       }
 
-      // Неизменные массы связей и прогонов от БАЛКИ
       const tiesRate = adjustedBeamFramesAndTies * COEFFS.tiesRatio;
       const purlinsRate = currentPurlinsRate;
 
-      // МАССА РАМ
       let framesRate = totalReducedBuildingRate - tiesRate - purlinsRate;
       if (framesRate < 0) framesRate = 0;
 
-      // Накопление
       const spanArea = W * L;
       totalFrameKgRaw += framesRate * spanArea;
       totalTiesKg += tiesRate * spanArea;
       totalPurlinsKg += purlinsRate * spanArea;
 
-      // Точный расчет сэкономленных килограммов
       if (frameType === "truss") {
         totalSavingsKg +=
           (fullBeamBuildingRate - totalReducedBuildingRate) * spanArea;
       }
 
-      // Краны
       if (hasThisCrane) {
         const trackLength = L * 2;
         let trackLinW = 0;
@@ -479,12 +547,10 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const totalWidth = W * N;
     const floorAreaTotal = totalWidth * L;
 
-    // --- ПРОГОНЫ СТЕН (Точный расчет рядов по ветру) ---
     let wallPurlinsLength = 0;
     let wallPurlinsBaseKg = 0;
 
     if (useSandwich && layoutMode === "vertical") {
-      // ИСПРАВЛЕННАЯ ФОРМУЛА: переводим кг/м² в кПа напрямую (38 кг/м² = 0.38 кПа)
       const wPress = currentWind / 100; 
       
       let purlinStep = 4.5;
@@ -495,15 +561,58 @@ export default function QuickEstimator({ onBack, projectsDb }) {
 
       const perimeter = (totalWidth + L) * 2;
       const lines = Math.ceil(fullWallHeight / purlinStep);
-      wallPurlinsLength = perimeter * lines; // Итого погонных метров стен
+      wallPurlinsLength = perimeter * lines;
 
-      // Базовая масса для Типа 3 (5.1 ОЦ + 1.275 Фасонка = 6.375 кг/п.м.)
       wallPurlinsBaseKg = wallPurlinsLength * 6.375;
     }
 
-    const totalRoofPurlinsKg = totalPurlinsKg; // Чистый вес прогонов кровли
-    totalPurlinsKg += wallPurlinsBaseKg; // Прибавляем стены для общих итогов
-    // --------------------------------------------------
+    const totalRoofPurlinsKg = totalPurlinsKg;
+    totalPurlinsKg += wallPurlinsBaseKg; 
+
+    // --- РАСЧЕТ НОВЫХ ОКОН (Масса обрамлений и вычет СП) ---
+    let windowsFrameKg = 0;
+    let windowsDeductArea = 0;
+
+    windowsList.forEach(w => {
+      const h_w = Number(w.height) || 0;
+      const L_w = Number(w.width) || 0;
+      const n = Number(w.count) || 0;
+      const eTop = Number(w.eTop) || 0;
+
+      if (h_w > 0 && L_w > 0 && n > 0) {
+        // 1. Масса фахверка (2 горизонтальные + 2 боковые стойки)
+        const lFrame = (Math.ceil(L_w / 6) * 6) * 2 + (2 * h_w);
+        if (w.profile === "ГКП") {
+          windowsFrameKg += lFrame * 7.07 * 1.10 * n;
+        } else {
+          windowsFrameKg += lFrame * 5.1 * 1.11 * n;
+        }
+
+        // 2. Вычет сэндвич-панелей
+        if (useSandwich) {
+          if (layoutMode === "vertical") {
+            const w_panels = Math.floor(L_w / pMod);
+            windowsDeductArea += w_panels * pMod * h_w * n;
+          } else {
+            // Проверка попадания окна в горизонтальные швы
+            const eps = 0.01;
+            const eTopRem = eTop % pMod;
+            const hwRem = h_w % pMod;
+            const isTopAligned = eTopRem < eps || (pMod - eTopRem) < eps;
+            const isHeightAligned = hwRem < eps || (pMod - hwRem) < eps;
+
+            if (isTopAligned && isHeightAligned) {
+              const h_panels = Math.floor(h_w / pMod);
+              windowsDeductArea += h_panels * pMod * L_w * n;
+            }
+          }
+        }
+      }
+    });
+
+    totalFrameKgRaw += windowsFrameKg; // Прибавляем фахверк к каркасу здания
+    // -------------------------------------------------------
+
     const totalFrameKg = totalFrameKgRaw + totalPurlinsKg + totalTiesKg;
     const totalMetalKg = totalFrameKg + totalCraneSystemKg;
     const metalWeightTons = totalMetalKg / 1000;
@@ -565,7 +674,8 @@ export default function QuickEstimator({ onBack, projectsDb }) {
           wAreaBox = Math.ceil(perimeter / pMod) * pMod * wallH;
         }
 
-        wAreaBox = Math.max(0, wAreaBox - openingsTotal);
+        // Вычитаем площадь старых примитивных ворот и ТОЧНУЮ вычисленную площадь окон
+        wAreaBox = Math.max(0, wAreaBox - openingsTotal - windowsDeductArea);
 
         let singleEndArea = 0;
         if (layoutMode === "horizontal") {
@@ -627,8 +737,8 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       metalCost + wallCost + roofCost + trimCost + foundationCost;
 
     return {
-      roofPurlinsKg: totalRoofPurlinsKg, // Новая переменная для матрицы
-      wallPurlinsLength: wallPurlinsLength, // Новая переменная для матрицы
+      roofPurlinsKg: totalRoofPurlinsKg, 
+      wallPurlinsLength: wallPurlinsLength, 
       floorArea: floorAreaTotal,
       metalRate: (totalMetalKg / floorAreaTotal).toFixed(1),
       metalWeight: metalWeightTons.toFixed(2),
@@ -666,96 +776,27 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       totalCost: Math.round(totalCostNum).toLocaleString("ru-RU"),
     };
   }, [
-    spanWidth,
-    spansCount,
-    length,
-    height,
-    slope,
-    roofShape,
-    snowLoad,
-    windLoad,
-    cranes,
-    stories,
-    gkPrice,
-    lstkPrice,
-    fasonkaPrice,
-    useSandwich,
-    layoutMode,
-    panelModule,
-    panelStockLength,
-    wallPrice,
-    roofPrice,
-    trimPrice,
-    frameType,
-    baseMatrix210,
-    snowCoefficients,
-    roofPurlins,
-    trussTable,
-    windCoefficients,
-    gatesArea,
-    windowsArea,
-    concretePrice,
-    rebarPrice,
+    spanWidth, spansCount, length, height, slope, roofShape, snowLoad,
+    windLoad, cranes, stories, gkPrice, lstkPrice, fasonkaPrice,
+    useSandwich, layoutMode, panelModule, panelStockLength, wallPrice,
+    roofPrice, trimPrice, frameType, baseMatrix210, snowCoefficients,
+    roofPurlins, trussTable, windCoefficients, gatesArea, windowsArea,
+    windowsList, concretePrice, rebarPrice,
   ]);
 
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: "5px",
-          }}
-        >
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "5px" }}>
           <h2 style={styles.h2}>Быстрый расчёт v14 (ЕВРОАНГАР)</h2>
-          <button
-            style={styles.settingsBtn}
-            onClick={() => setIsBaseMatrixOpen(true)}
-            title="📊 База 210"
-          >
-            📊 База
-          </button>
-          <button
-            style={styles.settingsBtn}
-            onClick={() => setIsSnowCoeffsOpen(true)}
-            title="❄️ Снег"
-          >
-            ❄️ Снег
-          </button>
-          <button
-            style={styles.settingsBtn}
-            onClick={() => setIsWindCoeffsOpen(true)}
-            title="💨 Ветер"
-          >
-            💨 Ветер
-          </button>
-          <button
-            style={styles.settingsBtn}
-            onClick={() => setIsPurlinsOpen(true)}
-            title="🏗️ Прогоны"
-          >
-            🏗️ Прогоны
-          </button>
-          <button
-            style={styles.settingsBtn}
-            onClick={() => setIsTrussEditorOpen(true)}
-            title="⚙️ Ферма"
-          >
-            ⚙️ Ферма
-          </button>
-          <button
-            style={styles.settingsBtn}
-            onClick={() => setIsBuildingTypesOpen(true)}
-            title="⚙️ Типы зданий"
-          >
-            ⚙️ Типы
-          </button>
+          <button style={styles.settingsBtn} onClick={() => setIsBaseMatrixOpen(true)} title="📊 База 210">📊 База</button>
+          <button style={styles.settingsBtn} onClick={() => setIsSnowCoeffsOpen(true)} title="❄️ Снег">❄️ Снег</button>
+          <button style={styles.settingsBtn} onClick={() => setIsWindCoeffsOpen(true)} title="💨 Ветер">💨 Ветер</button>
+          <button style={styles.settingsBtn} onClick={() => setIsPurlinsOpen(true)} title="🏗️ Прогоны">🏗️ Прогоны</button>
+          <button style={styles.settingsBtn} onClick={() => setIsTrussEditorOpen(true)} title="⚙️ Ферма">⚙️ Ферма</button>
+          <button style={styles.settingsBtn} onClick={() => setIsBuildingTypesOpen(true)} title="⚙️ Типы зданий">⚙️ Типы</button>
         </div>
-        <button style={styles.closeButton} onClick={onBack}>
-          Закрыть
-        </button>
+        <button style={styles.closeButton} onClick={onBack}>Закрыть</button>
       </div>
 
       <QuickEstimatorForm
@@ -791,12 +832,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       <QuickEstimatorAnalytics dbAnalytics={dbAnalytics} />
 
       <div style={styles.sectionTitle}>
-        <input
-          type="checkbox"
-          checked={useSandwich}
-          onChange={(e) => setUseSandwich(e.target.checked)}
-          style={{ marginRight: "10px" }}
-        />
+        <input type="checkbox" checked={useSandwich} onChange={(e) => setUseSandwich(e.target.checked)} style={{ marginRight: "10px" }} />
         2. Панели и цены
       </div>
 
@@ -804,114 +840,95 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         <div style={styles.grid}>
           <div style={styles.field}>
             <label style={styles.label}>Раскладка</label>
-            <select
-              style={styles.select}
-              value={layoutMode}
-              onChange={(e) => setLayoutMode(e.target.value)}
-            >
+            <select style={styles.select} value={layoutMode} onChange={(e) => setLayoutMode(e.target.value)}>
               <option value="horizontal">Горизонт.</option>
               <option value="vertical">Вертикал.</option>
             </select>
           </div>
           <div style={styles.field}>
-            <label style={styles.label}>
-              {layoutMode === "horizontal"
-                ? "Модуль (м)"
-                : "Модуль вертик. (м)"}
-            </label>
-            <input
-              style={styles.input}
-              type="number"
-              step="0.01"
-              value={panelModule}
-              onChange={(e) => setPanelModule(e.target.value)}
-            />
+            <label style={styles.label}>{layoutMode === "horizontal" ? "Модуль (м)" : "Модуль вертик. (м)"}</label>
+            <input style={styles.input} type="number" step="0.01" value={panelModule} onChange={(e) => setPanelModule(e.target.value)} />
           </div>
           {layoutMode === "horizontal" && (
             <div style={styles.field}>
               <label style={styles.label}>Длина панели (м)</label>
-              <input
-                style={styles.input}
-                type="number"
-                value={panelStockLength}
-                onChange={(e) => setPanelStockLength(e.target.value)}
-              />
+              <input style={styles.input} type="number" value={panelStockLength} onChange={(e) => setPanelStockLength(e.target.value)} />
             </div>
           )}
           <div style={styles.field}>
             <label style={styles.label}>Цена ГК (₽/т)</label>
-            <input
-              style={styles.input}
-              type="number"
-              value={gkPrice}
-              onChange={(e) => setGkPrice(e.target.value)}
-            />
+            <input style={styles.input} type="number" value={gkPrice} onChange={(e) => setGkPrice(e.target.value)} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Цена ЛСТК (₽/т)</label>
-            <input
-              style={styles.input}
-              type="number"
-              value={lstkPrice}
-              onChange={(e) => setLstkPrice(e.target.value)}
-            />
+            <input style={styles.input} type="number" value={lstkPrice} onChange={(e) => setLstkPrice(e.target.value)} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Цена фасонки (₽/т)</label>
-            <input
-              style={styles.input}
-              type="number"
-              value={fasonkaPrice}
-              onChange={(e) => setFasonkaPrice(e.target.value)}
-            />
+            <input style={styles.input} type="number" value={fasonkaPrice} onChange={(e) => setFasonkaPrice(e.target.value)} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Цена стен (₽/м²)</label>
-            <input
-              style={styles.input}
-              type="number"
-              value={wallPrice}
-              onChange={(e) => setWallPrice(e.target.value)}
-            />
+            <input style={styles.input} type="number" value={wallPrice} onChange={(e) => setWallPrice(e.target.value)} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Цена кровли (₽/м²)</label>
-            <input
-              style={styles.input}
-              type="number"
-              value={roofPrice}
-              onChange={(e) => setRoofPrice(e.target.value)}
-            />
+            <input style={styles.input} type="number" value={roofPrice} onChange={(e) => setRoofPrice(e.target.value)} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Цена доборов (₽/м²)</label>
-            <input
-              style={styles.input}
-              type="number"
-              value={trimPrice}
-              onChange={(e) => setTrimPrice(e.target.value)}
-            />
+            <input style={styles.input} type="number" value={trimPrice} onChange={(e) => setTrimPrice(e.target.value)} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Цена бетона (₽/м³)</label>
-            <input
-              style={styles.input}
-              type="number"
-              value={concretePrice}
-              onChange={(e) => setConcretePrice(e.target.value)}
-            />
+            <input style={styles.input} type="number" value={concretePrice} onChange={(e) => setConcretePrice(e.target.value)} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Цена арматуры (₽/т)</label>
-            <input
-              style={styles.input}
-              type="number"
-              value={rebarPrice}
-              onChange={(e) => setRebarPrice(e.target.value)}
-            />
+            <input style={styles.input} type="number" value={rebarPrice} onChange={(e) => setRebarPrice(e.target.value)} />
           </div>
         </div>
       )}
+
+      {/* НОВАЯ СЕКЦИЯ: УПРАВЛЕНИЕ ОКНАМИ */}
+      <div style={styles.sectionTitle}>3. Детализация проемов (Окна)</div>
+      {windowsList.map((win) => (
+        <div key={win.id} style={styles.windowRow}>
+          <div style={styles.field}>
+            <label style={styles.label}>Длина (м)</label>
+            <input style={{...styles.input, width: "80px"}} type="number" step="0.1" value={win.width} onChange={e => updateWindow(win.id, 'width', e.target.value)} />
+          </div>
+          <div style={styles.field}>
+            <label style={styles.label}>Высота (м)</label>
+            <input style={{...styles.input, width: "80px"}} type="number" step="0.1" value={win.height} onChange={e => updateWindow(win.id, 'height', e.target.value)} />
+          </div>
+          <div style={styles.field}>
+            <label style={styles.label}>Кол-во (шт)</label>
+            <input style={{...styles.input, width: "60px"}} type="number" value={win.count} onChange={e => updateWindow(win.id, 'count', e.target.value)} />
+          </div>
+          <div style={styles.field}>
+            <label style={styles.label}>Верх (E.top)</label>
+            <input style={{...styles.input, width: "80px"}} type="number" step="0.01" value={win.eTop} onChange={e => updateWindow(win.id, 'eTop', e.target.value)} />
+          </div>
+          <div style={styles.field}>
+            <label style={styles.label}>Низ (E.bot)</label>
+            <input style={{...styles.input, width: "80px"}} type="number" step="0.01" value={win.eBot} onChange={e => updateWindow(win.id, 'eBot', e.target.value)} />
+          </div>
+          <div style={styles.field}>
+            <label style={styles.label}>Профиль</label>
+            <select style={styles.select} value={win.profile} onChange={e => updateWindow(win.id, 'profile', e.target.value)}>
+              <option value="СтОП">СтОП</option>
+              <option value="ГКП">ГКП</option>
+            </select>
+          </div>
+          <button style={styles.delBtn} onClick={() => removeWindow(win.id)}>🗑️</button>
+        </div>
+      ))}
+      <button style={styles.addBtn} onClick={addWindow}>+ Добавить окно</button>
+      <div style={{fontSize: '0.8em', color: '#666', marginTop: '5px'}}>
+        * Отметки по умолчанию рассчитываются автоматически при добавлении окна с учетом текущей высоты здания и модуля панели. Вычет сэндвича сработает, если окно точно вписывается в панельную сетку.
+      </div>
+      {/* ------------------------------------- */}
 
       <QuickEstimatorResults
         estimation={estimation}
@@ -926,34 +943,12 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       />
 
       {/* Редакторы */}
-      <BaseMatrix210Editor
-        isOpen={isBaseMatrixOpen}
-        onClose={() => setIsBaseMatrixOpen(false)}
-        onSave={setBaseMatrix210}
-      />
-      <SnowCoefficientsEditor
-        isOpen={isSnowCoeffsOpen}
-        onClose={() => setIsSnowCoeffsOpen(false)}
-        onSave={setSnowCoefficients}
-      />
-      <WindCoefficientsEditor
-        isOpen={isWindCoeffsOpen}
-        onClose={() => setIsWindCoeffsOpen(false)}
-        onSave={setWindCoefficients}
-      />
-      <RoofPurlinsEditor
-        isOpen={isPurlinsOpen}
-        onClose={() => setIsPurlinsOpen(false)}
-        onSave={setRoofPurlins}
-      />
-      <TrussEfficiencyEditor
-        isOpen={isTrussEditorOpen}
-        onClose={() => setIsTrussEditorOpen(false)}
-        onSave={setTrussTable}
-      />
-      {isBuildingTypesOpen && (
-        <BuildingTypesEditor onClose={() => setIsBuildingTypesOpen(false)} />
-      )}
+      <BaseMatrix210Editor isOpen={isBaseMatrixOpen} onClose={() => setIsBaseMatrixOpen(false)} onSave={setBaseMatrix210} />
+      <SnowCoefficientsEditor isOpen={isSnowCoeffsOpen} onClose={() => setIsSnowCoeffsOpen(false)} onSave={setSnowCoefficients} />
+      <WindCoefficientsEditor isOpen={isWindCoeffsOpen} onClose={() => setIsWindCoeffsOpen(false)} onSave={setWindCoefficients} />
+      <RoofPurlinsEditor isOpen={isPurlinsOpen} onClose={() => setIsPurlinsOpen(false)} onSave={setRoofPurlins} />
+      <TrussEfficiencyEditor isOpen={isTrussEditorOpen} onClose={() => setIsTrussEditorOpen(false)} onSave={setTrussTable} />
+      {isBuildingTypesOpen && <BuildingTypesEditor onClose={() => setIsBuildingTypesOpen(false)} />}
     </div>
   );
 }
