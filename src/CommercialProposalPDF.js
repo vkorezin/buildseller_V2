@@ -41,8 +41,8 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
 
   const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}/logo.jpg` : '';
 
-  // Фильтруем типы, оставляем только доступные (не заблокированные)
-  const visibleTypes = types.filter(t => !t.blocked);
+  // Входной массив types уже отфильтрован по !blocked на стороне родительского компонента 
+  const visibleTypes = types;
   
   // Рассчитываем динамическую ширину колонок таблицы в зависимости от их фактического количества
   const labelCellWidth = '31%';
@@ -56,7 +56,7 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             {logoUrl ? <Image src={logoUrl} style={styles.logo} /> : <Text style={styles.brandFallback}>ЕВРОАНГАР</Text>}
-            <Text style={styles.title}>Коммерческое предложение № {kpNumber}</Text>
+            <Text style={styles.title}>Комmerческое предложение № {kpNumber}</Text>
             <Text style={styles.subtitle}>Дата формирования: {date}</Text>
           </View>
         </View>
@@ -87,17 +87,14 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
             ))}
           </View>
           
-          {/* Стоимость Каркаса */}
+          {/* Стоимость Каркаса (Берется из готового, чистого поля металлостоимости) */}
           <View style={styles.row}>
             <Text style={{ width: labelCellWidth, fontSize: 9, fontWeight: 'bold' }}>Металлокаркас (₽)</Text>
-            {visibleTypes.map((t, index) => {
-              const d = t.calc();
-              return (
-                <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 9, backgroundColor: t.isBase ? '#e8f4fd' : '#ffffff', paddingVertical: t.isBase ? 4 : 0 }}>
-                  {Math.round(d.metalCost || 0).toLocaleString('ru-RU')} ₽
-                </Text>
-              );
-            })}
+            {visibleTypes.map((t, index) => (
+              <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 9, backgroundColor: t.isBase ? '#e8f4fd' : '#ffffff', paddingVertical: t.isBase ? 4 : 0 }}>
+                {Math.round(t.metalCost || 0).toLocaleString('ru-RU')} ₽
+              </Text>
+            ))}
           </View>
 
           {/* Обшивка */}
@@ -124,14 +121,13 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
             </View>
           )}
 
-          {/* ИТОГО ПО ЗДАНИЮ */}
+          {/* ИТОГО ПО ОБЪЕКТУ */}
           <View style={[styles.row, { borderBottomWidth: 2, borderBottomColor: '#333' }]}>
             <Text style={{ width: labelCellWidth, fontSize: 10, fontWeight: 'bold' }}>ИТОГО ПО ОБЪЕКТУ</Text>
             {visibleTypes.map((t, index) => {
-              const d = t.calc();
               const envCost = Number(data.envelopeCost) || 0;
               const foundCost = Number(data.foundationCost) || 0;
-              const totalAll = d ? (Number(d.metalCost) || 0) + envCost + foundCost : 0;
+              const totalAll = (Number(t.metalCost) || 0) + envCost + foundCost;
               return (
                 <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 10, fontWeight: 'bold', backgroundColor: t.isBase ? '#e8f4fd' : '#f1f8e9', paddingVertical: 4 }}>
                   {Math.round(totalAll).toLocaleString('ru-RU')} ₽
