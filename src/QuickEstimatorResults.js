@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import CommercialProposalPDF from './CommercialProposalPDF';
 
@@ -46,7 +46,31 @@ export default function QuickEstimatorResults({
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_phone', managerPhone); }, [managerPhone]);
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_email', managerEmail); }, [managerEmail]);
 
-  // Сброс кэша PDF при изменении любых параметров калькулятора
+  // ГАРАНТИЯ СИНХРОНИЗАЦИИ: Изолируем и мемоизируем объект коммерческих параметров для PDF.
+  // Это исключает баг с пробросом старых значений снега, ветра и геометрии.
+  const pdfData = useMemo(() => {
+    return {
+      spanWidth,
+      length,
+      height,
+      snowLoad,
+      windLoad,
+      frameType,
+      craneInfo: estimation?.craneInfo || "Нет крана",
+      envelopeCost: useSandwich ? ((Number(estimation?.wallCost) || 0) + (Number(estimation?.roofCost) || 0) + (Number(estimation?.trimCost) || 0)) : 0,
+      foundationCost: Number(estimation?.foundationCost) || 0,
+      useSandwich,
+      wallCost: Number(estimation?.wallCost) || 0,
+      roofCost: Number(estimation?.roofCost) || 0,
+      trimCost: Number(estimation?.trimCost) || 0,
+      savingsAmount: Number(estimation?.savingsAmount) || 0,
+      envelopeDiffAmount: Number(estimation?.envelopeDiffAmount) || 0
+    };
+  }, [
+    spanWidth, length, height, snowLoad, windLoad, frameType, useSandwich, estimation
+  ]);
+
+  // Сброс кэша PDF-ссылки при изменении любых параметров или данных специалиста
   useEffect(() => {
     setShowPdf(false);
   }, [
@@ -158,7 +182,7 @@ export default function QuickEstimatorResults({
     }
   ];
 
-  const netSavings = estimation.savingsAmount - (estimation.envelopeDiffAmount || 0);
+  const visibleTypes = types.filter(t => !t.blocked);
 
   const styles = {
     container: { marginTop: "30px", fontFamily: "Arial, sans-serif" },
@@ -190,8 +214,6 @@ export default function QuickEstimatorResults({
     blockedValidationMsg: { backgroundColor: "#ffebee", color: "#c62828", border: "1px solid #ef9a9a", padding: "15px", borderRadius: "8px", textAlign: "center", marginTop: "15px", fontWeight: "bold" }
   };
 
-  const visibleTypes = types.filter(t => !t.blocked);
-
   return (
     <div style={styles.container}>
       <h3 style={styles.mainTitle}>📊 Сравнительная матрица типов зданий ЕВРОАНГАР</h3>
@@ -220,14 +242,12 @@ export default function QuickEstimatorResults({
               ) : (
                 <>
                   <div style={styles.cardBody}>
-                    {/* Коммерческие стоимостные показатели */}
                     <div style={styles.dataRow}><span>Металлокаркас здания:</span><span style={styles.dataVal}>{Math.round(data.metalCost).toLocaleString("ru-RU")} ₽</span></div>
                     {useSandwich && <div style={styles.dataRow}><span>Стеновое и кровельное ограждение:</span><span style={styles.dataVal}>{Math.round(envelopeCost).toLocaleString("ru-RU")} ₽</span></div>}
                     <div style={styles.dataRow}><span>Опорные фундаменты:</span><span style={styles.dataVal}>{Math.round(foundationCost).toLocaleString("ru-RU")} ₽</span></div>
                     
                     <div style={styles.divider}></div>
                     
-                    {/* ВНУТРЕННИЕ ИНЖЕНЕРНЫЕ ДАННЫЕ (Выводятся ТОЛЬКО на экран, в PDF их не будет!) */}
                     <div style={styles.techDataTitle}>📐 Спецификация масс и площадей:</div>
                     <div style={styles.dataRow}><span>Рамы / Колонны:</span><span style={styles.dataVal}>{(data.frames / 1000).toFixed(2)} т</span></div>
                     <div style={styles.dataRow}><span>Прогоны системы:</span><span style={styles.dataVal}>{(data.purlins / 1000).toFixed(2)} т</span></div>
@@ -289,17 +309,7 @@ export default function QuickEstimatorResults({
             <PDFDownloadLink 
               document={
                 <CommercialProposalPDF 
-                  data={{ 
-                    spanWidth, length, height, snowLoad, windLoad, frameType,
-                    craneInfo: estimation.craneInfo,
-                    envelopeCost, foundationCost,
-                    useSandwich,
-                    wallCost: estimation.wallCost,
-                    roofCost: estimation.roofCost,
-                    trimCost: estimation.trimCost,
-                    savingsAmount: estimation.savingsAmount,
-                    envelopeDiffAmount: estimation.envelopeDiffAmount
-                  }}
+                  data={pdfData} /* ПРИВЯЗКА К СИНХРОННОМУ МЕМО-ОБЪЕКТУ: Теперь длина 60м, снег 280 и ветер 23 улетят в PDF моментально */
                   types={visibleTypes}
                   managerName={managerName}
                   managerPhone={managerPhone}
