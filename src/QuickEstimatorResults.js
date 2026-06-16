@@ -46,7 +46,6 @@ export default function QuickEstimatorResults({
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_phone', managerPhone); }, [managerPhone]);
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_email', managerEmail); }, [managerEmail]);
 
-  // Сброс флага готовности при любом изменении параметров, чтобы менеджер жал кнопку на свежие данные
   useEffect(() => {
     setShowPdf(false);
   }, [
@@ -158,10 +157,23 @@ export default function QuickEstimatorResults({
     }
   ];
 
-  const visibleTypes = types.filter(t => !t.blocked);
+  // СБОРКА ЧИСТЫХ СЕРИАЛИЗУЕМЫХ ДАННЫХ В ТЕКУЩЕМ ПОТОКЕ REACT:
+  // Мы вызываем calc() здесь, убирая функции и создавая плоский массив JSON-объектов.
+  const serializedTypesForPdf = useMemo(() => {
+    return types
+      .filter(t => !t.blocked)
+      .map(t => {
+        const calculated = t.calc();
+        return {
+          id: t.id,
+          name: t.name,
+          isBase: !!t.isBase,
+          metalCost: Number(calculated.metalCost) || 0
+        };
+      });
+  }, [showPdf, types]);
 
-  // ЖЕЛЕЗНЫЙ МЕМО-ФИЛЬТР ДОКУМЕНТА: Создаем готовый инстанс PDF-файла в памяти.
-  // Это полностью исключает асинхронный лаг и бесконечный "loading" воркера.
+  // Сборка слепка документа без единой динамической зависимости внутри воркера
   const memoizedPdfDocument = useMemo(() => {
     if (!showPdf) return null;
 
@@ -186,23 +198,17 @@ export default function QuickEstimatorResults({
     return (
       <CommercialProposalPDF 
         data={pdfDataObj}
-        types={visibleTypes}
+        types={serializedTypesForPdf} // Передаем абсолютно чистый массив без функций!
         managerName={managerName}
         managerPhone={managerPhone}
         managerEmail={managerEmail}
       />
     );
-  }, [
-    showPdf, spanWidth, length, height, snowLoad, windLoad, frameType, 
-    useSandwich, envelopeCost, foundationCost, estimation, 
-    visibleTypes, managerName, managerPhone, managerEmail
-  ]);
+  }, [showPdf, spanWidth, length, height, snowLoad, windLoad, frameType, useSandwich, envelopeCost, foundationCost, estimation, serializedTypesForPdf, managerName, managerPhone, managerEmail]);
 
   const uniquePdfKey = useMemo(() => {
     return `${spanWidth}-${length}-${height}-${snowLoad}-${windLoad}-${frameType}-${useSandwich}-${estimation?.totalCost}`;
-  }, [
-    spanWidth, length, height, snowLoad, windLoad, frameType, useSandwich, estimation?.totalCost
-  ]);
+  }, [spanWidth, length, height, snowLoad, windLoad, frameType, useSandwich, estimation?.totalCost]);
 
   const styles = {
     container: { marginTop: "30px", fontFamily: "Arial, sans-serif" },
@@ -330,7 +336,7 @@ export default function QuickEstimatorResults({
           ) : (
             <PDFDownloadLink 
               key={uniquePdfKey} 
-              document={memoizedPdfDocument} /* Прокидываем СТАТИЧНЫЙ слепок из useMemo — никаких живых пропсов внутри воркера */
+              document={memoizedPdfDocument} 
               fileName={`ЕВРОАНГАР_КП_${spanWidth}x${length}.pdf`}
               style={{textDecoration: 'none'}}
             >
