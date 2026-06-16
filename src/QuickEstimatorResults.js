@@ -29,8 +29,6 @@ export default function QuickEstimatorResults({
   fasonkaPrice = 150000
 }) {
   const [config, setConfig] = useState(DEFAULT_CONFIG);
-  
-  // Состояние генерации: теперь showPdf управляет жестким монтированием/демонтированием воркера
   const [showPdf, setShowPdf] = useState(false);
 
   const [managerName, setManagerName] = useState(() => localStorage.getItem('euroangar_pdf_m_name') || "");
@@ -48,8 +46,7 @@ export default function QuickEstimatorResults({
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_phone', managerPhone); }, [managerPhone]);
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_email', managerEmail); }, [managerEmail]);
 
-  // СБРОС СОСТОЯНИЯ: При изменении ЛЮБОГО параметра мы принудительно гасим генератор.
-  // Менеджер сначала меняет параметры, а затем жмет кнопку "Сформировать", получая свежий файл.
+  // Сброс флага готовности при любом изменении параметров, чтобы менеджер жал кнопку на свежие данные
   useEffect(() => {
     setShowPdf(false);
   }, [
@@ -163,12 +160,48 @@ export default function QuickEstimatorResults({
 
   const visibleTypes = types.filter(t => !t.blocked);
 
-  // ХЭШ-КЛЮЧ: Динамическая строка, которая меняется при ЛЮБОМ изменении геометрии или цен.
-  // Мы скормим этот хэш в проп key для PDFDownloadLink, заставив React жестко пересобирать воркер.
-  const uniquePdfKey = useMemo(() => {
-    return `${spanWidth}-${length}-${height}-${snowLoad}-${windLoad}-${frameType}-${useSandwich}-${managerName}-${managerPhone}-${managerEmail}-${estimation?.totalCost}`;
+  // ЖЕЛЕЗНЫЙ МЕМО-ФИЛЬТР ДОКУМЕНТА: Создаем готовый инстанс PDF-файла в памяти.
+  // Это полностью исключает асинхронный лаг и бесконечный "loading" воркера.
+  const memoizedPdfDocument = useMemo(() => {
+    if (!showPdf) return null;
+
+    const pdfDataObj = {
+      spanWidth,
+      length,
+      height,
+      snowLoad,
+      windLoad,
+      frameType,
+      craneInfo: estimation.craneInfo || "Нет крана",
+      envelopeCost,
+      foundationCost,
+      useSandwich,
+      wallCost: estimation.wallCost || 0,
+      roofCost: estimation.roofCost || 0,
+      trimCost: estimation.trimCost || 0,
+      savingsAmount: estimation.savingsAmount || 0,
+      envelopeDiffAmount: estimation.envelopeDiffAmount || 0
+    };
+
+    return (
+      <CommercialProposalPDF 
+        data={pdfDataObj}
+        types={visibleTypes}
+        managerName={managerName}
+        managerPhone={managerPhone}
+        managerEmail={managerEmail}
+      />
+    );
   }, [
-    spanWidth, length, height, snowLoad, windLoad, frameType, useSandwich, managerName, managerPhone, managerEmail, estimation?.totalCost
+    showPdf, spanWidth, length, height, snowLoad, windLoad, frameType, 
+    useSandwich, envelopeCost, foundationCost, estimation, 
+    visibleTypes, managerName, managerPhone, managerEmail
+  ]);
+
+  const uniquePdfKey = useMemo(() => {
+    return `${spanWidth}-${length}-${height}-${snowLoad}-${windLoad}-${frameType}-${useSandwich}-${estimation?.totalCost}`;
+  }, [
+    spanWidth, length, height, snowLoad, windLoad, frameType, useSandwich, estimation?.totalCost
   ]);
 
   const styles = {
@@ -292,31 +325,12 @@ export default function QuickEstimatorResults({
         </div>
       ) : (
         <>
-          {/* ПАТТЕРН ЛЕНИВОЙ СБОРКИ: До нажатия кнопки PDFDownloadLink вообще не существует в памяти */}
           {!showPdf ? (
             <button style={styles.pdfBtn} onClick={() => setShowPdf(true)}>📄 Подготовить КП в PDF</button>
           ) : (
             <PDFDownloadLink 
-              key={uniquePdfKey} /* ЖЕСТКИЙ СБРОС КЭША REACT: принудительный перерендер воркера при любом изменении хэша */
-              document={
-                <CommercialProposalPDF 
-                  data={{ 
-                    spanWidth, length, height, snowLoad, windLoad, frameType,
-                    craneInfo: estimation.craneInfo,
-                    envelopeCost, foundationCost,
-                    useSandwich,
-                    wallCost: estimation.wallCost,
-                    roofCost: estimation.roofCost,
-                    trimCost: estimation.trimCost,
-                    savingsAmount: estimation.savingsAmount,
-                    envelopeDiffAmount: estimation.envelopeDiffAmount
-                  }}
-                  types={visibleTypes} /* Исправленный проп 'types' для полной соосности с CommercialProposalPDF.js */
-                  managerName={managerName}
-                  managerPhone={managerPhone}
-                  managerEmail={managerEmail}
-                />
-              } 
+              key={uniquePdfKey} 
+              document={memoizedPdfDocument} /* Прокидываем СТАТИЧНЫЙ слепок из useMemo — никаких живых пропсов внутри воркера */
               fileName={`ЕВРОАНГАР_КП_${spanWidth}x${length}.pdf`}
               style={{textDecoration: 'none'}}
             >
