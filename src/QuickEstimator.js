@@ -185,22 +185,19 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [cranes, setCranes] = useState([{ id: 0, cap: "0", type: "support" }]);
   const [frameType, setFrameType] = useState("beam");
 
-  // Новое состояние для управления активностью стен (Концепция сторон света)
   const [activeWalls, setActiveWalls] = useState({
-    north: true, // Северная (продольная)
-    south: true, // Южная (продольная)
-    east: true,  // Восточная (торцевая)
-    west: true,  // Западная (торцевая)
+    north: true,
+    south: true,
+    east: true,
+    west: true,
   });
 
-  // Таблицы баз данных
   const [baseMatrix210, setBaseMatrix210] = useState(null);
   const [snowCoefficients, setSnowCoefficients] = useState(null);
   const [roofPurlins, setRoofPurlins] = useState(null);
   const [trussTable, setTrussTable] = useState(null);
   const [windCoefficients, setWindCoefficients] = useState(null);
 
-  // Состояния редакторов
   const [isBaseMatrixOpen, setIsBaseMatrixOpen] = useState(false);
   const [isSnowCoeffsOpen, setIsSnowCoeffsOpen] = useState(false);
   const [isPurlinsOpen, setIsPurlinsOpen] = useState(false);
@@ -208,7 +205,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [isWindCoeffsOpen, setIsWindCoeffsOpen] = useState(false);
   const [isBuildingTypesOpen, setIsBuildingTypesOpen] = useState(false);
 
-  // Динамические проемы комплекса ЕВРОАНГАР
   const [aperturesList, setAperturesList] = useState([]); 
 
   const [strictFilter, setStrictFilter] = useState(true);
@@ -217,7 +213,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [panelModule, setPanelModule] = useState(1.0);
   const [panelStockLength, setPanelStockLength] = useState(6.0);
 
-  // Цены
   const [gkPrice, setGkPrice] = useState(DEFAULT_GK_PRICE);
   const [lstkPrice, setLstkPrice] = useState(DEFAULT_LSTK_PRICE);
   const [fasonkaPrice, setFasonkaPrice] = useState(DEFAULT_FASONKA_PRICE);
@@ -266,7 +261,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     setActiveWalls(prev => ({ ...prev, [wallKey]: !prev[wallKey] }));
   };
 
-  // --- УПРАВЛЕНИЕ ДИНАМИЧЕСКИМИ ПРОЕМАМИ ---
   const addAperture = (type) => {
     const H_val = Number(height) || 0;
     const pMod_val = Number(panelModule) || 1.0;
@@ -346,7 +340,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     setAperturesList(prev => prev.filter(ap => ap.id !== id));
   };
 
-  // Геометрический расчет перфорации только по ОСТАВШИМСЯ активным стенам
   const validationMetrics = useMemo(() => {
     const W = Number(spanWidth) || 0;
     const N = cranes.length;
@@ -354,7 +347,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const H = Number(height) || 0;
     const totalWidth = W * N;
 
-    // Считаем площадь индивидуально по каждой активной стороне
     const sNorth = activeWalls.north ? (L * H) : 0;
     const sSouth = activeWalls.south ? (L * H) : 0;
     const sEast = activeWalls.east ? (totalWidth * H) : 0;
@@ -414,7 +406,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     };
   }, [spanWidth, projectsDb, strictFilter, cranes, stories]);
 
-  // ГЛАВНЫЙ МАТЕМАТИЧЕСКИЙ БЛОК РАСЧЕТА ЕВРОАНГАР
   const estimation = useMemo(() => {
     if (
       !baseMatrix210 ||
@@ -424,40 +415,12 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       !windCoefficients
     ) {
       return {
-        roofPurlinsKg: 0,
-        wallPurlinsLength: 0,
-        floorArea: 0,
-        metalRate: "0.0",
-        metalWeight: "0.00",
-        metalCost: 0,
-        framesWeight: "0.00",
-        framesRate: "0.0",
-        framesCost: 0,
-        purlinsWeight: "0.00",
-        purlinsRate: "0.0",
-        purlinsCost: 0,
-        tiesWeight: "0.00",
-        tiesRate: "0.0",
-        tiesCost: 0,
-        currentDiscount: "0",
-        savingsAmount: 0,
-        envelopeDiffAmount: 0,
-        craneSystemWeight: null,
-        craneSystemCost: 0,
-        craneInfo: "",
-        foundationCount: 0,
-        concreteCubic: "0.0",
-        rebarWeight: "0.00",
-        foundationCost: 0,
-        wallAreaBox: "0.0",
-        gableAreaTotal: "0.0",
-        roofArea: "0.0",
-        openingsArea: "0.0",
-        wallCost: 0,
-        roofCost: 0,
-        trimCost: 0,
-        totalCost: "0",
-        isBlockedByValidation: false
+        roofPurlinsKg: 0, wallPurlinsLength: 0, floorArea: 0, metalRate: "0.0", metalWeight: "0.00", metalCost: 0,
+        framesWeight: "0.00", framesRate: "0.0", framesCost: 0, purlinsWeight: "0.00", purlinsRate: "0.0", purlinsCost: 0,
+        tiesWeight: "0.00", tiesRate: "0.0", tiesCost: 0, currentDiscount: "0", savingsAmount: 0, envelopeDiffAmount: 0,
+        craneSystemWeight: null, craneSystemCost: 0, craneInfo: "", foundationCount: 0, concreteCubic: "0.0", rebarWeight: "0.00",
+        foundationCost: 0, wallAreaBox: "0.0", gableAreaTotal: "0.0", roofArea: "0.0", openingsArea: "0.0",
+        wallCost: 0, roofCost: 0, trimCost: 0, totalCost: "0", isBlockedByValidation: false
       };
     }
 
@@ -490,8 +453,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const fullWallHeightBeam = H + purlinHeight + supportHeight;
     const fullWallHeightTruss = fullWallHeightBeam + trussCorrectionValue;
 
-    const fullWallHeight =
-      frameType === "truss" ? fullWallHeightTruss : fullWallHeightBeam;
+    const fullWallHeight = frameType === "truss" ? fullWallHeightTruss : fullWallHeightBeam;
 
     const getTrussDiscount = (w, h) => {
       const hList = trussTable.heights;
@@ -610,7 +572,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const totalWidth = W * N;
     const floorAreaTotal = totalWidth * L;
 
-    // ДИНАМИЧЕСКИЙ РАСЧЕТ ПЕРИМЕТРА СТЕН С УЧЕТОМ ОТКЛЮЧЕНИЯ (ВАРИАНТ А)
     let dynamicPerimeter = 0;
     if (activeWalls.north) dynamicPerimeter += L;
     if (activeWalls.south) dynamicPerimeter += L;
@@ -629,7 +590,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       else purlinStep = 1.2;
 
       const lines = Math.ceil(fullWallHeight / purlinStep);
-      // Прогоны считаются только на активный периметр пристраиваемого здания!
       wallPurlinsLength = dynamicPerimeter * lines;
       wallPurlinsBaseKg = wallPurlinsLength * 6.375;
     }
@@ -637,7 +597,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const totalRoofPurlinsKg = totalPurlinsKg;
     totalPurlinsKg += wallPurlinsBaseKg; 
 
-    // Расчет проемов
     let aperturesFrameKg = 0;
     let aperturesDeductArea = 0;
     let physicalAperturesAreaTotal = 0;
@@ -731,7 +690,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         if (layoutMode === "horizontal") {
           const rowsBox = Math.ceil(wallH / pMod);
           const boxHeightFact = rowsBox * pMod;
-          const panelsInRing = Math.ceil(dynamicPerimeter / pStock); // Обшиваем только активный периметр сторон
+          const panelsInRing = Math.ceil(dynamicPerimeter / pStock);
           wAreaBox = panelsInRing * pStock * boxHeightFact;
         } else {
           wAreaBox = Math.ceil(dynamicPerimeter / pMod) * pMod * wallH;
@@ -739,7 +698,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
 
         wAreaBox = Math.max(0, wAreaBox - aperturesDeductArea);
 
-        // Расчет фронтонов (торцов) с учетом отключения Востока (N) или Запада (N)
         let singleEndArea = 0;
         if (layoutMode === "horizontal") {
           const boxHfact = Math.ceil(wallH / pMod) * pMod;
@@ -758,7 +716,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
           singleEndArea = (W * ridgeRise) / 2;
         }
 
-        // Суммируем торцы только если соответствующие стены активны
         let gArea = 0;
         if (activeWalls.east) gArea += singleEndArea * N;
         if (activeWalls.west) gArea += singleEndArea * N;
@@ -819,10 +776,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       craneSystemWeight: totalCraneSystemKg > 0 ? (totalCraneSystemKg / 1000).toFixed(2) : null,
       craneSystemCost: totalCraneSystemKg > 0 ? Math.round((totalCraneSystemKg / 1000) * activeMetalPrice) : 0,
       craneInfo: cranesSummary || "",
-      foundationCount,
-      concreteCubic,
-      rebarWeight,
-      foundationCost,
+      foundationCount, concreteCubic, rebarWeight, foundationCost,
       wallAreaBox: wallAreaBox.toFixed(1),
       gableAreaTotal: textGableArea.toFixed(1),
       roofArea: textRoofArea.toFixed(1),
@@ -858,34 +812,22 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       </div>
 
       <QuickEstimatorForm
-        spanWidth={spanWidth}
-        setSpanWidth={setSpanWidth}
-        length={length}
-        setLength={setLength}
-        height={height}
-        setHeight={setHeight}
-        spansCount={spansCount}
-        setSpansCount={setSpansCount}
-        snowLoad={snowLoad}
-        setSnowLoad={setSnowLoad}
-        windLoad={windLoad}
-        setWindLoad={setWindLoad}
-        stories={stories}
-        setStories={setStories}
-        roofShape={roofShape}
-        setRoofShape={setRoofShape}
-        slope={slope}
-        setSlope={setSlope}
-        frameType={frameType}
-        setFrameType={setFrameType}
-        cranes={cranes}
-        updateCrane={updateCrane}
+        spanWidth={spanWidth} setSpanWidth={setSpanWidth}
+        length={length} setLength={setLength}
+        height={height} setHeight={setHeight}
+        spansCount={spansCount} setSpansCount={setSpansCount}
+        snowLoad={snowLoad} setSnowLoad={setSnowLoad}
+        windLoad={windLoad} setWindLoad={setWindLoad}
+        stories={stories} setStories={setStories}
+        roofShape={roofShape} setRoofShape={setRoofShape}
+        slope={slope} setSlope={setSlope}
+        frameType={frameType} setFrameType={setFrameType}
+        cranes={cranes} updateCrane={updateCrane}
         currentDiscount={estimation.currentDiscount}
       />
 
       <QuickEstimatorAnalytics dbAnalytics={dbAnalytics} />
 
-      {/* НОВАЯ ИНТЕРФЕЙСНАЯ СЕКЦИЯ: УПРАВЛЕНИЕ АКТИВНОСТЬЮ СТЕН */}
       <div style={styles.sectionTitle}>1.1. Конфигуратор сопряжения стен (Пристройки ЕВРОАНГАР)</div>
       <div style={styles.wallsConfigBox}>
         <div style={{fontSize: "0.85em", color: "#666", marginBottom: "10px"}}>
@@ -922,9 +864,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
             </select>
           </div>
           <div style={styles.field}>
-            <label style={styles.label}>
-              {layoutMode === "horizontal" ? "Модуль (м)" : "Модуль вертик. (м)"}
-            </label>
+            <label style={styles.label}>{layoutMode === "horizontal" ? "Модуль (м)" : "Модуль вертик. (м)"}</label>
             <input style={styles.input} type="number" step="0.01" value={panelModule} onChange={(e) => setPanelModule(parseFloat(e.target.value) || 1.0)} />
           </div>
           {layoutMode === "horizontal" && (
@@ -991,11 +931,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         <div key={ap.id} style={styles.apertureRow}>
           <div style={styles.field}>
             <label style={styles.label}>Тип проема</label>
-            <select 
-              style={{...styles.select, width: "110px", fontWeight: "bold"}} 
-              value={ap.type} 
-              onChange={e => updateAperture(ap.id, 'type', e.target.value)}
-            >
+            <select style={{...styles.select, width: "110px", fontWeight: "bold"}} value={ap.type} onChange={e => updateAperture(ap.id, 'type', e.target.value)}>
               <option value="window">🪟 Окно</option>
               <option value="gate">🚪 Ворота</option>
               <option value="door">🚪 Дверь</option>
@@ -1015,25 +951,11 @@ export default function QuickEstimator({ onBack, projectsDb }) {
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Верх (E.top)</label>
-            <input 
-              style={{...styles.input, width: "75px"}} 
-              type="number" 
-              step="0.01" 
-              value={ap.eTop} 
-              disabled={ap.type !== "window"}
-              onChange={e => updateAperture(ap.id, 'eTop', e.target.value)} 
-            />
+            <input style={{...styles.input, width: "75px"}} type="number" step="0.01" value={ap.eTop} disabled={ap.type !== "window"} onChange={e => updateAperture(ap.id, 'eTop', e.target.value)} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Низ (E.bot)</label>
-            <input 
-              style={{...styles.input, width: "75px", backgroundColor: ap.type !== "window" ? "#e9ecef" : "#fff"}} 
-              type="number" 
-              step="0.01" 
-              value={ap.eBot} 
-              disabled={ap.type !== "window"} 
-              onChange={e => updateAperture(ap.id, 'eBot', e.target.value)} 
-            />
+            <input style={{...styles.input, width: "75px", backgroundColor: ap.type !== "window" ? "#e9ecef" : "#fff"}} type="number" step="0.01" value={ap.eBot} disabled={ap.type !== "window"} onChange={e => updateAperture(ap.id, 'eBot', e.target.value)} />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Профиль</label>
@@ -1052,12 +974,16 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         <button style={{...styles.addBtn, backgroundColor: "#6f42c1"}} onClick={() => addAperture("door")}>+ Дверь</button>
       </div>
 
+      {/* ИСПРАВЛЕННЫЙ ВЫЗОВ: Передаем абсолютно все стейты (длину, снег, ветер) сквозным пробросом в результаты */}
       <QuickEstimatorResults
         estimation={estimation}
         useSandwich={useSandwich}
         frameType={frameType}
         spanWidth={spanWidth}
+        length={length}
         height={height}
+        snowLoad={snowLoad}
+        windLoad={windLoad}
         cranes={cranes}
         gkPrice={gkPrice}
         lstkPrice={lstkPrice}
