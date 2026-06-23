@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import FormColumn from "./BlockEditorForm";
 import BuildingPlanView from "./BlockPlanView";
 import BuildingSectionView from "./BuildingSectionView";
 import { getAxisLabel } from "./BlockEditorUtils";
 
-// --- СТИЛИ ---
+// --- СТИЛИ (Оптимизированы под full-width экраны) ---
 const styles = {
   backButton: {
     marginBottom: "0px",
@@ -17,16 +17,29 @@ const styles = {
   },
   container: {
     fontFamily: "Arial, sans-serif",
-    margin: "20px",
-    maxWidth: "1000px",
+    margin: "20px auto",
+    width: "100%",
+    maxWidth: "1600px", 
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
+    gap: "20px",
+  },
+  topBar: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: "20px",
+    padding: "10px",
+    background: "#fff",
+    borderBottom: "1px solid #eee",
   },
   h2: { borderBottom: "2px solid #007bff", paddingBottom: "5px" },
-  formContainer: { width: "48%" },
+  formContainer: { 
+    flex: 1, 
+    maxWidth: "600px" 
+  },
   visualContainer: {
-    width: "48%",
+    flex: 1.3,
     position: "sticky",
     top: "20px",
     border: "1px solid #ccc",
@@ -127,13 +140,6 @@ const styles = {
     borderRadius: "5px",
     marginTop: "10px",
   },
-  inputError: {
-    width: "100%",
-    padding: "8px",
-    boxSizing: "border-box",
-    border: "2px solid #d90000",
-    backgroundColor: "#ffebe6",
-  },
   deleteButton: {
     padding: "10px 15px",
     backgroundColor: "#d90000",
@@ -194,12 +200,6 @@ const styles = {
     gap: "8px",
     alignItems: "center",
   },
-  subGrid4: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr 1fr",
-    gap: "8px",
-    marginTop: "10px",
-  },
   button: {
     padding: "10px 15px",
     backgroundColor: "#007bff",
@@ -254,16 +254,20 @@ export default function BlockEditor({
 
   const spanCount = spans.length;
 
-  // --- HANDLERS ---
+  // --- HANDLERS (Геометрия) ---
   const handleGeneralChange = (e) =>
     setGeneralData({
       ...generalData,
       [e.target.name]: parseFloat(e.target.value) || 0,
     });
+
   const handleSpanCountChange = (e) => {
     let count = parseInt(e.target.value, 10) || 0;
     count = Math.max(0, Math.min(count, 10));
-    const newDefaultWidth = count > 0 ? generalData.blockWidth / count : 0;
+    
+    const baseWidth = generalData.blockWidth || 0;
+    const newDefaultWidth = count > 0 ? Math.round((baseWidth / count) * 1000) / 1000 : 0;
+    
     const newSpans = [];
     for (let i = 0; i < count; i++) {
       newSpans.push(
@@ -282,90 +286,116 @@ export default function BlockEditor({
     }
     setSpans(newSpans);
   };
+
   const handleSpanChange = (idx, e) => {
     const { name, value } = e.target;
-    const updated = [...spans];
-    const s = { ...updated[idx] };
-    if (name === "skateCount") {
-      s.skateCount = parseInt(value);
-      if (s.skateCount === 2) s.skate1Length = s.spanWidth / 2;
-    } else if (name === "skate1Length") {
-      let v = parseFloat(value) || 0;
-      if (v > s.spanWidth) v = s.spanWidth;
-      if (v < 0) v = 0;
-      s.skate1Length = v;
-    } else if (name === "spanWidth") {
-      s.spanWidth = parseFloat(value) || 0;
-      s.skate1Length = s.spanWidth / 2;
-    } else {
-      s[name] = name === "slopeDirection" ? value : parseFloat(value) || 0;
-    }
-    updated[idx] = s;
-    setSpans(updated);
-  };
-  const handleColumnStepChange = (e) =>
-    setColumnStep(parseFloat(e.target.value));
-  const handleCraneAdd = (idx) => {
-    const u = [...spans];
-    u[idx].cranes.push({ id: "c_" + Date.now(), selectedCapacity: 5 });
-    setSpans(u);
-  };
-  const handleCraneChange = (idx, cid, val) => {
-    const u = [...spans];
-    u[idx].cranes.find((c) => c.id === cid).selectedCapacity = parseFloat(val);
-    setSpans(u);
-  };
-  const handleCraneDelete = (idx, cid) => {
-    const u = [...spans];
-    u[idx].cranes = u[idx].cranes.filter((c) => c.id !== cid);
-    setSpans(u);
+    setSpans((prevSpans) =>
+      prevSpans.map((span, i) => {
+        if (i !== idx) return span;
+
+        let updatedSpan = { ...span };
+        if (name === "skateCount") {
+          updatedSpan.skateCount = parseInt(value, 10);
+          if (updatedSpan.skateCount === 2) {
+            updatedSpan.skate1Length = updatedSpan.spanWidth / 2;
+          }
+        } else if (name === "skate1Length") {
+          let v = parseFloat(value) || 0;
+          if (v > updatedSpan.spanWidth) v = updatedSpan.spanWidth;
+          if (v < 0) v = 0;
+          updatedSpan.skate1Length = v;
+        } else if (name === "spanWidth") {
+          updatedSpan.spanWidth = parseFloat(value) || 0;
+          updatedSpan.skate1Length = updatedSpan.spanWidth / 2;
+        } else {
+          updatedSpan[name] = name === "slopeDirection" ? value : parseFloat(value) || 0;
+        }
+        return updatedSpan;
+      })
+    );
   };
 
-  // --- РАСЧЕТ ШАГА РАМ (ИСПРАВЛЕНО) ---
+  const handleColumnStepChange = (e) =>
+    setColumnStep(parseFloat(e.target.value));
+
+  // --- ИММУТАБЕЛЬНЫЕ ХЭНДЛЕРЫ КРАНОВ ---
+  const handleCraneAdd = (idx) => {
+    setSpans((prevSpans) =>
+      prevSpans.map((span, i) => {
+        if (i !== idx) return span;
+        return {
+          ...span,
+          cranes: [...(span.cranes || []), { id: "c_" + Date.now(), selectedCapacity: 5 }],
+        };
+      })
+    );
+  };
+
+  const handleCraneChange = (idx, cid, val) => {
+    setSpans((prevSpans) =>
+      prevSpans.map((span, i) => {
+        if (i !== idx) return span;
+        return {
+          ...span,
+          cranes: span.cranes.map((c) =>
+            c.id === cid ? { ...c, selectedCapacity: parseFloat(val) || 0 } : c
+          ),
+        };
+      })
+    );
+  };
+
+  const handleCraneDelete = (idx, cid) => {
+    setSpans((prevSpans) =>
+      prevSpans.map((span, i) => {
+        if (i !== idx) return span;
+        return {
+          ...span,
+          cranes: span.cranes.filter((c) => c.id !== cid),
+        };
+      })
+    );
+  };
+
+  // --- РАСЧЕТ ШАГА РАМ ---
   const derivedColumnLayout = useMemo(() => {
     const L = generalData.blockLength;
     const S = columnStep;
     if (S <= 0 || L <= 0) return [];
 
-    // Если делится нацело (с допуском)
     if (Math.abs(L % S) < 0.01) {
       const count = Math.round(L / S);
-      const layout = [];
-      for (let i = 0; i < count; i++) layout.push({ id: i, step: S });
-      return layout;
+      return Array.from({ length: count }, (_, i) => ({ id: `frame_${i}`, step: S }));
     }
 
-    // Иначе: (Остаток + Шаг) / 2 = Крайний пролет
     const rawCount = Math.floor(L / S);
-    // Если здание короче одного шага
-    if (rawCount < 1) return [{ id: 0, step: L }];
+    if (rawCount < 1) return [{ id: "frame_0", step: L }];
 
     const remainder = L - rawCount * S;
     const endStep = (remainder + S) / 2;
     const middleCount = rawCount - 1;
 
     const layout = [];
-    layout.push({ id: "start", step: endStep });
+    layout.push({ id: "frame_start", step: endStep });
     for (let i = 0; i < middleCount; i++) {
-      layout.push({ id: i, step: S });
+      layout.push({ id: `frame_${i}`, step: S });
     }
-    layout.push({ id: "end", step: endStep });
+    layout.push({ id: "frame_end", step: endStep });
 
     return layout;
   }, [generalData.blockLength, columnStep]);
 
-  // --- ВАЛИДАЦИЯ (ОБНОВЛЕНА) ---
+  // --- ВАЛИДАЦИЯ С ДОПУСКОМ ОКРУГЛЕНИЯ ---
   const validation = useMemo(() => {
     const totalSpansWidth = spans.reduce(
       (sum, currentSpan) => sum + (currentSpan.spanWidth || 0),
       0
     );
-    const isWidthValid =
-      Math.abs(totalSpansWidth - generalData.blockWidth) < 1e-6;
+    
+    const isWidthValid = Math.abs(totalSpansWidth - generalData.blockWidth) < 0.01;
 
     let info = {};
-    // Определяем тип раскладки для отображения пользователю
-    const layout = derivedColumnLayout; // Используем уже рассчитанную раскладку
+    const layout = derivedColumnLayout;
     if (layout.length > 0) {
       const first = layout[0].step;
       const last = layout[layout.length - 1].step;
@@ -384,20 +414,19 @@ export default function BlockEditor({
     }
 
     return {
-      totalSpansWidth,
+      totalSpansWidth: Math.round(totalSpansWidth * 100) / 100,
       isWidthValid,
-      widthDifference: generalData.blockWidth - totalSpansWidth,
+      widthDifference: Math.round((generalData.blockWidth - totalSpansWidth) * 100) / 100,
       layoutInfo: info,
     };
   }, [spans, generalData.blockWidth, derivedColumnLayout, columnStep]);
 
-  // --- ОСИ (ЗАВИСЯТ ОТ РАСКЛАДКИ) ---
+  // --- ГЕНЕРАЦИЯ ОСЕЙ ---
   const { xAxis, yAxis } = useMemo(() => {
     const x = [];
     spans.forEach((s, i) => x.push(getAxisLabel(i)));
     x.push(getAxisLabel(spans.length));
 
-    // Оси Y генерируются по количеству пролетов + 1
     const y = [];
     const count = derivedColumnLayout.length;
     for (let i = 0; i <= count; i++) y.push((i + 1).toString());
@@ -423,7 +452,7 @@ export default function BlockEditor({
     setMassEditTools((p) => ({ ...p, axis: xAxis[0] }));
   };
 
-  // --- TOOLS LOGIC ---
+  // --- РУЧНОЕ УПРАВЛЕНИЕ МАТРИЦЕЙ СЕТКИ ---
   const handleColumnClick = (columnId) => {
     setSelectedColumns((prev) =>
       prev.includes(columnId)
@@ -469,7 +498,7 @@ export default function BlockEditor({
     });
   };
 
-  // --- NAVIGATION ---
+  // --- СБОР ДАННЫХ ДЛЯ ВЫХОДА ---
   const collectData = () => ({
     generalData,
     spans,
@@ -484,29 +513,17 @@ export default function BlockEditor({
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginBottom: "20px",
-          padding: "10px",
-          background: "#fff",
-          borderBottom: "1px solid #eee",
-        }}
-      >
+      <div style={styles.topBar}>
         <button
           onClick={() => onSaveAndBack(null)}
           style={{ ...styles.backButton, backgroundColor: "#6c757d" }}
         >
           Отмена
         </button>
-        <div
-          style={{ fontWeight: "bold", fontSize: "1.2em", alignSelf: "center" }}
-        >
-          Шаг 1: Геометрия
+        <div style={{ fontWeight: "bold", fontSize: "1.2em", alignSelf: "center" }}>
+          Шаг 1: Геометрия ЕВРОАНГАР
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
-          {/* КНОПКА ОБНОВЛЕНА */}
           <button
             onClick={() => onSaveAndBack(collectData())}
             style={{ ...styles.backButton, backgroundColor: "#28a745" }}
@@ -546,10 +563,8 @@ export default function BlockEditor({
           toolSettings={massEditTools}
           onToolChange={handleToolChange}
           onToolApply={handleMassEditApply}
-          mezzanines={[]}
-          handleMezzanineAdd={() => {}}
-          handleMezzanineChange={() => {}}
-          handleMezzanineDelete={() => {}}
+          mezzanines={mezzanines}
+          handleMezzanineAdd={handleManageMezzanines}
         />
 
         <div style={styles.visualContainer}>
