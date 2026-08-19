@@ -1,5 +1,5 @@
 import React from 'react';
-import { Svg, Line, Circle, Text, G, Polygon, Rect } from '@react-pdf/renderer';
+import { Svg, Line, Circle, Text, G, Rect } from '@react-pdf/renderer';
 
 export default function PDFBuildingSectionEskiz({
   spanWidth = 18,
@@ -19,7 +19,7 @@ export default function PDFBuildingSectionEskiz({
   const svgWidth = 230;
   const svgHeight = 120;
 
-  const padLeft = 32;
+  const padLeft = 36;
   const padRight = 20;
   const padBottom = 26;
   const padTop = 22;
@@ -35,7 +35,6 @@ export default function PDFBuildingSectionEskiz({
   const scale = Math.min(scaleX, scaleY);
 
   const realDrawW = W * scale;
-  const realDrawH = H_ridge * scale;
 
   const offsetX = padLeft + (drawAreaW - realDrawW) / 2;
   const baseGroundY = svgHeight - padBottom;
@@ -47,8 +46,8 @@ export default function PDFBuildingSectionEskiz({
   const ridgeY = baseGroundY - H_ridge * scale;
   const ridgeX = roofShape === 'gable' ? offsetX + realDrawW / 2 : col2X;
 
-  const hasCrane = cranes.some((c) => Number(c?.cap) > 0);
-  const craneData = cranes.find((c) => Number(c?.cap) > 0);
+  const hasCrane = Array.isArray(cranes) && cranes.some((c) => Number(c?.cap) > 0);
+  const craneData = hasCrane ? cranes.find((c) => Number(c?.cap) > 0) : null;
   const craneCap = craneData ? craneData.cap : 0;
   const craneType = craneData ? craneData.type : 'support';
 
@@ -63,17 +62,17 @@ export default function PDFBuildingSectionEskiz({
         y1={baseGroundY}
         x2={col2X + 12}
         y2={baseGroundY}
-        stroke="#444"
+        stroke="#444444"
         strokeWidth={1.2}
       />
 
-      {/* 2. Координационные оси и штрих-пунктир */}
+      {/* 2. Координационные оси */}
       <Line
         x1={col1X}
         y1={eaveY - 8}
         x2={col1X}
         y2={baseGroundY + 12}
-        stroke="#999"
+        stroke="#999999"
         strokeWidth={0.6}
         strokeDasharray="3 2"
       />
@@ -82,38 +81,35 @@ export default function PDFBuildingSectionEskiz({
         y1={eaveY - 8}
         x2={col2X}
         y2={baseGroundY + 12}
-        stroke="#999"
+        stroke="#999999"
         strokeWidth={0.6}
         strokeDasharray="3 2"
       />
 
-      <Circle cx={col1X} cy={baseGroundY + 18} r={5} fill="#fff" stroke="#333" strokeWidth={0.7} />
-      <Text x={col1X} y={baseGroundY + 20} fontSize={6} textAnchor="middle" fill="#333" fontWeight="bold">А</Text>
+      <Circle cx={col1X} cy={baseGroundY + 18} r={5} fill="#ffffff" stroke="#333333" strokeWidth={0.7} />
+      <Text x={col1X - 2} y={baseGroundY + 21} fontSize={6} fill="#333333" fontWeight="bold">А</Text>
 
-      <Circle cx={col2X} cy={baseGroundY + 18} r={5} fill="#fff" stroke="#333" strokeWidth={0.7} />
-      <Text x={col2X} y={baseGroundY + 20} fontSize={6} textAnchor="middle" fill="#333" fontWeight="bold">Б</Text>
+      <Circle cx={col2X} cy={baseGroundY + 18} r={5} fill="#ffffff" stroke="#333333" strokeWidth={0.7} />
+      <Text x={col2X - 2} y={baseGroundY + 21} fontSize={6} fill="#333333" fontWeight="bold">Б</Text>
 
       {/* 3. Колонны */}
       <Line x1={col1X} y1={baseGroundY} x2={col1X} y2={eaveY} stroke="#007bff" strokeWidth={2.5} />
       <Line x1={col2X} y1={baseGroundY} x2={col2X} y2={eaveY} stroke="#007bff" strokeWidth={2.5} />
 
-      {/* 4. Кровля: Ферма или Балка */}
+      {/* 4. Кровля */}
       {frameType === 'truss' ? (
         <G>
-          {/* Нижний пояс */}
           <Line x1={col1X} y1={eaveY} x2={col2X} y2={eaveY} stroke="#007bff" strokeWidth={1.5} />
-          {/* Верхний пояс */}
           <Line x1={col1X} y1={eaveY} x2={ridgeX} y2={ridgeY} stroke="#007bff" strokeWidth={2} />
           <Line x1={ridgeX} y1={ridgeY} x2={col2X} y2={eaveY} stroke="#007bff" strokeWidth={2} />
-          {/* Раскосы */}
           {roofShape === 'gable' ? (
-            <>
+            <G>
               <Line x1={ridgeX} y1={ridgeY} x2={ridgeX} y2={eaveY} stroke="#007bff" strokeWidth={0.8} />
               <Line x1={col1X} y1={eaveY} x2={(col1X + ridgeX) / 2} y2={(eaveY + ridgeY) / 2} stroke="#007bff" strokeWidth={0.8} />
               <Line x1={(col1X + ridgeX) / 2} y1={(eaveY + ridgeY) / 2} x2={ridgeX} y2={eaveY} stroke="#007bff" strokeWidth={0.8} />
               <Line x1={col2X} y1={eaveY} x2={(col2X + ridgeX) / 2} y2={(eaveY + ridgeY) / 2} stroke="#007bff" strokeWidth={0.8} />
               <Line x1={(col2X + ridgeX) / 2} y1={(eaveY + ridgeY) / 2} x2={ridgeX} y2={eaveY} stroke="#007bff" strokeWidth={0.8} />
-            </>
+            </G>
           ) : (
             <Line x1={col1X} y1={eaveY} x2={col2X} y2={ridgeY} stroke="#007bff" strokeWidth={0.8} />
           )}
@@ -121,10 +117,10 @@ export default function PDFBuildingSectionEskiz({
       ) : (
         <G>
           {roofShape === 'gable' ? (
-            <>
+            <G>
               <Line x1={col1X} y1={eaveY} x2={ridgeX} y2={ridgeY} stroke="#007bff" strokeWidth={2.5} />
               <Line x1={ridgeX} y1={ridgeY} x2={col2X} y2={eaveY} stroke="#007bff" strokeWidth={2.5} />
-            </>
+            </G>
           ) : (
             <Line x1={col1X} y1={eaveY} x2={col2X} y2={ridgeY} stroke="#007bff" strokeWidth={2.5} />
           )}
@@ -135,84 +131,53 @@ export default function PDFBuildingSectionEskiz({
       {hasCrane && (
         <G>
           {craneType === 'support' ? (
-            <>
-              {/* Консоли */}
+            <G>
               <Line x1={col1X} y1={craneBracketY} x2={col1X + 4} y2={craneBracketY} stroke="#e65100" strokeWidth={1.5} />
               <Line x1={col2X} y1={craneBracketY} x2={col2X - 4} y2={craneBracketY} stroke="#e65100" strokeWidth={1.5} />
-              {/* Подкрановые балки */}
               <Rect x={col1X + 2} y={craneBracketY - 3} width={3} height={3} fill="#e65100" />
               <Rect x={col2X - 5} y={craneBracketY - 3} width={3} height={3} fill="#e65100" />
-              {/* Мост крана */}
               <Line x1={col1X + 4} y1={craneBracketY - 4} x2={col2X - 4} y2={craneBracketY - 4} stroke="#f57c00" strokeWidth={2} />
               <Rect x={(col1X + col2X) / 2 - 4} y={craneBracketY - 6} width={8} height={4} fill="#ffb74d" stroke="#e65100" strokeWidth={0.5} />
-              {/* Текст грузоподъемности */}
-              <Text x={(col1X + col2X) / 2} y={craneBracketY - 8} fontSize={5} textAnchor="middle" fill="#e65100" fontWeight="bold">
+              <Text x={(col1X + col2X) / 2 - 10} y={craneBracketY - 8} fontSize={5} fill="#e65100" fontWeight="bold">
                 Кран {craneCap}т
               </Text>
-            </>
+            </G>
           ) : (
-            <>
-              {/* Подвесной кран */}
+            <G>
               <Line x1={col1X + 12} y1={eaveY} x2={col1X + 12} y2={eaveY + 5} stroke="#e65100" strokeWidth={1} />
               <Line x1={col2X - 12} y1={eaveY} x2={col2X - 12} y2={eaveY + 5} stroke="#e65100" strokeWidth={1} />
               <Line x1={col1X + 8} y1={eaveY + 5} x2={col2X - 8} y2={eaveY + 5} stroke="#f57c00" strokeWidth={1.5} />
-              <Text x={(col1X + col2X) / 2} y={eaveY + 11} fontSize={5} textAnchor="middle" fill="#e65100" fontWeight="bold">
-                Кран подв. {craneCap}т
+              <Text x={(col1X + col2X) / 2 - 12} y={eaveY + 11} fontSize={5} fill="#e65100" fontWeight="bold">
+                Кран {craneCap}т
               </Text>
-            </>
+            </G>
           )}
         </G>
       )}
 
-      {/* 6. Размерная цепочка пролета */}
-      <Line x1={col1X} y1={baseGroundY + 6} x2={col2X} y2={baseGroundY + 6} stroke="#333" strokeWidth={0.5} />
-      <Line x1={col1X - 2} y1={baseGroundY + 8} x2={col1X + 2} y2={baseGroundY + 4} stroke="#333" strokeWidth={0.8} />
-      <Line x1={col2X - 2} y1={baseGroundY + 8} x2={col2X + 2} y2={baseGroundY + 4} stroke="#333" strokeWidth={0.8} />
-      <Text x={(col1X + col2X) / 2} y={baseGroundY + 4} fontSize={6} textAnchor="middle" fill="#333" fontWeight="bold">
+      {/* 6. Размерная цепочка */}
+      <Line x1={col1X} y1={baseGroundY + 6} x2={col2X} y2={baseGroundY + 6} stroke="#333333" strokeWidth={0.5} />
+      <Line x1={col1X - 2} y1={baseGroundY + 8} x2={col1X + 2} y2={baseGroundY + 4} stroke="#333333" strokeWidth={0.8} />
+      <Line x1={col2X - 2} y1={baseGroundY + 8} x2={col2X + 2} y2={baseGroundY + 4} stroke="#333333" strokeWidth={0.8} />
+      <Text x={(col1X + col2X) / 2 - 8} y={baseGroundY + 4} fontSize={6} fill="#333333" fontWeight="bold">
         {W.toFixed(1)} м
       </Text>
 
-      {/* 7. Высотные архитектурные отметки */}
-      {/* 0.000 */}
-      <Polygon
-        points={`${col1X - 8},${baseGroundY} ${col1X - 14},${baseGroundY - 3} ${col1X - 14},${baseGroundY + 3}`}
-        fill="#333"
-      />
-      <Text x={col1X - 16} y={baseGroundY + 2} fontSize={5.5} textAnchor="end" fill="#333" fontWeight="bold">
+      {/* 7. Высотные отметки */}
+      <Line x1={col1X - 4} y1={baseGroundY} x2={col1X - 10} y2={baseGroundY} stroke="#333333" strokeWidth={0.8} />
+      <Text x={col1X - 32} y={baseGroundY + 2} fontSize={5.5} fill="#333333" fontWeight="bold">
         0.000
       </Text>
 
-      {/* +H.карниза */}
-      <Polygon
-        points={`${col1X - 8},${eaveY} ${col1X - 14},${eaveY - 3} ${col1X - 14},${eaveY + 3}`}
-        fill="#007bff"
-      />
-      <Text x={col1X - 16} y={eaveY + 2} fontSize={5.5} textAnchor="end" fill="#007bff" fontWeight="bold">
-        +{H.toFixed(3)}
+      <Line x1={col1X - 4} y1={eaveY} x2={col1X - 10} y2={eaveY} stroke="#007bff" strokeWidth={0.8} />
+      <Text x={col1X - 34} y={eaveY + 2} fontSize={5.5} fill="#007bff" fontWeight="bold">
+        +{H.toFixed(2)}
       </Text>
 
-      {/* +H.конька */}
-      {roofShape === 'gable' ? (
-        <>
-          <Polygon
-            points={`${ridgeX},${ridgeY - 4} ${ridgeX - 3},${ridgeY - 9} ${ridgeX + 3},${ridgeY - 9}`}
-            fill="#007bff"
-          />
-          <Text x={ridgeX} y={ridgeY - 11} fontSize={5.5} textAnchor="middle" fill="#007bff" fontWeight="bold">
-            +{H_ridge.toFixed(3)}
-          </Text>
-        </>
-      ) : (
-        <>
-          <Polygon
-            points={`${col2X + 8},${ridgeY} ${col2X + 14},${ridgeY - 3} ${col2X + 14},${ridgeY + 3}`}
-            fill="#007bff"
-          />
-          <Text x={col2X + 16} y={ridgeY + 2} fontSize={5.5} textAnchor="start" fill="#007bff" fontWeight="bold">
-            +{H_ridge.toFixed(3)}
-          </Text>
-        </>
-      )}
+      <Line x1={ridgeX - 3} y1={ridgeY - 3} x2={ridgeX + 3} y2={ridgeY - 3} stroke="#007bff" strokeWidth={0.8} />
+      <Text x={ridgeX - 10} y={ridgeY - 6} fontSize={5.5} fill="#007bff" fontWeight="bold">
+        +{H_ridge.toFixed(2)}
+      </Text>
     </Svg>
   );
 }
