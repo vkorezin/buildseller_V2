@@ -22,7 +22,7 @@ import {
 } from "./baseMatrixUtils";
 
 const COEFFS = {
-  tiesRatio: 0.098, // Связи ровно 9.8% от массы очищенных рам
+  tiesRatio: 0.098,
 };
 
 const OVERHANG = 0.4;
@@ -974,7 +974,6 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         <button style={{...styles.addBtn, backgroundColor: "#6f42c1"}} onClick={() => addAperture("door")}>+ Дверь</button>
       </div>
 
-      {/* Сквозной проброс всех параметров, включая spansCount, roofShape и slope */}
       <QuickEstimatorResults
         estimation={estimation}
         useSandwich={useSandwich}
@@ -983,6 +982,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         slope={slope}
         spanWidth={spanWidth}
         spansCount={spansCount}
+        stories={stories}
         length={length}
         height={height}
         snowLoad={snowLoad}
