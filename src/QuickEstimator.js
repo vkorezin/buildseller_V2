@@ -974,7 +974,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         <button style={{...styles.addBtn, backgroundColor: "#6f42c1"}} onClick={() => addAperture("door")}>+ Дверь</button>
       </div>
 
-      {/* СКВОЗНАЯ ПЕРЕДАЧА ВСЕХ ПАРАМЕТРОВ ГЕОМЕТРИИ, УКЛОНА, СНЕГА И ВЕТРА */}
+      {/* Сквозной проброс всех параметров, включая spansCount, roofShape и slope */}
       <QuickEstimatorResults
         estimation={estimation}
         useSandwich={useSandwich}
@@ -982,6 +982,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         roofShape={roofShape}
         slope={slope}
         spanWidth={spanWidth}
+        spansCount={spansCount}
         length={length}
         height={height}
         snowLoad={snowLoad}
