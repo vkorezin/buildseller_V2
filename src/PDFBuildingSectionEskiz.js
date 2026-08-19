@@ -21,7 +21,7 @@ export default function PDFBuildingSectionEskiz({
   const svgWidth = 230;
   const svgHeight = 120;
 
-  const padLeft = 40;
+  const padLeft = 38;
   const padRight = 20;
   const padBottom = 26;
   const padTop = 22;
@@ -50,7 +50,6 @@ export default function PDFBuildingSectionEskiz({
 
   const hasCrane = Array.isArray(cranes) && cranes.some((c) => Number(c?.cap) > 0);
   const craneData = hasCrane ? cranes.find((c) => Number(c?.cap) > 0) : null;
-  const craneCap = craneData ? String(craneData.cap) : '0';
   const isSupportCrane = !craneData || craneData.type !== 'suspension';
 
   const craneBracketH = H * 0.7;
@@ -73,31 +72,31 @@ export default function PDFBuildingSectionEskiz({
         strokeWidth={1}
       />
 
-      {/* 2. Оси */}
+      {/* 2. Оси (тонкие направляющие без strokeDasharray) */}
       <Line
         x1={col1X}
-        y1={eaveY - 5}
+        y1={eaveY - 4}
         x2={col1X}
         y2={baseGroundY + 12}
-        stroke="#999999"
+        stroke="#aaaaaa"
         strokeWidth={0.5}
-        strokeDasharray="3 2"
+        opacity={0.7}
       />
       <Line
         x1={col2X}
-        y1={eaveY - 5}
+        y1={eaveY - 4}
         x2={col2X}
         y2={baseGroundY + 12}
-        stroke="#999999"
+        stroke="#aaaaaa"
         strokeWidth={0.5}
-        strokeDasharray="3 2"
+        opacity={0.7}
       />
 
-      <Circle cx={col1X} cy={baseGroundY + 18} r={5} fill="#ffffff" stroke="#333333" strokeWidth={0.5} />
-      <Text x={col1X - 2.5} y={baseGroundY + 21} fontSize={6} fill="#333333">А</Text>
+      <Circle cx={col1X} cy={baseGroundY + 17} r={4.5} fill="#ffffff" stroke="#333333" strokeWidth={0.5} />
+      <Text x={col1X - 2} y={baseGroundY + 20} fontSize={5.5} fill="#333333">А</Text>
 
-      <Circle cx={col2X} cy={baseGroundY + 18} r={5} fill="#ffffff" stroke="#333333" strokeWidth={0.5} />
-      <Text x={col2X - 2.5} y={baseGroundY + 21} fontSize={6} fill="#333333">Б</Text>
+      <Circle cx={col2X} cy={baseGroundY + 17} r={4.5} fill="#ffffff" stroke="#333333" strokeWidth={0.5} />
+      <Text x={col2X - 2} y={baseGroundY + 20} fontSize={5.5} fill="#333333">Б</Text>
 
       {/* 3. Колонны */}
       <Line x1={col1X} y1={baseGroundY} x2={col1X} y2={eaveY} stroke="#007bff" strokeWidth={2} />
@@ -160,23 +159,23 @@ export default function PDFBuildingSectionEskiz({
       <Line x1={col1X} y1={baseGroundY + 6} x2={col2X} y2={baseGroundY + 6} stroke="#333333" strokeWidth={0.5} />
       <Line x1={col1X - 2} y1={baseGroundY + 8} x2={col1X + 2} y2={baseGroundY + 4} stroke="#333333" strokeWidth={0.8} />
       <Line x1={col2X - 2} y1={baseGroundY + 8} x2={col2X + 2} y2={baseGroundY + 4} stroke="#333333" strokeWidth={0.8} />
-      <Text x={(col1X + col2X) / 2 - 10} y={baseGroundY + 4} fontSize={6} fill="#333333">
+      <Text x={(col1X + col2X) / 2 - 10} y={baseGroundY + 4} fontSize={5.5} fill="#333333">
         {textWidth}
       </Text>
 
       {/* 7. Отметки высот */}
       <Line x1={col1X - 4} y1={baseGroundY} x2={col1X - 10} y2={baseGroundY} stroke="#333333" strokeWidth={0.6} />
-      <Text x={col1X - 32} y={baseGroundY + 2} fontSize={5.5} fill="#333333">
+      <Text x={col1X - 30} y={baseGroundY + 2} fontSize={5} fill="#333333">
         {textH0}
       </Text>
 
       <Line x1={col1X - 4} y1={eaveY} x2={col1X - 10} y2={eaveY} stroke="#007bff" strokeWidth={0.6} />
-      <Text x={col1X - 32} y={eaveY + 2} fontSize={5.5} fill="#007bff">
+      <Text x={col1X - 30} y={eaveY + 2} fontSize={5} fill="#007bff">
         {textHeave}
       </Text>
 
       <Line x1={ridgeX - 3} y1={ridgeY - 2} x2={ridgeX + 3} y2={ridgeY - 2} stroke="#007bff" strokeWidth={0.6} />
-      <Text x={ridgeX - 8} y={ridgeY - 5} fontSize={5.5} fill="#007bff">
+      <Text x={ridgeX - 8} y={ridgeY - 5} fontSize={5} fill="#007bff">
         {textHridge}
       </Text>
     </Svg>
