@@ -14,7 +14,6 @@ export default function PDFBuildingSectionEskiz({
 }) {
   const W_span = Number(spanWidth) > 0 ? Number(spanWidth) : 18;
   
-  // Автоматически определяем число пролетов по spansCount либо по длине массива кранов
   let N_spans = Number(spansCount) || 1;
   if (Array.isArray(cranes) && cranes.length > N_spans) {
     N_spans = cranes.length;
@@ -26,11 +25,21 @@ export default function PDFBuildingSectionEskiz({
   const isGable = String(roofShape) !== 'single';
   const isTruss = String(frameType) === 'truss';
 
-  const totalWidth = W_span * N_spans;
-  const hBeam = isTruss ? 1.0 : 0.4; 
+  // Точный расчет высоты на опоре из QuickEstimator.js
+  let supportH = 0.35;
+  if (W_span > 18 && W_span < 33) {
+    supportH = 0.35 + ((W_span - 18) * (0.75 - 0.35)) / (33 - 18);
+  } else if (W_span >= 33) {
+    supportH = 0.75;
+  }
+  const trussAdd = S <= 21 ? 0.65 + (10 - S) * 0.0597 : 0;
+  const hBeam = isTruss ? (supportH + trussAdd) : (supportH + 0.1);
   const hPurlin = 0.2;
 
+  const totalWidth = W_span * N_spans;
   const ridgeRise = isGable ? (W_span / 2) * (S / 100) : W_span * (S / 100);
+
+  // Высотные отметки
   const H_eave_top = H_clear + hBeam;
   const H_ridge_top = H_eave_top + ridgeRise + hPurlin;
 
@@ -51,9 +60,10 @@ export default function PDFBuildingSectionEskiz({
   const offsetX = padLeft + (drawAreaW - realDrawW) / 2;
   const baseGroundY = svgHeight - padBottom;
 
-  const yClear = baseGroundY - H_clear * scale;
-  const yEaveTop = baseGroundY - H_eave_top * scale;
-  const yPurlinEave = yEaveTop - hPurlin * scale;
+  // Y-координаты уровней
+  const yClear = baseGroundY - H_clear * scale;       // Оголовок колонны и низ фермы/балки (+6.000)
+  const yEaveTop = baseGroundY - H_eave_top * scale;   // Верх несущей конструкции на опоре
+  const yPurlinEave = yEaveTop - hPurlin * scale;     // Верх стропильного прогона на карнизе
 
   const colXList = [];
   for (let i = 0; i <= N_spans; i++) {
@@ -72,7 +82,7 @@ export default function PDFBuildingSectionEskiz({
         strokeWidth={1}
       />
 
-      {/* 2. Оси и колонны */}
+      {/* 2. Оси и колонны (колонны идут строго от 0.00 до отметки низа несущих конструкций yClear) */}
       {colXList.map((x, i) => {
         const axisLabel = AXIS_LABELS[i] || `${i + 1}`;
         return (
@@ -87,17 +97,37 @@ export default function PDFBuildingSectionEskiz({
               opacity={0.6}
             />
 
+            {/* Колонна до оголовка (+6.000) */}
             <Line
               x1={x}
               y1={baseGroundY}
               x2={x}
-              y2={yEaveTop}
+              y2={yClear}
               stroke="#007bff"
               strokeWidth={i === 0 || i === N_spans ? 2.5 : 2}
             />
 
-            <Circle cx={x} cy={baseGroundY + 18} r={5} fill="#ffffff" stroke="#333333" strokeWidth={0.5} />
-            <Text x={x - 2.5} y={baseGroundY + 21} fontSize={6} fill="#333333" fontWeight="bold">
+            {/* Опорная стойка/стойка фахверка выше отметки +6.000 */}
+            <Line
+              x1={x}
+              y1={yClear}
+              x2={x}
+              y2={yEaveTop}
+              stroke="#007bff"
+              strokeWidth={1.2}
+              opacity={0.8}
+            />
+
+            <Circle cx={x} cy={baseGroundY + 18} r={5.5} fill="#ffffff" stroke="#333333" strokeWidth={0.6} />
+            <Text
+              x={x}
+              y={baseGroundY + 21}
+              fontSize={6.5}
+              fontFamily="Roboto"
+              fill="#333333"
+              textAnchor="middle"
+              fontWeight="bold"
+            >
               {axisLabel}
             </Text>
 
@@ -114,10 +144,12 @@ export default function PDFBuildingSectionEskiz({
                 <Line x1={x} y1={baseGroundY + 9} x2={x} y2={baseGroundY + 5} stroke="#333333" strokeWidth={0.7} />
                 <Line x1={colXList[i + 1]} y1={baseGroundY + 9} x2={colXList[i + 1]} y2={baseGroundY + 5} stroke="#333333" strokeWidth={0.7} />
                 <Text
-                  x={(x + colXList[i + 1]) / 2 - 8}
+                  x={(x + colXList[i + 1]) / 2}
                   y={baseGroundY + 5}
                   fontSize={5.5}
+                  fontFamily="Roboto"
                   fill="#333333"
+                  textAnchor="middle"
                 >
                   {`${W_span.toFixed(1)} м`}
                 </Text>
@@ -168,9 +200,12 @@ export default function PDFBuildingSectionEskiz({
             {/* Несущий каркас */}
             {isTruss ? (
               <G>
+                {/* Нижний пояс фермы строго на отметке +6.000 */}
                 <Line x1={x1} y1={yClear} x2={x2} y2={yClear} stroke="#007bff" strokeWidth={1.5} />
+                {/* Верхний пояс фермы */}
                 <Line x1={x1} y1={yEaveTop} x2={xMid} y2={yRidgeTop} stroke="#007bff" strokeWidth={1.8} />
                 <Line x1={xMid} y1={yRidgeTop} x2={x2} y2={yEaveTop} stroke="#007bff" strokeWidth={1.8} />
+                {/* Стойки и раскосы */}
                 <Line x1={xMid} y1={yRidgeTop} x2={xMid} y2={yClear} stroke="#007bff" strokeWidth={0.6} />
                 <Line x1={x1} y1={yClear} x2={(x1 + xMid) / 2} y2={(yEaveTop + yRidgeTop) / 2} stroke="#007bff" strokeWidth={0.6} />
                 <Line x1={(x1 + xMid) / 2} y1={(yEaveTop + yRidgeTop) / 2} x2={xMid} y2={yClear} stroke="#007bff" strokeWidth={0.6} />
@@ -179,6 +214,7 @@ export default function PDFBuildingSectionEskiz({
               </G>
             ) : (
               <G>
+                {/* Балка */}
                 {isGable ? (
                   <G>
                     <Line x1={x1} y1={yEaveTop} x2={xMid} y2={yRidgeTop} stroke="#007bff" strokeWidth={2} />
@@ -195,7 +231,7 @@ export default function PDFBuildingSectionEskiz({
               </G>
             )}
 
-            {/* Прогоны */}
+            {/* Стропильные прогоны */}
             {purlins.map((pt, pIdx) => (
               <Line
                 key={`purlin-${i}-${pIdx}`}
@@ -208,7 +244,7 @@ export default function PDFBuildingSectionEskiz({
               />
             ))}
 
-            {/* Линия кровли */}
+            {/* Кровельное покрытие */}
             {isGable ? (
               <G>
                 <Line x1={x1 - 2} y1={yPurlinEave} x2={xMid} y2={yRidgeTop - hPurlin * scale} stroke="#28a745" strokeWidth={1} />
@@ -218,7 +254,28 @@ export default function PDFBuildingSectionEskiz({
               <Line x1={x1 - 2} y1={yPurlinEave} x2={x2 + 2} y2={yRidgeTop - hPurlin * scale} stroke="#28a745" strokeWidth={1} />
             )}
 
-            {/* Краны (без спецсимволов для чистой кодировки) */}
+            {/* Отметка конька */}
+            <Line
+              x1={xMid - 4}
+              y1={yPurlinEave - (ridgeRise * scale)}
+              x2={xMid + 4}
+              y2={yPurlinEave - (ridgeRise * scale)}
+              stroke="#28a745"
+              strokeWidth={0.6}
+            />
+            <Text
+              x={xMid}
+              y={yPurlinEave - (ridgeRise * scale) - 3}
+              fontSize={5.5}
+              fontFamily="Roboto"
+              fill="#28a745"
+              textAnchor="middle"
+              fontWeight="bold"
+            >
+              {`+${H_ridge_top.toFixed(2)}`}
+            </Text>
+
+            {/* Кран */}
             {hasCrane && (
               <G key={`crane-span-${i}`}>
                 {isSupport ? (
@@ -229,7 +286,15 @@ export default function PDFBuildingSectionEskiz({
                     <Rect x={x2 - 4.5} y={yBracket - 3} width={2.5} height={3} fill="#e65100" />
                     <Line x1={x1 + 4} y1={yBracket - 4} x2={x2 - 4} y2={yBracket - 4} stroke="#f57c00" strokeWidth={1.5} />
                     <Rect x={(x1 + x2) / 2 - 4} y={yBracket - 6.5} width={8} height={4} fill="#ffb74d" stroke="#e65100" strokeWidth={0.5} />
-                    <Text x={(x1 + x2) / 2 - 12} y={yBracket - 8} fontSize={4.5} fill="#e65100" fontWeight="bold">
+                    <Text
+                      x={(x1 + x2) / 2}
+                      y={yBracket - 8}
+                      fontSize={4.5}
+                      fontFamily="Roboto"
+                      fill="#e65100"
+                      textAnchor="middle"
+                      fontWeight="bold"
+                    >
                       {`Кран ${craneCap} т`}
                     </Text>
                   </G>
@@ -238,7 +303,15 @@ export default function PDFBuildingSectionEskiz({
                     <Line x1={x1 + 10} y1={yClear} x2={x1 + 10} y2={yClear + 5} stroke="#e65100" strokeWidth={1} />
                     <Line x1={x2 - 10} y1={yClear} x2={x2 - 10} y2={yClear + 5} stroke="#e65100" strokeWidth={1} />
                     <Line x1={x1 + 8} y1={yClear + 5} x2={x2 - 8} y2={yClear + 5} stroke="#f57c00" strokeWidth={1.5} />
-                    <Text x={(x1 + x2) / 2 - 16} y={yClear + 11} fontSize={4.5} fill="#e65100" fontWeight="bold">
+                    <Text
+                      x={(x1 + x2) / 2}
+                      y={yClear + 11}
+                      fontSize={4.5}
+                      fontFamily="Roboto"
+                      fill="#e65100"
+                      textAnchor="middle"
+                      fontWeight="bold"
+                    >
                       {`Подвесной кран ${craneCap} т`}
                     </Text>
                   </G>
@@ -249,33 +322,32 @@ export default function PDFBuildingSectionEskiz({
         );
       })}
 
-      {/* 4. Отметки высот */}
+      {/* 4. Высотные отметки слева */}
       <Line x1={colXList[0] - 4} y1={baseGroundY} x2={colXList[0] - 12} y2={baseGroundY} stroke="#333333" strokeWidth={0.6} />
-      <Text x={colXList[0] - 34} y={baseGroundY + 2} fontSize={5.5} fill="#333333" fontWeight="bold">
+      <Text
+        x={colXList[0] - 14}
+        y={baseGroundY + 2}
+        fontSize={5.5}
+        fontFamily="Roboto"
+        fill="#333333"
+        textAnchor="end"
+        fontWeight="bold"
+      >
         0.000
       </Text>
 
+      {/* Отметка низа несущих конструкций (оголовок колонны) */}
       <Line x1={colXList[0] - 4} y1={yClear} x2={colXList[0] - 12} y2={yClear} stroke="#007bff" strokeWidth={0.6} />
-      <Text x={colXList[0] - 36} y={yClear + 2} fontSize={5.5} fill="#007bff" fontWeight="bold">
-        {`+${H_clear.toFixed(2)}`}
-      </Text>
-
-      <Line
-        x1={(colXList[0] + colXList[1]) / 2 - 4}
-        y1={yPurlinEave - (ridgeRise * scale)}
-        x2={(colXList[0] + colXList[1]) / 2 + 4}
-        y2={yPurlinEave - (ridgeRise * scale)}
-        stroke="#28a745"
-        strokeWidth={0.6}
-      />
       <Text
-        x={(colXList[0] + colXList[1]) / 2 - 8}
-        y={yPurlinEave - (ridgeRise * scale) - 3}
+        x={colXList[0] - 14}
+        y={yClear + 2}
         fontSize={5.5}
-        fill="#28a745"
+        fontFamily="Roboto"
+        fill="#007bff"
+        textAnchor="end"
         fontWeight="bold"
       >
-        {`+${H_ridge_top.toFixed(2)}`}
+        {`+${H_clear.toFixed(2)}`}
       </Text>
     </Svg>
   );
