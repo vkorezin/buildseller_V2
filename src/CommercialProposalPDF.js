@@ -12,24 +12,24 @@ Font.register({
 
 const styles = StyleSheet.create({
   page: { padding: 35, fontFamily: 'Roboto', fontSize: 9.5, color: '#333' },
-  header: { marginBottom: 15, borderBottomWidth: 1.5, borderBottomColor: '#007bff', paddingBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  header: { marginBottom: 12, borderBottomWidth: 1.5, borderBottomColor: '#007bff', paddingBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   headerLeft: { flex: 1, paddingRight: 15 },
-  logo: { width: 140, marginBottom: 8 },
-  brandFallback: { fontSize: 24, fontWeight: 'bold', color: '#007bff', marginBottom: 6, letterSpacing: 1 },
-  title: { fontSize: 11, fontWeight: 'bold', marginBottom: 4, color: '#111', lineHeight: 1.3 },
-  subtitle: { fontSize: 9, color: '#555' },
-  section: { marginBottom: 12 },
-  sectionTitle: { fontSize: 11, fontWeight: 'bold', marginBottom: 6, backgroundColor: '#f0f0f0', padding: 4, textTransform: 'uppercase' },
-  row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#eee', paddingVertical: 5, alignItems: 'center' },
-  listText: { marginBottom: 3.5, lineHeight: 1.35, fontSize: 9 },
-  breakdownTitle: { fontWeight: 'bold', fontSize: 9.5, marginBottom: 3, marginTop: 6 },
+  logo: { width: 140, marginBottom: 6 },
+  brandFallback: { fontSize: 24, fontWeight: 'bold', color: '#007bff', marginBottom: 4, letterSpacing: 1 },
+  title: { fontSize: 11, fontWeight: 'bold', marginBottom: 3, color: '#111', lineHeight: 1.3 },
+  subtitle: { fontSize: 8.5, color: '#555' },
+  section: { marginBottom: 10 },
+  sectionTitle: { fontSize: 10.5, fontWeight: 'bold', marginBottom: 5, backgroundColor: '#f0f0f0', padding: 3.5, textTransform: 'uppercase' },
+  row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#eee', paddingVertical: 4.5, alignItems: 'center' },
+  listText: { marginBottom: 3, lineHeight: 1.3, fontSize: 8.5 },
+  breakdownTitle: { fontWeight: 'bold', fontSize: 9, marginBottom: 2.5, marginTop: 4 },
   breakdownNote: { fontSize: 7.5, color: '#666', marginTop: 2 },
-  analyticsBox: { backgroundColor: '#e8f5e9', padding: 8, borderRadius: 4, marginTop: 8, borderLeftWidth: 3, borderLeftColor: '#4caf50' },
-  analyticsText: { color: '#2e7d32', fontSize: 10, fontWeight: 'bold' },
-  analyticsSub: { color: '#555', fontSize: 7.5, marginTop: 3 },
-  footer: { marginTop: 20, borderTopWidth: 1, borderTopColor: '#ccc', paddingTop: 10, fontSize: 9 },
-  managerName: { fontWeight: 'bold', fontSize: 10, marginBottom: 2 },
-  disclaimer: { marginTop: 12, fontSize: 7.5, color: '#999', textAlign: 'justify', lineHeight: 1.25 }
+  analyticsBox: { backgroundColor: '#e8f5e9', padding: 7, borderRadius: 4, marginTop: 6, borderLeftWidth: 3, borderLeftColor: '#4caf50' },
+  analyticsText: { color: '#2e7d32', fontSize: 9.5, fontWeight: 'bold' },
+  analyticsSub: { color: '#555', fontSize: 7.5, marginTop: 2 },
+  footer: { marginTop: 14, borderTopWidth: 1, borderTopColor: '#ccc', paddingTop: 8, fontSize: 8.5 },
+  managerName: { fontWeight: 'bold', fontSize: 9.5, marginBottom: 2 },
+  disclaimer: { marginTop: 8, fontSize: 7, color: '#999', textAlign: 'justify', lineHeight: 1.2 }
 });
 
 const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhone, managerEmail }) => {
@@ -46,6 +46,10 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
   const labelCellWidth = '31%';
   const valueCellWidth = visibleTypes.length > 0 ? `${69 / visibleTypes.length}%` : '69%';
 
+  const spansCountNum = Number(data.spansCount) || 1;
+  const spanWidthNum = Number(data.spanWidth) || 18;
+  const totalBuildingWidth = spanWidthNum * spansCountNum;
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -61,47 +65,52 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
           </View>
         </View>
 
-        {/* 1. ПАРАМЕТРЫ ОБЪЕКТА (ДВУХКОЛОНОЧНЫЙ FLEX LAYOUT) */}
+        {/* 1. ПАРАМЕТРЫ ОБЪЕКТА */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>1. ПАРАМЕТРЫ ОБЪЕКТА</Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            
-            {/* Левая колонка: ТТХ */}
-            <View style={{ width: '53%', paddingRight: 10 }}>
-              <Text style={styles.listText}>• Габариты: Пролет {data.spanWidth || '-'} м × Длина {data.length || '-'} м</Text>
+          
+          {/* Текстовые ТТХ в две колонки */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+            <View style={{ width: '49%' }}>
+              <Text style={styles.listText}>
+                • Габариты: {spansCountNum > 1 ? `${spansCountNum} прол. по ${spanWidthNum} м (общ. ${totalBuildingWidth} м)` : `Пролет ${spanWidthNum} м`} × Длина {data.length || '-'} м
+              </Text>
               <Text style={styles.listText}>• Высота до низа несущих конструкций: {data.height || '-'} м</Text>
-              <Text style={styles.listText}>• Тип схемы: {data.frameType === 'truss' ? 'Решетчатая ферма' : 'Рамная балка'}</Text>
+              <Text style={styles.listText}>• Несущий каркас: {data.frameType === 'truss' ? 'Решетчатая ферма' : 'Рамная балка'}</Text>
+            </View>
+            <View style={{ width: '49%' }}>
               <Text style={styles.listText}>• Форма кровли: {data.roofShape === 'single' ? 'Односкатная' : 'Двускатная'} (уклон {data.slope || 10}%)</Text>
               <Text style={styles.listText}>• Нагрузки: Снег {data.snowLoad || '-'} кг/м², Ветер {data.windLoad || '-'} кг/м²</Text>
               <Text style={styles.listText}>• Крановое оборудование: {data.craneInfo || 'Нет крана'}</Text>
             </View>
+          </View>
 
-            {/* Правая колонка: Векторный эскиз */}
-            <View style={{ width: '47%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fafafa', borderRadius: 4, padding: 4, border: '1px solid #eee' }}>
-              <PDFBuildingSectionEskiz
-                spanWidth={data.spanWidth}
-                height={data.height}
-                roofShape={data.roofShape}
-                slope={data.slope}
-                frameType={data.frameType}
-                cranes={data.cranes}
-              />
-            </View>
+          {/* Крупный эскиз поперечного разреза на всю ширину листа */}
+          <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fafafa', borderRadius: 4, padding: 4, border: '1px solid #eee' }}>
+            <PDFBuildingSectionEskiz
+              spanWidth={data.spanWidth}
+              spansCount={data.spansCount}
+              height={data.height}
+              roofShape={data.roofShape}
+              slope={data.slope}
+              frameType={data.frameType}
+              cranes={data.cranes}
+            />
           </View>
         </View>
 
         {/* 2. СРАВНЕНИЕ ВАРИАНТОВ ИСПОЛНЕНИЯ */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>2. СРАВНЕНИЕ ВАРИАНТОВ ИСПОЛНЕНИЯ</Text>
-          <Text style={{ fontSize: 8.5, marginBottom: 6, color: '#555', lineHeight: 1.25 }}>
+          <Text style={{ fontSize: 8, marginBottom: 5, color: '#555', lineHeight: 1.2 }}>
             Вариант ЕВРОАНГАР (База) обеспечивает наилучшие прочностные и стоимостные показатели за счет гибридной технологии.
           </Text>
 
           {/* Заголовки таблицы */}
           <View style={[styles.row, { backgroundColor: '#f8f9fa' }]}>
-            <Text style={{ width: labelCellWidth, fontWeight: 'bold', fontSize: 8.5 }}>Вариант каркаса</Text>
+            <Text style={{ width: labelCellWidth, fontWeight: 'bold', fontSize: 8 }}>Вариант каркаса</Text>
             {visibleTypes.map((t, index) => (
-              <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 8.5, fontWeight: 'bold', backgroundColor: t.isBase ? '#e8f4fd' : '#ffffff', paddingVertical: t.isBase ? 3 : 0 }}>
+              <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 8, fontWeight: 'bold', backgroundColor: t.isBase ? '#e8f4fd' : '#ffffff', paddingVertical: t.isBase ? 2.5 : 0 }}>
                 {t.name || '-'}{t.isBase ? ' (База)' : ''}
               </Text>
             ))}
@@ -109,9 +118,9 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
           
           {/* Стоимость Каркаса */}
           <View style={styles.row}>
-            <Text style={{ width: labelCellWidth, fontSize: 8.5, fontWeight: 'bold' }}>Металлокаркас (₽)</Text>
+            <Text style={{ width: labelCellWidth, fontSize: 8, fontWeight: 'bold' }}>Металлокаркас (₽)</Text>
             {visibleTypes.map((t, index) => (
-              <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 8.5, backgroundColor: t.isBase ? '#e8f4fd' : '#ffffff', paddingVertical: t.isBase ? 3 : 0 }}>
+              <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 8, backgroundColor: t.isBase ? '#e8f4fd' : '#ffffff', paddingVertical: t.isBase ? 2.5 : 0 }}>
                 {Math.round(t.metalCost || 0).toLocaleString('ru-RU')} ₽
               </Text>
             ))}
@@ -120,9 +129,9 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
           {/* Обшивка */}
           {data.useSandwich && (
             <View style={styles.row}>
-              <Text style={{ width: labelCellWidth, fontSize: 8.5, fontWeight: 'bold' }}>Обшивка (Сэндвич-панели) (₽)</Text>
+              <Text style={{ width: labelCellWidth, fontSize: 8, fontWeight: 'bold' }}>Обшивка (Сэндвич-панели) (₽)</Text>
               {visibleTypes.map((t, index) => (
-                <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 8.5, backgroundColor: t.isBase ? '#e8f4fd' : '#ffffff', paddingVertical: t.isBase ? 3 : 0 }}>
+                <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 8, backgroundColor: t.isBase ? '#e8f4fd' : '#ffffff', paddingVertical: t.isBase ? 2.5 : 0 }}>
                   {Math.round(data.envelopeCost || 0).toLocaleString('ru-RU')} ₽
                 </Text>
               ))}
@@ -132,9 +141,9 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
           {/* Фундамент */}
           {data.foundationCost > 0 && (
             <View style={styles.row}>
-              <Text style={{ width: labelCellWidth, fontSize: 8.5, fontWeight: 'bold' }}>Фундамент (Справочно) (₽)</Text>
+              <Text style={{ width: labelCellWidth, fontSize: 8, fontWeight: 'bold' }}>Фундамент (Справочно) (₽)</Text>
               {visibleTypes.map((t, index) => (
-                <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 8.5, backgroundColor: t.isBase ? '#e8f4fd' : '#ffffff', paddingVertical: t.isBase ? 3 : 0 }}>
+                <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 8, backgroundColor: t.isBase ? '#e8f4fd' : '#ffffff', paddingVertical: t.isBase ? 2.5 : 0 }}>
                   {Math.round(data.foundationCost || 0).toLocaleString('ru-RU')} ₽
                 </Text>
               ))}
@@ -143,13 +152,13 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
 
           {/* ИТОГО ПО ОБЪЕКТУ */}
           <View style={[styles.row, { borderBottomWidth: 1.5, borderBottomColor: '#333' }]}>
-            <Text style={{ width: labelCellWidth, fontSize: 9.5, fontWeight: 'bold' }}>ИТОГО ПО ОБЪЕКТУ</Text>
+            <Text style={{ width: labelCellWidth, fontSize: 9, fontWeight: 'bold' }}>ИТОГО ПО ОБЪЕКТУ</Text>
             {visibleTypes.map((t, index) => {
               const envCost = Number(data.envelopeCost) || 0;
               const foundCost = Number(data.foundationCost) || 0;
               const totalAll = (Number(t.metalCost) || 0) + envCost + foundCost;
               return (
-                <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 9.5, fontWeight: 'bold', backgroundColor: t.isBase ? '#e8f4fd' : '#f1f8e9', paddingVertical: 3 }}>
+                <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 9, fontWeight: 'bold', backgroundColor: t.isBase ? '#e8f4fd' : '#f1f8e9', paddingVertical: 2.5 }}>
                   {Math.round(totalAll).toLocaleString('ru-RU')} ₽
                 </Text>
               );
@@ -163,7 +172,7 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
             <Text style={styles.sectionTitle}>3. ПОЯСНЕНИЯ К СТОИМОСТИ СМЕТНЫХ РАЗДЕЛОВ</Text>
             
             {data.useSandwich && (
-              <View style={{ marginBottom: 6 }}>
+              <View style={{ marginBottom: 4 }}>
                 <Text style={styles.breakdownTitle}>Ограждающие конструкции комплекта здания:</Text>
                 <Text style={styles.listText}>• Трехслойные стеновые сэндвич-панели с фасонными элементами: {Math.round(data.wallCost || 0).toLocaleString('ru-RU')} ₽</Text>
                 <Text style={styles.listText}>• Трехслойные кровельные сэндвич-панели с комплектом крепежа: {Math.round(data.roofCost || 0).toLocaleString('ru-RU')} ₽</Text>
@@ -195,7 +204,7 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
         )}
 
         {/* 5. УСЛОВИЯ ПОСТАВКИ */}
-        <View style={[styles.section, { marginTop: 8 }]}>
+        <View style={[styles.section, { marginTop: 6 }]}>
           <Text style={styles.sectionTitle}>4. СРОКИ И КОММЕРЧЕСКИЕ УСЛОВИЯ</Text>
           <Text style={styles.listText}>• Срок поставки: Период отгрузки первой технологической партии конструкций на площадку — 43 рабочих дня.</Text>
           <Text style={styles.listText}>• Порядок расчетов: 70% — авансовое финансирование для запуска производства, 30% — оплата по факту готовности к отгрузке завода.</Text>
@@ -205,9 +214,9 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
         {/* ПОДВАЛ МЕНЕДЖЕРА */}
         <View style={styles.footer}>
           <Text style={styles.managerName}>Коммерческое предложение подготовил специалист:</Text>
-          <Text style={{ marginBottom: 2 }}>ФИО: {managerName || '________________________________________'}</Text>
-          <Text style={{ marginBottom: 2 }}>Телефон: {managerPhone || '____________________'}</Text>
-          {managerEmail ? <Text style={{ marginBottom: 2 }}>Email: {managerEmail}</Text> : null}
+          <Text style={{ marginBottom: 1.5 }}>ФИО: {managerName || '________________________________________'}</Text>
+          <Text style={{ marginBottom: 1.5 }}>Телефон: {managerPhone || '____________________'}</Text>
+          {managerEmail ? <Text style={{ marginBottom: 1.5 }}>Email: {managerEmail}</Text> : null}
           
           <Text style={styles.disclaimer}>
             Данное технико-коммерческое предложение носит исключительно индикативный (ознакомительный) характер, основано на предварительных экспресс-расчетах параметров здания и не является публичной офертой. Полная юридическая и техническая гарантия стоимости формируется исключительно по итогам разработки стадии КМ.
