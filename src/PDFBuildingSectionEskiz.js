@@ -25,6 +25,7 @@ export default function PDFBuildingSectionEskiz({
   const isGable = String(roofShape) !== 'single';
   const isTruss = String(frameType) === 'truss';
 
+  // Точный расчет высоты на опоре из QuickEstimator.js
   let supportH = 0.35;
   if (W_span > 18 && W_span < 33) {
     supportH = 0.35 + ((W_span - 18) * (0.75 - 0.35)) / (33 - 18);
@@ -35,11 +36,12 @@ export default function PDFBuildingSectionEskiz({
   const hBeam = isTruss ? (supportH + trussAdd) : (supportH + 0.1);
   const hPurlin = 0.2;
 
-  const totalWidth = W_span * N_spans;
-  const ridgeRise = isGable ? (W_span / 2) * (S / 100) : W_span * (S / 100);
+  const totalBuildingWidth = W_span * N_spans;
 
+  // Подъем кровли
+  const totalRidgeRise = isGable ? (W_span / 2) * (S / 100) : totalBuildingWidth * (S / 100);
   const H_eave_top = H_clear + hBeam;
-  const H_ridge_top = H_eave_top + ridgeRise + hPurlin;
+  const H_max_roof = H_eave_top + totalRidgeRise + hPurlin;
 
   const svgWidth = 525;
   const svgHeight = 150;
@@ -52,20 +54,45 @@ export default function PDFBuildingSectionEskiz({
   const drawAreaW = svgWidth - padLeft - padRight;
   const drawAreaH = svgHeight - padTop - padBottom;
 
-  const scale = Math.min(drawAreaW / totalWidth, drawAreaH / (H_ridge_top * 1.15));
-  const realDrawW = totalWidth * scale;
+  const scale = Math.min(drawAreaW / totalBuildingWidth, drawAreaH / (H_max_roof * 1.15));
+  const realDrawW = totalBuildingWidth * scale;
 
   const offsetX = padLeft + (drawAreaW - realDrawW) / 2;
   const baseGroundY = svgHeight - padBottom;
 
+  // Y-координаты базовых отметок
   const yClear = baseGroundY - H_clear * scale;
   const yEaveTop = baseGroundY - H_eave_top * scale;
-  const yPurlinEave = yEaveTop - hPurlin * scale;
 
+  // Координаты X для осей
   const colXList = [];
   for (let i = 0; i <= N_spans; i++) {
     colXList.push(offsetX + i * (W_span * scale));
   }
+
+  // Функция вычисления верхней точки кровли по горизонтали X
+  const getRoofTopY = (x) => {
+    if (isGable) {
+      // Для каждого пролета свой двускатный конек
+      const relX = x - offsetX;
+      const spanIndex = Math.min(N_spans - 1, Math.floor(relX / (W_span * scale)));
+      const spanX1 = colXList[spanIndex];
+      const spanX2 = colXList[spanIndex + 1];
+      const spanMid = (spanX1 + spanX2) / 2;
+      const ridgeY = yEaveTop - ((W_span / 2) * (S / 100) * scale);
+
+      if (x <= spanMid) {
+        return yEaveTop - ((x - spanX1) / (spanMid - spanX1)) * (yEaveTop - ridgeY);
+      } else {
+        return ridgeY + ((x - spanMid) / (spanX2 - spanMid)) * (yEaveTop - ridgeY);
+      }
+    } else {
+      // Единый ровный односкатный подъем от оси А до последней оси
+      const progress = (x - colXList[0]) / realDrawW;
+      const topTotalRise = totalRidgeRise * scale;
+      return yEaveTop - progress * topTotalRise;
+    }
+  };
 
   return (
     <Svg width={svgWidth} height={svgHeight}>
@@ -79,14 +106,17 @@ export default function PDFBuildingSectionEskiz({
         strokeWidth={1}
       />
 
-      {/* 2. Оси и колонны */}
+      {/* 2. Колонны и оси */}
       {colXList.map((x, i) => {
         const axisLabel = AXIS_LABELS[i] || `${i + 1}`;
+        const colTopY = getRoofTopY(x);
+
         return (
           <G key={`col-axis-${i}`}>
+            {/* Осевая линия */}
             <Line
               x1={x}
-              y1={yPurlinEave - 8}
+              y1={colTopY - 10}
               x2={x}
               y2={baseGroundY + 12}
               stroke="#aaaaaa"
@@ -94,6 +124,7 @@ export default function PDFBuildingSectionEskiz({
               opacity={0.6}
             />
 
+            {/* Колонна до отметки низа несущих конструкций */}
             <Line
               x1={x}
               y1={baseGroundY}
@@ -103,16 +134,18 @@ export default function PDFBuildingSectionEskiz({
               strokeWidth={i === 0 || i === N_spans ? 2.5 : 2}
             />
 
+            {/* Стойка каркаса/фахверка выше отметки +6.00 до верха несущего пояса */}
             <Line
               x1={x}
               y1={yClear}
               x2={x}
-              y2={yEaveTop}
+              y2={colTopY}
               stroke="#007bff"
               strokeWidth={1.2}
               opacity={0.8}
             />
 
+            {/* Кружок оси */}
             <Circle cx={x} cy={baseGroundY + 18} r={5.5} fill="#ffffff" stroke="#333333" strokeWidth={0.6} />
             <Text
               x={x}
@@ -125,6 +158,7 @@ export default function PDFBuildingSectionEskiz({
               {axisLabel}
             </Text>
 
+            {/* Размер между осями */}
             {i < N_spans && (
               <G key={`dim-span-${i}`}>
                 <Line
@@ -153,14 +187,12 @@ export default function PDFBuildingSectionEskiz({
         );
       })}
 
-      {/* 3. Пролеты */}
+      {/* 3. Несущие конструкции и стропильная система по пролетам */}
       {Array.from({ length: N_spans }).map((_, i) => {
         const x1 = colXList[i];
         const x2 = colXList[i + 1];
-        const xMid = isGable ? (x1 + x2) / 2 : x2;
-
-        const yRidgeTop = yEaveTop - (ridgeRise * scale);
-        const yRidgeBot = isTruss ? yClear : (yClear - ridgeRise * scale);
+        const yTop1 = getRoofTopY(x1);
+        const yTop2 = getRoofTopY(x2);
 
         const crane = Array.isArray(cranes) && cranes[i] ? cranes[i] : null;
         const hasCrane = Number(crane?.cap) > 0;
@@ -169,97 +201,85 @@ export default function PDFBuildingSectionEskiz({
         const craneBracketH = H_clear * 0.7;
         const yBracket = baseGroundY - craneBracketH * scale;
 
-        const purlinCount = Math.max(3, Math.round(W_span / 3));
-        const purlins = [];
-        for (let p = 0; p <= purlinCount; p++) {
-          const ratio = p / purlinCount;
-          let px, py;
-          if (isGable) {
-            if (ratio <= 0.5) {
-              px = x1 + ratio * 2 * (xMid - x1);
-              py = yEaveTop - ratio * 2 * (yEaveTop - yRidgeTop);
-            } else {
-              px = xMid + (ratio - 0.5) * 2 * (x2 - xMid);
-              py = yRidgeTop + (ratio - 0.5) * 2 * (yEaveTop - yRidgeTop);
-            }
-          } else {
-            px = x1 + ratio * (x2 - x1);
-            py = yEaveTop - ratio * (yEaveTop - yRidgeTop);
-          }
-          purlins.push({ x: px, y: py });
+        // Расчет панелей решетки фермы (шаг панелей ~3 метра)
+        const panelCount = Math.max(4, Math.round(W_span / 3));
+        const trussNodes = [];
+        for (let p = 0; p <= panelCount; p++) {
+          const px = x1 + (p / panelCount) * (x2 - x1);
+          const pyTop = getRoofTopY(px);
+          const pyBot = yClear;
+          trussNodes.push({ x: px, yTop: pyTop, yBot: pyBot });
         }
 
         return (
           <G key={`span-construct-${i}`}>
+            {/* Несущий каркас */}
             {isTruss ? (
               <G>
+                {/* Нижний пояс фермы */}
                 <Line x1={x1} y1={yClear} x2={x2} y2={yClear} stroke="#007bff" strokeWidth={1.5} />
-                <Line x1={x1} y1={yEaveTop} x2={xMid} y2={yRidgeTop} stroke="#007bff" strokeWidth={1.8} />
-                <Line x1={xMid} y1={yRidgeTop} x2={x2} y2={yEaveTop} stroke="#007bff" strokeWidth={1.8} />
-                <Line x1={xMid} y1={yRidgeTop} x2={xMid} y2={yClear} stroke="#007bff" strokeWidth={0.6} />
-                <Line x1={x1} y1={yClear} x2={(x1 + xMid) / 2} y2={(yEaveTop + yRidgeTop) / 2} stroke="#007bff" strokeWidth={0.6} />
-                <Line x1={(x1 + xMid) / 2} y1={(yEaveTop + yRidgeTop) / 2} x2={xMid} y2={yClear} stroke="#007bff" strokeWidth={0.6} />
-                <Line x1={x2} y1={yClear} x2={(x2 + xMid) / 2} y2={(yEaveTop + yRidgeTop) / 2} stroke="#007bff" strokeWidth={0.6} />
-                <Line x1={(x2 + xMid) / 2} y1={(yEaveTop + yRidgeTop) / 2} x2={xMid} y2={yClear} stroke="#007bff" strokeWidth={0.6} />
+
+                {/* Верхний пояс фермы */}
+                {isGable ? (
+                  <G>
+                    <Line x1={x1} y1={yTop1} x2={(x1 + x2) / 2} y2={getRoofTopY((x1 + x2) / 2)} stroke="#007bff" strokeWidth={1.8} />
+                    <Line x1={(x1 + x2) / 2} y1={getRoofTopY((x1 + x2) / 2)} x2={x2} y2={yTop2} stroke="#007bff" strokeWidth={1.8} />
+                  </G>
+                ) : (
+                  <Line x1={x1} y1={yTop1} x2={x2} y2={yTop2} stroke="#007bff" strokeWidth={1.8} />
+                )}
+
+                {/* Регулярная решетка фермы (стойки и раскосы) */}
+                {trussNodes.map((node, nIdx) => (
+                  <G key={`truss-web-${i}-${nIdx}`}>
+                    {/* Вертикальная стойка */}
+                    <Line x1={node.x} y1={node.yBot} x2={node.x} y2={node.yTop} stroke="#007bff" strokeWidth={0.7} />
+                    {/* Диагональный раскос */}
+                    {nIdx < panelCount && (
+                      <Line
+                        x1={isGable && nIdx >= panelCount / 2 ? node.x : node.x}
+                        y1={isGable && nIdx >= panelCount / 2 ? node.yTop : node.yBot}
+                        x2={trussNodes[nIdx + 1].x}
+                        y2={isGable && nIdx >= panelCount / 2 ? trussNodes[nIdx + 1].yBot : trussNodes[nIdx + 1].yTop}
+                        stroke="#007bff"
+                        strokeWidth={0.6}
+                      />
+                    )}
+                  </G>
+                ))}
               </G>
             ) : (
               <G>
-                {isGable ? (
-                  <G>
-                    <Line x1={x1} y1={yEaveTop} x2={xMid} y2={yRidgeTop} stroke="#007bff" strokeWidth={2} />
-                    <Line x1={xMid} y1={yRidgeTop} x2={x2} y2={yEaveTop} stroke="#007bff" strokeWidth={2} />
-                    <Line x1={x1} y1={yClear} x2={xMid} y2={yRidgeBot} stroke="#007bff" strokeWidth={1} opacity={0.6} />
-                    <Line x1={xMid} y1={yRidgeBot} x2={x2} y2={yClear} stroke="#007bff" strokeWidth={1} opacity={0.6} />
-                  </G>
-                ) : (
-                  <G>
-                    <Line x1={x1} y1={yEaveTop} x2={x2} y2={yRidgeTop} stroke="#007bff" strokeWidth={2} />
-                    <Line x1={x1} y1={yClear} x2={x2} y2={yRidgeBot} stroke="#007bff" strokeWidth={1} opacity={0.6} />
-                  </G>
-                )}
+                {/* Балка */}
+                <Line x1={x1} y1={yTop1} x2={x2} y2={yTop2} stroke="#007bff" strokeWidth={2} />
+                <Line x1={x1} y1={yClear} x2={x2} y2={isGable ? yClear : (yClear - (yTop1 - yTop2))} stroke="#007bff" strokeWidth={1} opacity={0.6} />
               </G>
             )}
 
-            {purlins.map((pt, pIdx) => (
+            {/* Кровельные прогоны */}
+            {trussNodes.map((node, pIdx) => (
               <Line
                 key={`purlin-${i}-${pIdx}`}
-                x1={pt.x}
-                y1={pt.y}
-                x2={pt.x}
-                y2={pt.y - hPurlin * scale}
+                x1={node.x}
+                y1={node.yTop}
+                x2={node.x}
+                y2={node.yTop - hPurlin * scale}
                 stroke="#17a2b8"
                 strokeWidth={1}
               />
             ))}
 
+            {/* Настил / Кровля */}
             {isGable ? (
               <G>
-                <Line x1={x1 - 2} y1={yPurlinEave} x2={xMid} y2={yRidgeTop - hPurlin * scale} stroke="#28a745" strokeWidth={1} />
-                <Line x1={xMid} y1={yRidgeTop - hPurlin * scale} x2={x2 + 2} y2={yPurlinEave} stroke="#28a745" strokeWidth={1} />
+                <Line x1={x1 - 2} y1={yTop1 - hPurlin * scale} x2={(x1 + x2) / 2} y2={getRoofTopY((x1 + x2) / 2) - hPurlin * scale} stroke="#28a745" strokeWidth={1} />
+                <Line x1={(x1 + x2) / 2} y1={getRoofTopY((x1 + x2) / 2) - hPurlin * scale} x2={x2 + 2} y2={yTop2 - hPurlin * scale} stroke="#28a745" strokeWidth={1} />
               </G>
             ) : (
-              <Line x1={x1 - 2} y1={yPurlinEave} x2={x2 + 2} y2={yRidgeTop - hPurlin * scale} stroke="#28a745" strokeWidth={1} />
+              <Line x1={x1 - (i === 0 ? 2 : 0)} y1={yTop1 - hPurlin * scale} x2={x2 + (i === N_spans - 1 ? 2 : 0)} y2={yTop2 - hPurlin * scale} stroke="#28a745" strokeWidth={1} />
             )}
 
-            <Line
-              x1={xMid - 4}
-              y1={yPurlinEave - (ridgeRise * scale)}
-              x2={xMid + 4}
-              y2={yPurlinEave - (ridgeRise * scale)}
-              stroke="#28a745"
-              strokeWidth={0.6}
-            />
-            <Text
-              x={xMid}
-              y={yPurlinEave - (ridgeRise * scale) - 3}
-              fontSize={6}
-              fontFamily="Roboto"
-              fill="#1e7e34"
-              textAnchor="middle"
-            >
-              {`+${H_ridge_top.toFixed(2)}`}
-            </Text>
-
+            {/* Крановое оборудование */}
             {hasCrane && (
               <G key={`crane-span-${i}`}>
                 {isSupport ? (
@@ -304,7 +324,8 @@ export default function PDFBuildingSectionEskiz({
         );
       })}
 
-      {/* 4. Высотные отметки слева */}
+      {/* 4. Высотные отметки */}
+      {/* Отметка 0.000 */}
       <Line x1={colXList[0] - 4} y1={baseGroundY} x2={colXList[0] - 12} y2={baseGroundY} stroke="#333333" strokeWidth={0.6} />
       <Text
         x={colXList[0] - 14}
@@ -317,6 +338,7 @@ export default function PDFBuildingSectionEskiz({
         0.000
       </Text>
 
+      {/* Отметка низа ферм/балок (+6.00) */}
       <Line x1={colXList[0] - 4} y1={yClear} x2={colXList[0] - 12} y2={yClear} stroke="#007bff" strokeWidth={0.6} />
       <Text
         x={colXList[0] - 14}
@@ -328,6 +350,51 @@ export default function PDFBuildingSectionEskiz({
       >
         {`+${H_clear.toFixed(2)}`}
       </Text>
+
+      {/* Отметки верха кровли */}
+      {isGable ? (
+        colXList.slice(0, N_spans).map((x, i) => {
+          const midX = (x + colXList[i + 1]) / 2;
+          const ridgeY = getRoofTopY(midX) - hPurlin * scale;
+          return (
+            <G key={`ridge-level-${i}`}>
+              <Line x1={midX - 4} y1={ridgeY} x2={midX + 4} y2={ridgeY} stroke="#28a745" strokeWidth={0.6} />
+              <Text
+                x={midX}
+                y={ridgeY - 3}
+                fontSize={6}
+                fontFamily="Roboto"
+                fill="#1e7e34"
+                textAnchor="middle"
+              >
+                {`+${(H_eave_top + (W_span / 2) * (S / 100) + hPurlin).toFixed(2)}`}
+              </Text>
+            </G>
+          );
+        })
+      ) : (
+        // Для односкатного — флажок пика справа
+        <G>
+          <Line
+            x1={colXList[N_spans] + 4}
+            y1={getRoofTopY(colXList[N_spans]) - hPurlin * scale}
+            x2={colXList[N_spans] + 12}
+            y2={getRoofTopY(colXList[N_spans]) - hPurlin * scale}
+            stroke="#28a745"
+            strokeWidth={0.6}
+          />
+          <Text
+            x={colXList[N_spans] + 14}
+            y={getRoofTopY(colXList[N_spans]) - hPurlin * scale + 2}
+            fontSize={6}
+            fontFamily="Roboto"
+            fill="#1e7e34"
+            textAnchor="start"
+          >
+            {`+${H_max_roof.toFixed(2)}`}
+          </Text>
+        </G>
+      )}
     </Svg>
   );
 }
