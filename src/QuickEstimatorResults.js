@@ -14,7 +14,6 @@ const DEFAULT_CONFIG = {
   type2Gk: 0.7
 };
 
-// Функция генерации номера КП по формату ДДММГГНП
 function generateKpNumber() {
   const now = new Date();
   const dd = String(now.getDate()).padStart(2, '0');
@@ -45,6 +44,7 @@ export default function QuickEstimatorResults({
   roofShape = "gable",
   slope = "10",
   spanWidth = "18",
+  spansCount = "1",
   length = "48",
   height = "6",
   snowLoad = "180",
@@ -76,7 +76,7 @@ export default function QuickEstimatorResults({
   useEffect(() => {
     setShowPdf(false);
   }, [
-    spanWidth, length, height, snowLoad, windLoad, frameType, roofShape, slope, useSandwich, 
+    spanWidth, spansCount, length, height, snowLoad, windLoad, frameType, roofShape, slope, useSandwich, 
     cranes, gkPrice, lstkPrice, fasonkaPrice, estimation,
     managerName, managerPhone, managerEmail
   ]);
@@ -209,6 +209,7 @@ export default function QuickEstimatorResults({
 
     const pdfDataObj = {
       spanWidth,
+      spansCount,
       length,
       height,
       roofShape,
@@ -240,14 +241,14 @@ export default function QuickEstimatorResults({
       />
     );
   }, [
-    showPdf, spanWidth, length, height, roofShape, slope, snowLoad, windLoad, frameType, cranes,
+    showPdf, spanWidth, spansCount, length, height, roofShape, slope, snowLoad, windLoad, frameType, cranes,
     currentKpNumber, useSandwich, envelopeCost, foundationCost, estimation, serializedTypesForPdf, 
     managerName, managerPhone, managerEmail
   ]);
 
   const uniquePdfKey = useMemo(() => {
-    return `${currentKpNumber}-${spanWidth}-${length}-${height}-${snowLoad}-${windLoad}-${frameType}-${roofShape}-${slope}-${useSandwich}-${estimation?.totalCost}`;
-  }, [currentKpNumber, spanWidth, length, height, snowLoad, windLoad, frameType, roofShape, slope, useSandwich, estimation?.totalCost]);
+    return `${currentKpNumber}-${spanWidth}-${spansCount}-${length}-${height}-${snowLoad}-${windLoad}-${frameType}-${roofShape}-${slope}-${useSandwich}-${estimation?.totalCost}`;
+  }, [currentKpNumber, spanWidth, spansCount, length, height, snowLoad, windLoad, frameType, roofShape, slope, useSandwich, estimation?.totalCost]);
 
   const styles = {
     container: { marginTop: "30px", fontFamily: "Arial, sans-serif" },
