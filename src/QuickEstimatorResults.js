@@ -14,10 +14,36 @@ const DEFAULT_CONFIG = {
   type2Gk: 0.7
 };
 
+// Функция генерации номера КП по формату ДДММГГНП
+function generateKpNumber() {
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const yy = String(now.getFullYear()).slice(-2);
+  const todayKey = `${dd}${mm}${yy}`;
+
+  let lastDate = localStorage.getItem('euroangar_cp_date');
+  let counter = parseInt(localStorage.getItem('euroangar_cp_counter') || '0', 10);
+
+  if (lastDate !== todayKey) {
+    counter = 1;
+    localStorage.setItem('euroangar_cp_date', todayKey);
+  } else {
+    counter += 1;
+    if (counter > 99) counter = 1;
+  }
+
+  localStorage.setItem('euroangar_cp_counter', String(counter));
+  const np = String(counter).padStart(2, '0');
+  return `${todayKey}${np}`;
+}
+
 export default function QuickEstimatorResults({
   estimation,
   useSandwich,
   frameType,
+  roofShape = "gable",
+  slope = "10",
   spanWidth = "18",
   length = "48",
   height = "6",
@@ -30,6 +56,7 @@ export default function QuickEstimatorResults({
 }) {
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [showPdf, setShowPdf] = useState(false);
+  const [currentKpNumber, setCurrentKpNumber] = useState("");
 
   const [managerName, setManagerName] = useState(() => localStorage.getItem('euroangar_pdf_m_name') || "");
   const [managerPhone, setManagerPhone] = useState(() => localStorage.getItem('euroangar_pdf_m_phone') || "");
@@ -49,10 +76,16 @@ export default function QuickEstimatorResults({
   useEffect(() => {
     setShowPdf(false);
   }, [
-    spanWidth, length, height, snowLoad, windLoad, frameType, useSandwich, 
+    spanWidth, length, height, snowLoad, windLoad, frameType, roofShape, slope, useSandwich, 
     cranes, gkPrice, lstkPrice, fasonkaPrice, estimation,
     managerName, managerPhone, managerEmail
   ]);
+
+  const handlePreparePdf = () => {
+    const num = generateKpNumber();
+    setCurrentKpNumber(num);
+    setShowPdf(true);
+  };
 
   if (!estimation) return null;
 
@@ -157,8 +190,6 @@ export default function QuickEstimatorResults({
     }
   ];
 
-  // СБОРКА ЧИСТЫХ СЕРИАЛИЗУЕМЫХ ДАННЫХ В ТЕКУЩЕМ ПОТОКЕ REACT:
-  // Мы вызываем calc() здесь, убирая функции и создавая плоский массив JSON-объектов.
   const serializedTypesForPdf = useMemo(() => {
     return types
       .filter(t => !t.blocked)
@@ -173,7 +204,6 @@ export default function QuickEstimatorResults({
       });
   }, [showPdf, types]);
 
-  // Сборка слепка документа без единой динамической зависимости внутри воркера
   const memoizedPdfDocument = useMemo(() => {
     if (!showPdf) return null;
 
@@ -181,9 +211,14 @@ export default function QuickEstimatorResults({
       spanWidth,
       length,
       height,
+      roofShape,
+      slope,
       snowLoad,
       windLoad,
       frameType,
+      cranes,
+      kpNumber: currentKpNumber,
+      formattedDate: new Date().toLocaleDateString('ru-RU'),
       craneInfo: estimation.craneInfo || "Нет крана",
       envelopeCost,
       foundationCost,
@@ -198,17 +233,21 @@ export default function QuickEstimatorResults({
     return (
       <CommercialProposalPDF 
         data={pdfDataObj}
-        types={serializedTypesForPdf} // Передаем абсолютно чистый массив без функций!
+        types={serializedTypesForPdf}
         managerName={managerName}
         managerPhone={managerPhone}
         managerEmail={managerEmail}
       />
     );
-  }, [showPdf, spanWidth, length, height, snowLoad, windLoad, frameType, useSandwich, envelopeCost, foundationCost, estimation, serializedTypesForPdf, managerName, managerPhone, managerEmail]);
+  }, [
+    showPdf, spanWidth, length, height, roofShape, slope, snowLoad, windLoad, frameType, cranes,
+    currentKpNumber, useSandwich, envelopeCost, foundationCost, estimation, serializedTypesForPdf, 
+    managerName, managerPhone, managerEmail
+  ]);
 
   const uniquePdfKey = useMemo(() => {
-    return `${spanWidth}-${length}-${height}-${snowLoad}-${windLoad}-${frameType}-${useSandwich}-${estimation?.totalCost}`;
-  }, [spanWidth, length, height, snowLoad, windLoad, frameType, useSandwich, estimation?.totalCost]);
+    return `${currentKpNumber}-${spanWidth}-${length}-${height}-${snowLoad}-${windLoad}-${frameType}-${roofShape}-${slope}-${useSandwich}-${estimation?.totalCost}`;
+  }, [currentKpNumber, spanWidth, length, height, snowLoad, windLoad, frameType, roofShape, slope, useSandwich, estimation?.totalCost]);
 
   const styles = {
     container: { marginTop: "30px", fontFamily: "Arial, sans-serif" },
@@ -332,12 +371,12 @@ export default function QuickEstimatorResults({
       ) : (
         <>
           {!showPdf ? (
-            <button style={styles.pdfBtn} onClick={() => setShowPdf(true)}>📄 Подготовить КП в PDF</button>
+            <button style={styles.pdfBtn} onClick={handlePreparePdf}>📄 Подготовить КП в PDF</button>
           ) : (
             <PDFDownloadLink 
               key={uniquePdfKey} 
               document={memoizedPdfDocument} 
-              fileName={`ЕВРОАНГАР_КП_${spanWidth}x${length}.pdf`}
+              fileName={`ЕВРОАНГАР_КП_${currentKpNumber}_${spanWidth}x${length}.pdf`}
               style={{textDecoration: 'none'}}
             >
               {({ loading, error }) => (
