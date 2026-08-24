@@ -1,5 +1,5 @@
 import React from 'react';
-import { Svg, Line, Circle, Text, G, Rect } from '@react-pdf/renderer';
+import { Svg, Line, Circle, Text, G, Rect, Polygon } from '@react-pdf/renderer';
 
 const AXIS_LABELS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'И', 'К', 'Л'];
 
@@ -27,21 +27,46 @@ export default function PDFBuildingSectionEskiz({
   const isGable = String(roofShape) !== 'single';
   const isTruss = String(frameType) === 'truss';
 
-  // Высота ригеля на опоре
-  let supportH = 0.35;
-  if (W_span > 18 && W_span < 33) {
-    supportH = 0.35 + ((W_span - 18) * (0.75 - 0.35)) / (33 - 18);
-  } else if (W_span >= 33) {
-    supportH = 0.75;
-  }
-  const trussAdd = S <= 21 ? 0.65 + (10 - S) * 0.0597 : 0;
-  const hBeam = isTruss ? (supportH + trussAdd) : Math.max(0.4, supportH);
-  const hPurlin = 0.2;
+  // 1. Расчет высоты балки/фермы
+  let hBeamEave = 0.35;
+  let hBeamRidge = 0.35;
 
+  if (isTruss) {
+    let supportH = 0.35;
+    if (W_span > 18 && W_span < 33) supportH = 0.35 + ((W_span - 18) * (0.75 - 0.35)) / (33 - 18);
+    else if (W_span >= 33) supportH = 0.75;
+    const trussAdd = S <= 21 ? 0.65 + (10 - S) * 0.0597 : 0;
+    hBeamEave = supportH + trussAdd;
+    hBeamRidge = hBeamEave;
+  } else {
+    // Балка: дискретный ряд <= 12м, переменка > 12м
+    if (W_span <= 12.0) {
+      if (W_span <= 6.0) hBeamEave = 0.232;
+      else if (W_span <= 8.0) hBeamEave = 0.268;
+      else if (W_span <= 9.0) hBeamEave = 0.317;
+      else if (W_span <= 10.0) hBeamEave = 0.391;
+      else if (W_span <= 11.0) hBeamEave = 0.443;
+      else if (W_span <= 11.5) hBeamEave = 0.515;
+      else hBeamEave = 0.613;
+      hBeamRidge = hBeamEave;
+    } else {
+      if (W_span > 18 && W_span < 33) {
+        hBeamEave = 0.35 + ((W_span - 18) * (0.75 - 0.35)) / (33 - 18);
+      } else if (W_span >= 33) {
+        hBeamEave = 0.75;
+      } else {
+        hBeamEave = 0.35;
+      }
+      hBeamRidge = Math.min(1.50, 2.0 * hBeamEave);
+    }
+  }
+
+  const hPurlin = 0.2;
   const totalBuildingWidth = W_span * N_spans;
-  const totalRidgeRise = isGable ? (W_span / 2) * (S / 100) : totalBuildingWidth * (S / 100);
-  const H_eave_top = H_clear + hBeam;
-  const H_max_roof = H_eave_top + totalRidgeRise + hPurlin;
+  const ridgeRise = isGable ? (W_span / 2) * (S / 100) : totalBuildingWidth * (S / 100);
+
+  const H_eave_top = H_clear + hBeamEave;
+  const H_max_roof = H_eave_top + ridgeRise + hPurlin;
 
   const svgWidth = 525;
   const svgHeight = 150;
@@ -63,13 +88,11 @@ export default function PDFBuildingSectionEskiz({
   const yClear = baseGroundY - H_clear * scale;
   const yEaveTop = baseGroundY - H_eave_top * scale;
 
-  // Опорные основные оси здания
   const colXList = [];
   for (let i = 0; i <= N_spans; i++) {
     colXList.push(offsetX + i * (W_span * scale));
   }
 
-  // Расчет междуэтажных уровней
   const floorLevels = [];
   const floorHeight = H_clear / numStories;
   for (let f = 1; f < numStories; f++) {
@@ -79,7 +102,6 @@ export default function PDFBuildingSectionEskiz({
   }
   const topMezzanineY = floorLevels.length > 0 ? floorLevels[floorLevels.length - 1].yLevel : baseGroundY;
 
-  // Расчет промежуточных стоек (шаг <= 8м)
   const intermediateColsPerSpan = [];
   const kSubSpans = Math.max(1, Math.ceil(W_span / 8.0));
   if (numStories > 1 && kSubSpans > 1) {
@@ -88,7 +110,6 @@ export default function PDFBuildingSectionEskiz({
     }
   }
 
-  // Вычисление верхней координаты кровли
   const getRoofTopY = (x) => {
     if (isGable) {
       const relX = x - offsetX;
@@ -110,19 +131,9 @@ export default function PDFBuildingSectionEskiz({
     }
   };
 
-  // Вычисление нижней грани несущего ригеля
-  const getBeamBottomY = (x) => {
-    if (isTruss) {
-      return yClear;
-    }
-    // Для балки нижний пояс повторяет уклон кровли
-    const topY = getRoofTopY(x);
-    return topY + hBeam * scale;
-  };
-
   return (
     <Svg width={svgWidth} height={svgHeight}>
-      {/* 1. Уровень чистого пола */}
+      {/* 1. Уровень пола */}
       <Line
         x1={colXList[0] - 15}
         y1={baseGroundY}
@@ -132,7 +143,7 @@ export default function PDFBuildingSectionEskiz({
         strokeWidth={1}
       />
 
-      {/* 2. Основные колонны и оси */}
+      {/* 2. Колонны и оси */}
       {colXList.map((x, i) => {
         const axisLabel = AXIS_LABELS[i] || `${i + 1}`;
         const colTopY = getRoofTopY(x);
@@ -149,7 +160,6 @@ export default function PDFBuildingSectionEskiz({
               opacity={0.6}
             />
 
-            {/* Колонна до отметки низа несущих конструкций (+H.clear) */}
             <Line
               x1={x}
               y1={baseGroundY}
@@ -159,12 +169,11 @@ export default function PDFBuildingSectionEskiz({
               strokeWidth={i === 0 || i === N_spans ? 2.5 : 2}
             />
 
-            {/* Наголовник / верхняя стойка до верха пояса ригеля */}
             <Line
               x1={x}
               y1={yClear}
               x2={x}
-              y2={colTopY}
+              y2={yEaveTop}
               stroke="#007bff"
               strokeWidth={1.2}
               opacity={0.8}
@@ -210,7 +219,7 @@ export default function PDFBuildingSectionEskiz({
         );
       })}
 
-      {/* 3. Междуэтажные конструкции (Перекрытия и промежуточные стойки) */}
+      {/* 3. Междуэтажные конструкции */}
       {numStories > 1 && (
         <G>
           {floorLevels.map((fl) => (
@@ -263,7 +272,7 @@ export default function PDFBuildingSectionEskiz({
         </G>
       )}
 
-      {/* 4. Конструкции покрытия верхнего этажа и краны */}
+      {/* 4. Ригель покрытия и кровля */}
       {Array.from({ length: N_spans }).map((_, i) => {
         const x1 = colXList[i];
         const x2 = colXList[i + 1];
@@ -273,9 +282,9 @@ export default function PDFBuildingSectionEskiz({
         const yTop2 = getRoofTopY(x2);
         const yTopMid = getRoofTopY(xMid);
 
-        const yBot1 = getBeamBottomY(x1);
-        const yBot2 = getBeamBottomY(x2);
-        const yBotMid = getBeamBottomY(xMid);
+        const yBot1 = yClear;
+        const yBot2 = yClear;
+        const yBotMid = yTopMid + (hBeamRidge * scale);
 
         const crane = Array.isArray(cranes) && cranes[i] ? cranes[i] : null;
         const hasCrane = Number(crane?.cap) > 0;
@@ -286,25 +295,19 @@ export default function PDFBuildingSectionEskiz({
         const craneAvailableH = numStories > 1 ? (floorHeight * scale) : (H_clear * scale);
         const yBracket = craneBaseY - craneAvailableH * 0.7;
 
-        // Расчет узлов для прогонов и решетки
         const panelCount = Math.max(4, Math.round(W_span / 3));
         const spanNodes = [];
         for (let p = 0; p <= panelCount; p++) {
           const px = x1 + (p / panelCount) * (x2 - x1);
           const pyTop = getRoofTopY(px);
-          const pyBot = getBeamBottomY(px);
-          spanNodes.push({ x: px, yTop: pyTop, yBot: pyBot });
+          spanNodes.push({ x: px, yTop: pyTop, yBot: yClear });
         }
 
         return (
           <G key={`span-construct-${i}`}>
-            {/* Несущий ригель (Ферма или Балка) */}
             {isTruss ? (
               <G>
-                {/* Нижний пояс фермы */}
                 <Line x1={x1} y1={yClear} x2={x2} y2={yClear} stroke="#007bff" strokeWidth={1.5} />
-
-                {/* Верхний пояс фермы */}
                 {isGable ? (
                   <G>
                     <Line x1={x1} y1={yTop1} x2={xMid} y2={yTopMid} stroke="#007bff" strokeWidth={1.8} />
@@ -314,7 +317,6 @@ export default function PDFBuildingSectionEskiz({
                   <Line x1={x1} y1={yTop1} x2={x2} y2={yTop2} stroke="#007bff" strokeWidth={1.8} />
                 )}
 
-                {/* Решетка фермы */}
                 {spanNodes.map((node, nIdx) => (
                   <G key={`truss-web-${i}-${nIdx}`}>
                     <Line x1={node.x} y1={yClear} x2={node.x} y2={node.yTop} stroke="#007bff" strokeWidth={0.7} />
@@ -332,34 +334,36 @@ export default function PDFBuildingSectionEskiz({
                 ))}
               </G>
             ) : (
-              /* Рамная балка переменного/постоянного сечения с уклоном к коньку */
+              /* Точная балка: верх по скату кровли, конёк h_ridge = 2*h_eave */
               <G>
                 {isGable ? (
                   <G>
-                    {/* Верхний пояс балки по уклону */}
-                    <Line x1={x1} y1={yTop1} x2={xMid} y2={yTopMid} stroke="#007bff" strokeWidth={2.2} />
-                    <Line x1={xMid} y1={yTopMid} x2={x2} y2={yTop2} stroke="#007bff" strokeWidth={2.2} />
-                    {/* Нижний пояс балки по уклону */}
-                    <Line x1={x1} y1={yBot1} x2={xMid} y2={yBotMid} stroke="#007bff" strokeWidth={1.2} opacity={0.7} />
-                    <Line x1={xMid} y1={yBotMid} x2={x2} y2={yBot2} stroke="#007bff" strokeWidth={1.2} opacity={0.7} />
-                    {/* Коньковое и опорные ребра жесткости балки */}
-                    <Line x1={xMid} y1={yBotMid} x2={xMid} y2={yTopMid} stroke="#007bff" strokeWidth={1} />
-                    <Line x1={x1} y1={yBot1} x2={x1} y2={yTop1} stroke="#007bff" strokeWidth={1} />
-                    <Line x1={x2} y1={yBot2} x2={x2} y2={yTop2} stroke="#007bff" strokeWidth={1} />
+                    <Polygon
+                      points={`${x1},${yBot1} ${x1},${yTop1} ${xMid},${yTopMid} ${x2},${yTop2} ${x2},${yBot2} ${xMid},${yBotMid}`}
+                      fill="#e3f2fd"
+                      stroke="#007bff"
+                      strokeWidth={1.8}
+                    />
+                    <Line x1={xMid} y1={yBotMid} x2={xMid} y2={yTopMid} stroke="#0056b3" strokeWidth={1.5} />
+                    <Line x1={x1} y1={yBot1} x2={x1} y2={yTop1} stroke="#0056b3" strokeWidth={1.5} />
+                    <Line x1={x2} y1={yBot2} x2={x2} y2={yTop2} stroke="#0056b3" strokeWidth={1.5} />
                   </G>
                 ) : (
                   <G>
-                    {/* Односкатная балка */}
-                    <Line x1={x1} y1={yTop1} x2={x2} y2={yTop2} stroke="#007bff" strokeWidth={2.2} />
-                    <Line x1={x1} y1={yBot1} x2={x2} y2={yBot2} stroke="#007bff" strokeWidth={1.2} opacity={0.7} />
-                    <Line x1={x1} y1={yBot1} x2={x1} y2={yTop1} stroke="#007bff" strokeWidth={1} />
-                    <Line x1={x2} y1={yBot2} x2={x2} y2={yTop2} stroke="#007bff" strokeWidth={1} />
+                    <Polygon
+                      points={`${x1},${yBot1} ${x1},${yTop1} ${x2},${yTop2} ${x2},${yBot2}`}
+                      fill="#e3f2fd"
+                      stroke="#007bff"
+                      strokeWidth={1.8}
+                    />
+                    <Line x1={x1} y1={yBot1} x2={x1} y2={yTop1} stroke="#0056b3" strokeWidth={1.5} />
+                    <Line x1={x2} y1={yBot2} x2={x2} y2={yTop2} stroke="#0056b3" strokeWidth={1.5} />
                   </G>
                 )}
               </G>
             )}
 
-            {/* Кровельные прогоны (стоят строго на балке/ферме) */}
+            {/* Прогоны */}
             {spanNodes.map((node, pIdx) => (
               <Line
                 key={`purlin-${i}-${pIdx}`}
@@ -372,17 +376,17 @@ export default function PDFBuildingSectionEskiz({
               />
             ))}
 
-            {/* Настил / Кровля */}
+            {/* Кровля */}
             {isGable ? (
               <G>
-                <Line x1={x1 - 2} y1={yTop1 - hPurlin * scale} x2={xMid} y2={yTopMid - hPurlin * scale} stroke="#28a745" strokeWidth={1} />
-                <Line x1={xMid} y1={yTopMid - hPurlin * scale} x2={x2 + 2} y2={yTop2 - hPurlin * scale} stroke="#28a745" strokeWidth={1} />
+                <Line x1={x1 - 2} y1={yTop1 - hPurlin * scale} x2={xMid} y2={yTopMid - hPurlin * scale} stroke="#28a745" strokeWidth={1.2} />
+                <Line x1={xMid} y1={yTopMid - hPurlin * scale} x2={x2 + 2} y2={yTop2 - hPurlin * scale} stroke="#28a745" strokeWidth={1.2} />
               </G>
             ) : (
-              <Line x1={x1 - (i === 0 ? 2 : 0)} y1={yTop1 - hPurlin * scale} x2={x2 + (i === N_spans - 1 ? 2 : 0)} y2={yTop2 - hPurlin * scale} stroke="#28a745" strokeWidth={1} />
+              <Line x1={x1 - (i === 0 ? 2 : 0)} y1={yTop1 - hPurlin * scale} x2={x2 + (i === N_spans - 1 ? 2 : 0)} y2={yTop2 - hPurlin * scale} stroke="#28a745" strokeWidth={1.2} />
             )}
 
-            {/* Крановое оборудование */}
+            {/* Краны */}
             {hasCrane && (
               <G key={`crane-span-${i}`}>
                 {isSupport ? (
@@ -428,7 +432,6 @@ export default function PDFBuildingSectionEskiz({
       })}
 
       {/* 5. Высотные отметки */}
-      {/* 0.000 */}
       <Line x1={colXList[0] - 4} y1={baseGroundY} x2={colXList[0] - 12} y2={baseGroundY} stroke="#333333" strokeWidth={0.6} />
       <Text
         x={colXList[0] - 14}
@@ -441,7 +444,6 @@ export default function PDFBuildingSectionEskiz({
         0.000
       </Text>
 
-      {/* Отметки междуэтажных перекрытий */}
       {floorLevels.map((fl) => (
         <G key={`floor-level-mark-${fl.index}`}>
           <Line x1={colXList[0] - 4} y1={fl.yLevel} x2={colXList[0] - 12} y2={fl.yLevel} stroke="#0056b3" strokeWidth={0.6} />
@@ -458,7 +460,6 @@ export default function PDFBuildingSectionEskiz({
         </G>
       ))}
 
-      {/* Отметка низа несущих конструкций кровли (+H.clear) */}
       <Line x1={colXList[0] - 4} y1={yClear} x2={colXList[0] - 12} y2={yClear} stroke="#007bff" strokeWidth={0.6} />
       <Text
         x={colXList[0] - 14}
@@ -471,7 +472,6 @@ export default function PDFBuildingSectionEskiz({
         {`+${H_clear.toFixed(2)}`}
       </Text>
 
-      {/* Отметки конька кровли */}
       {isGable ? (
         colXList.slice(0, N_spans).map((x, i) => {
           const midX = (x + colXList[i + 1]) / 2;
