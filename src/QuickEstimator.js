@@ -441,9 +441,20 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const purlinHeight = baseSnow <= 400 ? 0.24 : 0.3;
 
     let supportHeight = 0.35;
-    if (W > 18 && W < 33)
-      supportHeight = 0.35 + ((W - 18) * (0.75 - 0.35)) / (33 - 18);
-    else if (W >= 33) supportHeight = 0.75;
+    if (frameType === "beam" && W <= 12.0) {
+      if (W <= 6.0) supportHeight = 0.232;
+      else if (W <= 8.0) supportHeight = 0.268;
+      else if (W <= 9.0) supportHeight = 0.317;
+      else if (W <= 10.0) supportHeight = 0.391;
+      else if (W <= 11.0) supportHeight = 0.443;
+      else if (W <= 11.5) supportHeight = 0.515;
+      else supportHeight = 0.613;
+    } else {
+      if (W > 18 && W < 33)
+        supportHeight = 0.35 + ((W - 18) * (0.75 - 0.35)) / (33 - 18);
+      else if (W >= 33) supportHeight = 0.75;
+      else supportHeight = 0.35;
+    }
 
     let trussCorrectionValue = 0;
     if (S <= 21) {
