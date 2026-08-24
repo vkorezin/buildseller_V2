@@ -698,21 +698,18 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         let rArea = roofShape === "gable" ? slopeLengthPurchase * roofLengthAlongL * 2 * N : slopeLengthPurchase * roofLengthAlongL * N;
 
         let wAreaBox = 0;
+        let gArea = 0;
+
         if (layoutMode === "horizontal") {
           const rowsBox = Math.ceil(wallH / pMod);
           const boxHeightFact = rowsBox * pMod;
           const panelsInRing = Math.ceil(dynamicPerimeter / pStock);
           wAreaBox = panelsInRing * pStock * boxHeightFact;
-        } else {
-          wAreaBox = Math.ceil(dynamicPerimeter / pMod) * pMod * wallH;
-        }
 
-        wAreaBox = Math.max(0, wAreaBox - aperturesDeductArea);
+          wAreaBox = Math.max(0, wAreaBox - aperturesDeductArea);
 
-        let singleEndArea = 0;
-        if (layoutMode === "horizontal") {
-          const boxHfact = Math.ceil(wallH / pMod) * pMod;
-          let startH = boxHfact - wallH;
+          let singleEndArea = 0;
+          let startH = boxHeightFact - wallH;
           let currentH = startH;
           let loopSafe = 0;
           while (currentH < ridgeRise && loopSafe < 1000) {
@@ -723,13 +720,37 @@ export default function QuickEstimator({ onBack, projectsDb }) {
             singleEndArea += pieces * pStock * pMod;
             currentH += pMod;
           }
-        } else {
-          singleEndArea = (W * ridgeRise) / 2;
-        }
 
-        let gArea = 0;
-        if (activeWalls.east) gArea += singleEndArea * N;
-        if (activeWalls.west) gArea += singleEndArea * N;
+          if (activeWalls.east) gArea += singleEndArea * N;
+          if (activeWalls.west) gArea += singleEndArea * N;
+        } else {
+          // Точный физический раскрой вертикальных панелей
+          const longWallsPerimeter = (activeWalls.north ? L : 0) + (activeWalls.south ? L : 0);
+          const wAreaLong = Math.ceil(longWallsPerimeter / pMod) * pMod * wallH;
+
+          let singleEndAreaTotal = 0;
+          const numPanelsEnd = Math.ceil(W / pMod);
+
+          for (let i = 0; i < numPanelsEnd; i++) {
+            const xPanel = (i + 0.5) * pMod;
+            let riseAtX = 0;
+
+            if (roofShape === "gable") {
+              const distFromEave = xPanel <= W / 2 ? xPanel : (W - xPanel);
+              riseAtX = distFromEave * (S / 100);
+            } else {
+              riseAtX = xPanel * (S / 100);
+            }
+
+            const panelLength = wallH + riseAtX;
+            singleEndAreaTotal += panelLength * pMod;
+          }
+
+          if (activeWalls.east) gArea += singleEndAreaTotal * N;
+          if (activeWalls.west) gArea += singleEndAreaTotal * N;
+
+          wAreaBox = Math.max(0, wAreaLong - aperturesDeductArea);
+        }
 
         const wCost = (wAreaBox + gArea) * wallPrice;
         const rCost = rArea * roofPrice;
