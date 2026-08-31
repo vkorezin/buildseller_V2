@@ -1,5 +1,5 @@
 import React from 'react';
-import { Svg, Line, Circle, Text, G, Polygon, Rect } from '@react-pdf/renderer';
+import { Svg, Line, Circle, Text, G, Path, Rect } from '@react-pdf/renderer';
 
 export default function PDFBuildingSectionEskiz({
   spanWidth = 18,
@@ -13,7 +13,6 @@ export default function PDFBuildingSectionEskiz({
   const H = Math.max(3, Number(height) || 6);
   const S = Math.max(5, Number(slope) || 10);
 
-  // Подъем кровли (для двускатной отсчет от центра W/2, для односкатной на всю ширину W)
   const ridgeRise = roofShape === 'gable' ? (W / 2) * (S / 100) : W * (S / 100);
   const H_ridge = H + ridgeRise;
 
@@ -75,7 +74,7 @@ export default function PDFBuildingSectionEskiz({
         y2={baseGroundY + 12}
         stroke="#999"
         strokeWidth={0.6}
-        strokeDasharray={[3, 2]}
+        strokeDasharray="3,2"
       />
       <Line
         x1={col2X}
@@ -84,7 +83,7 @@ export default function PDFBuildingSectionEskiz({
         y2={baseGroundY + 12}
         stroke="#999"
         strokeWidth={0.6}
-        strokeDasharray={[3, 2]}
+        strokeDasharray="3,2"
       />
 
       <Circle cx={col1X} cy={baseGroundY + 18} r={5} fill="#fff" stroke="#333" strokeWidth={0.7} />
@@ -142,23 +141,18 @@ export default function PDFBuildingSectionEskiz({
         <G>
           {craneType === 'support' ? (
             <>
-              {/* Консоли */}
               <Line x1={col1X} y1={craneBracketY} x2={col1X + 4} y2={craneBracketY} stroke="#e65100" strokeWidth={1.5} />
               <Line x1={col2X} y1={craneBracketY} x2={col2X - 4} y2={craneBracketY} stroke="#e65100" strokeWidth={1.5} />
-              {/* Подкрановые балки */}
               <Rect x={col1X + 2} y={craneBracketY - 3} width={3} height={3} fill="#e65100" />
               <Rect x={col2X - 5} y={craneBracketY - 3} width={3} height={3} fill="#e65100" />
-              {/* Мост крана */}
               <Line x1={col1X + 4} y1={craneBracketY - 4} x2={col2X - 4} y2={craneBracketY - 4} stroke="#f57c00" strokeWidth={2} />
               <Rect x={(col1X + col2X) / 2 - 4} y={craneBracketY - 6} width={8} height={4} fill="#ffb74d" stroke="#e65100" strokeWidth={0.5} />
-              {/* Текст грузоподъемности */}
               <Text x={(col1X + col2X) / 2} y={craneBracketY - 8} fontSize={5} textAnchor="middle" fill="#e65100" fontWeight="bold">
                 Кран {craneCap}т
               </Text>
             </>
           ) : (
             <>
-              {/* Подвесной кран */}
               <Line x1={col1X + 12} y1={eaveY} x2={col1X + 12} y2={eaveY + 5} stroke="#e65100" strokeWidth={1} />
               <Line x1={col2X - 12} y1={eaveY} x2={col2X - 12} y2={eaveY + 5} stroke="#e65100" strokeWidth={1} />
               <Line x1={col1X + 8} y1={eaveY + 5} x2={col2X - 8} y2={eaveY + 5} stroke="#f57c00" strokeWidth={1.5} />
@@ -178,10 +172,10 @@ export default function PDFBuildingSectionEskiz({
         {W.toFixed(1)} м
       </Text>
 
-      {/* 7. Высотные архитектурные отметки */}
+      {/* 7. Высотные архитектурные отметки через Path */}
       {/* 0.000 */}
-      <Polygon
-        points={`${col1X - 8},${baseGroundY} ${col1X - 14},${baseGroundY - 3} ${col1X - 14},${baseGroundY + 3}`}
+      <Path
+        d={`M ${col1X - 8} ${baseGroundY} L ${col1X - 14} ${baseGroundY - 3} L ${col1X - 14} ${baseGroundY + 3} Z`}
         fill="#333"
       />
       <Text x={col1X - 16} y={baseGroundY + 2} fontSize={5.5} textAnchor="end" fill="#333" fontWeight="bold">
@@ -189,8 +183,8 @@ export default function PDFBuildingSectionEskiz({
       </Text>
 
       {/* +H.карниза (низ) */}
-      <Polygon
-        points={`${col1X - 8},${eaveY} ${col1X - 14},${eaveY - 3} ${col1X - 14},${eaveY + 3}`}
+      <Path
+        d={`M ${col1X - 8} ${eaveY} L ${col1X - 14} ${eaveY - 3} L ${col1X - 14} ${eaveY + 3} Z`}
         fill="#007bff"
       />
       <Text x={col1X - 16} y={eaveY + 2} fontSize={5.5} textAnchor="end" fill="#007bff" fontWeight="bold">
@@ -200,8 +194,8 @@ export default function PDFBuildingSectionEskiz({
       {/* +H.конька / верхняя отметка */}
       {roofShape === 'gable' ? (
         <>
-          <Polygon
-            points={`${ridgeX},${ridgeY - 4} ${ridgeX - 3},${ridgeY - 9} ${ridgeX + 3},${ridgeY - 9}`}
+          <Path
+            d={`M ${ridgeX} ${ridgeY - 4} L ${ridgeX - 3} ${ridgeY - 9} L ${ridgeX + 3} ${ridgeY - 9} Z`}
             fill="#007bff"
           />
           <Text x={ridgeX} y={ridgeY - 11} fontSize={5.5} textAnchor="middle" fill="#007bff" fontWeight="bold">
@@ -210,8 +204,8 @@ export default function PDFBuildingSectionEskiz({
         </>
       ) : (
         <>
-          <Polygon
-            points={`${col2X + 8},${ridgeY} ${col2X + 14},${ridgeY - 3} ${col2X + 14},${ridgeY + 3}`}
+          <Path
+            d={`M ${col2X + 8} ${ridgeY} L ${col2X + 14} ${ridgeY - 3} L ${col2X + 14} ${ridgeY + 3} Z`}
             fill="#007bff"
           />
           <Text x={col2X + 16} y={ridgeY + 2} fontSize={5.5} textAnchor="start" fill="#007bff" fontWeight="bold">
