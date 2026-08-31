@@ -62,6 +62,8 @@ const styles = {
   },
 };
 
+const AXIS_LABELS = ["А", "Б", "В", "Г", "Д", "Е", "Ж", "И", "К", "Л"];
+
 export default function QuickEstimatorForm({
   spanWidth,
   setSpanWidth,
@@ -86,9 +88,13 @@ export default function QuickEstimatorForm({
   cranes,
   updateCrane,
   currentDiscount,
+  spanOrientations = [],
+  updateSpanOrientation,
+  setAllSpanOrientations,
 }) {
   const H = Number(height) || 0;
   const showHeightWarning = H > 20;
+  const numSpans = Math.max(1, Number(spansCount) || 1);
 
   return (
     <>
@@ -284,6 +290,207 @@ export default function QuickEstimatorForm({
               />
             </div>
           </div>
+
+          {roofShape === "single" && (
+            <div
+              style={{
+                marginTop: "15px",
+                backgroundColor: "#f0f7ff",
+                padding: "12px 15px",
+                borderRadius: "8px",
+                border: "1px solid #cce5ff",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                  marginBottom: "10px",
+                }}
+              >
+                <div
+                  style={{
+                    fontWeight: "bold",
+                    color: "#0056b3",
+                    fontSize: "0.95em",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <span>📐 Ориентация уклона по пролётам:</span>
+                </div>
+                {numSpans > 1 && setAllSpanOrientations && (
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      onClick={() => setAllSpanOrientations(Array(numSpans).fill("right"))}
+                      style={{
+                        padding: "3px 8px",
+                        fontSize: "0.78em",
+                        borderRadius: "4px",
+                        border: "1px solid #b8daff",
+                        backgroundColor: "#fff",
+                        color: "#0056b3",
+                        cursor: "pointer",
+                      }}
+                      title="Все пролеты с подъемом вправо"
+                    >
+                      ↗ ↗ Ступенька вправо
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAllSpanOrientations(Array(numSpans).fill("left"))}
+                      style={{
+                        padding: "3px 8px",
+                        fontSize: "0.78em",
+                        borderRadius: "4px",
+                        border: "1px solid #b8daff",
+                        backgroundColor: "#fff",
+                        color: "#0056b3",
+                        cursor: "pointer",
+                      }}
+                      title="Все пролеты с подъемом влево"
+                    >
+                      ↖ ↖ Ступенька влево
+                    </button>
+                    {numSpans >= 2 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const arr = Array(numSpans).fill("right");
+                            for (let idx = Math.floor(numSpans / 2); idx < numSpans; idx++) {
+                              arr[idx] = "left";
+                            }
+                            setAllSpanOrientations(arr);
+                          }}
+                          style={{
+                            padding: "3px 8px",
+                            fontSize: "0.78em",
+                            borderRadius: "4px",
+                            border: "1px solid #b8daff",
+                            backgroundColor: "#fff",
+                            color: "#0056b3",
+                            cursor: "pointer",
+                          }}
+                          title="Конёк по центру (горка вверх)"
+                        >
+                          /\ Горка вверх (↗ ↖)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const arr = Array(numSpans).fill("left");
+                            for (let idx = Math.floor(numSpans / 2); idx < numSpans; idx++) {
+                              arr[idx] = "right";
+                            }
+                            setAllSpanOrientations(arr);
+                          }}
+                          style={{
+                            padding: "3px 8px",
+                            fontSize: "0.78em",
+                            borderRadius: "4px",
+                            border: "1px solid #b8daff",
+                            backgroundColor: "#fff",
+                            color: "#0056b3",
+                            cursor: "pointer",
+                          }}
+                          title="Ендова по центру (впадина вниз)"
+                        >
+                          \/ Впадина (↖ ↗)
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                  gap: "10px",
+                }}
+              >
+                {Array.from({ length: numSpans }).map((_, i) => {
+                  const ori = (spanOrientations && spanOrientations[i]) || "right";
+                  return (
+                    <div
+                      key={`span-ori-${i}`}
+                      style={{
+                        backgroundColor: "#ffffff",
+                        padding: "8px 10px",
+                        borderRadius: "6px",
+                        border: "1px solid #d0e2ff",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "0.83em",
+                          fontWeight: "bold",
+                          color: "#333",
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <span>Пролёт {i + 1}</span>
+                        <span style={{ color: "#666", fontWeight: "normal" }}>
+                          (оси {AXIS_LABELS[i] || i + 1}–{AXIS_LABELS[i + 1] || i + 2})
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <button
+                          type="button"
+                          onClick={() => updateSpanOrientation && updateSpanOrientation(i, "right")}
+                          style={{
+                            flex: 1,
+                            padding: "6px 2px",
+                            fontSize: "0.82em",
+                            borderRadius: "4px",
+                            border: ori === "right" ? "2px solid #007bff" : "1px solid #ced4da",
+                            backgroundColor: ori === "right" ? "#e7f1ff" : "#f8f9fa",
+                            color: ori === "right" ? "#0056b3" : "#495057",
+                            fontWeight: ori === "right" ? "bold" : "normal",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease",
+                          }}
+                          title="Низ слева, подъем вправо ↗"
+                        >
+                          ↗ Вправо
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateSpanOrientation && updateSpanOrientation(i, "left")}
+                          style={{
+                            flex: 1,
+                            padding: "6px 2px",
+                            fontSize: "0.82em",
+                            borderRadius: "4px",
+                            border: ori === "left" ? "2px solid #007bff" : "1px solid #ced4da",
+                            backgroundColor: ori === "left" ? "#e7f1ff" : "#f8f9fa",
+                            color: ori === "left" ? "#0056b3" : "#495057",
+                            fontWeight: ori === "left" ? "bold" : "normal",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease",
+                          }}
+                          title="Верх слева, спад вправо ↖"
+                        >
+                          ↖ Влево
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>

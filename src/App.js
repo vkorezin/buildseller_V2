@@ -507,7 +507,7 @@ export default function App() {
     gammaWind: 1.4,
   });
 
-  const [currentView, setCurrentView] = useState("projectsetup");
+  const [currentView, setCurrentView] = useState("quickestimator");
   const [editingBlockId, setEditingBlockId] = useState(null);
   const [tempBlockData, setTempBlockData] = useState(null);
   const [pinInput, setPinInput] = useState("");
@@ -1262,6 +1262,13 @@ export default function App() {
                 disabled={isSending || !isEmailJsReady}
               >
                 {isSending ? "Отправка..." : "Получить код"}
+              </button>
+
+              <button
+                style={{ ...styles.secondaryButton, marginTop: "10px", width: "100%" }}
+                onClick={() => setCurrentView("quickestimator")}
+              >
+                💰 Быстрый расчёт (QuickEstimator)
               </button>
             </>
           ) : (

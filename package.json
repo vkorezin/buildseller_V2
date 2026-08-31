@@ -18,10 +18,15 @@
     "typescript": "5.7.2"
   },
   "scripts": {
-    "start": "react-scripts start",
+    "dev": "PORT=3000 HOST=0.0.0.0 react-scripts start",
+    "start": "PORT=3000 HOST=0.0.0.0 react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test --env=jsdom",
+    "lint": "eslint src || true",
     "eject": "react-scripts eject"
+  },
+  "overrides": {
+    "@react-pdf/layout": "3.12.1"
   },
   "browserslist": [
     ">0.2%",

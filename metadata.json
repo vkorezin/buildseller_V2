@@ -1,0 +1,6 @@
+{
+  "name": "Buildseller V2",
+  "description": "Building calculator, structural editor, and quick estimator application",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

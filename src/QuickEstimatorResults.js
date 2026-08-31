@@ -51,6 +51,7 @@ export default function QuickEstimatorResults({
   snowLoad = "180",
   windLoad = "38",
   cranes = [],
+  spanOrientations = [],
   gkPrice = 140000,
   lstkPrice = 160000,
   fasonkaPrice = 150000
@@ -220,6 +221,7 @@ export default function QuickEstimatorResults({
       windLoad,
       frameType,
       cranes,
+      spanOrientations,
       kpNumber: currentKpNumber,
       formattedDate: new Date().toLocaleDateString('ru-RU'),
       craneInfo: estimation.craneInfo || "Нет крана",
@@ -244,7 +246,7 @@ export default function QuickEstimatorResults({
     );
   }, [
     showPdf, spanWidth, spansCount, stories, length, height, roofShape, slope, snowLoad, windLoad, frameType, cranes,
-    currentKpNumber, useSandwich, envelopeCost, foundationCost, estimation, serializedTypesForPdf, 
+    spanOrientations, currentKpNumber, useSandwich, envelopeCost, foundationCost, estimation, serializedTypesForPdf, 
     managerName, managerPhone, managerEmail
   ]);
 

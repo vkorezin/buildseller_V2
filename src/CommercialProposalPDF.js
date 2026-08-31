@@ -196,6 +196,7 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
               slope={data.slope}
               frameType={data.frameType}
               cranes={data.cranes}
+              spanOrientations={data.spanOrientations}
             />
           </View>
         </View>

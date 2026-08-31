@@ -8,6 +8,7 @@ import RoofPurlinsEditor from "./RoofPurlinsEditor";
 import WindCoefficientsEditor from "./WindCoefficientsEditor";
 import BuildingTypesEditor from "./BuildingTypesEditor";
 import QuickEstimatorForm from "./QuickEstimatorForm";
+import QuickEstimatorSectionView from "./QuickEstimatorSectionView";
 import QuickEstimatorAnalytics from "./QuickEstimatorAnalytics";
 import QuickEstimatorResults from "./QuickEstimatorResults";
 import {
@@ -183,6 +184,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [snowLoad, setSnowLoad] = useState("180");
   const [windLoad, setWindLoad] = useState("38");
   const [cranes, setCranes] = useState([{ id: 0, cap: "0", type: "support" }]);
+  const [spanOrientations, setSpanOrientations] = useState(["right"]);
   const [frameType, setFrameType] = useState("beam");
 
   const [activeWalls, setActiveWalls] = useState({
@@ -247,7 +249,27 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         return [...prev, ...added];
       } else return prev.slice(0, count);
     });
+
+    setSpanOrientations((prev) => {
+      if (prev.length === count) return prev;
+      if (prev.length < count) {
+        const added = Array.from({ length: count - prev.length }).map(() => "right");
+        return [...prev, ...added];
+      } else return prev.slice(0, count);
+    });
   }, [spansCount]);
+
+  const updateSpanOrientation = (index, value) => {
+    setSpanOrientations((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  };
+
+  const setAllSpanOrientations = (newArr) => {
+    setSpanOrientations(newArr);
+  };
 
   const updateCrane = (index, field, value) => {
     const newCranes = [...cranes];
@@ -583,6 +605,48 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     const totalWidth = W * N;
     const floorAreaTotal = totalWidth * L;
 
+    const spanRiseSingle = W * (S / 100);
+    const getSpanHeights = (baseH) => {
+      return Array.from({ length: N }).map((_, i) => {
+        if (roofShape === "gable") {
+          return { hLeft: baseH, hMid: baseH + (W / 2) * (S / 100), hRight: baseH };
+        }
+        const orient = spanOrientations[i] || "right";
+        if (orient === "left") {
+          return { hLeft: baseH + spanRiseSingle, hMid: baseH + spanRiseSingle / 2, hRight: baseH };
+        } else {
+          return { hLeft: baseH, hMid: baseH + spanRiseSingle / 2, hRight: baseH + spanRiseSingle };
+        }
+      });
+    };
+
+    const spanHeightsActual = getSpanHeights(fullWallHeight);
+    const hNorthActual = spanHeightsActual[0].hLeft;
+    const hSouthActual = spanHeightsActual[N - 1].hRight;
+
+    // Вычисление средней высоты стен с учетом перепадов и ориентации для стенового фахверка
+    let totalWallHeightSum = 0;
+    let totalWallLengthSum = 0;
+    if (activeWalls.north) {
+      totalWallHeightSum += hNorthActual * L;
+      totalWallLengthSum += L;
+    }
+    if (activeWalls.south) {
+      totalWallHeightSum += hSouthActual * L;
+      totalWallLengthSum += L;
+    }
+    if (activeWalls.east) {
+      const avgEndH = spanHeightsActual.reduce((acc, sh) => acc + (sh.hLeft + sh.hRight) / 2, 0) / N;
+      totalWallHeightSum += avgEndH * totalWidth;
+      totalWallLengthSum += totalWidth;
+    }
+    if (activeWalls.west) {
+      const avgEndH = spanHeightsActual.reduce((acc, sh) => acc + (sh.hLeft + sh.hRight) / 2, 0) / N;
+      totalWallHeightSum += avgEndH * totalWidth;
+      totalWallLengthSum += totalWidth;
+    }
+    const effectiveAvgWallH = totalWallLengthSum > 0 ? (totalWallHeightSum / totalWallLengthSum) : fullWallHeight;
+
     let dynamicPerimeter = 0;
     if (activeWalls.north) dynamicPerimeter += L;
     if (activeWalls.south) dynamicPerimeter += L;
@@ -600,7 +664,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
       else if (wPress <= 0.60) purlinStep = 1.5;
       else purlinStep = 1.2;
 
-      const lines = Math.ceil(fullWallHeight / purlinStep);
+      const lines = Math.ceil(effectiveAvgWallH / purlinStep);
       wallPurlinsLength = dynamicPerimeter * lines;
       wallPurlinsBaseKg = wallPurlinsLength * 6.375;
     }
@@ -690,78 +754,131 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     if (useSandwich) {
       const calcEnvelope = (wallH) => {
         const angleRad = Math.atan(S / 100);
-        const ridgeRise = roofShape === "gable" ? (W / 2) * (S / 100) : W * (S / 100);
-        const slopeLengthGeom = roofShape === "gable" ? W / 2 / Math.cos(angleRad) : W / Math.cos(angleRad);
+        const spanRise = roofShape === "gable" ? (W / 2) * (S / 100) : W * (S / 100);
+        const slopeLengthGeom = roofShape === "gable" ? (W / 2) / Math.cos(angleRad) : W / Math.cos(angleRad);
         const slopeLengthPurchase = slopeLengthGeom + OVERHANG;
         const roofLengthAlongL = L + OVERHANG * 2;
 
-        let rArea = roofShape === "gable" ? slopeLengthPurchase * roofLengthAlongL * 2 * N : slopeLengthPurchase * roofLengthAlongL * N;
+        let rArea = roofShape === "gable"
+          ? slopeLengthPurchase * roofLengthAlongL * 2 * N
+          : slopeLengthPurchase * roofLengthAlongL * N;
 
-        let wAreaBox = 0;
-        let gArea = 0;
+        let totalWallPanelsArea = 0;
 
         if (layoutMode === "horizontal") {
+          // 1. ГОРИЗОНТАЛЬНАЯ РАСКЛАДКА
           const rowsBox = Math.ceil(wallH / pMod);
           const boxHeightFact = rowsBox * pMod;
-          const panelsInRing = Math.ceil(dynamicPerimeter / pStock);
-          wAreaBox = panelsInRing * pStock * boxHeightFact;
 
-          wAreaBox = Math.max(0, wAreaBox - aperturesDeductArea);
+          // Продольные стены
+          const longPerimeter = (activeWalls.north ? L : 0) + (activeWalls.south ? L : 0);
+          let longPanelsArea = Math.ceil(longPerimeter / pStock) * pStock * boxHeightFact;
 
-          let singleEndArea = 0;
-          let startH = boxHeightFact - wallH;
-          let currentH = startH;
+          // Добавка на высокую стену и перепады (односкатные схемы)
+          if (roofShape === "single") {
+            const firstOri = (spanOrientations && spanOrientations[0]) || "right";
+            const lastOri = (spanOrientations && spanOrientations[N - 1]) || "right";
+
+            if (activeWalls.north && firstOri === "left") {
+              longPanelsArea += Math.ceil(L / pStock) * pStock * spanRise;
+            }
+            if (activeWalls.south && lastOri === "right") {
+              longPanelsArea += Math.ceil(L / pStock) * pStock * spanRise;
+            }
+
+            for (let i = 0; i < N - 1; i++) {
+              const oriCurrent = (spanOrientations && spanOrientations[i]) || "right";
+              const oriNext = (spanOrientations && spanOrientations[i + 1]) || "right";
+              const hRightCurrent = oriCurrent === "right" ? spanRise : 0;
+              const hLeftNext = oriNext === "left" ? spanRise : 0;
+              const stepH = Math.abs(hRightCurrent - hLeftNext);
+              if (stepH > 0.05) {
+                longPanelsArea += Math.ceil(L / pStock) * pStock * stepH;
+              }
+            }
+          }
+
+          // Торцевые стены: прямоугольная часть + треугольники фронтонов
+          const endPerimeter = (activeWalls.east ? (W * N) : 0) + (activeWalls.west ? (W * N) : 0);
+          const endBoxArea = Math.ceil(endPerimeter / pStock) * pStock * boxHeightFact;
+
+          let singleEndGableArea = 0;
+          let currentH = 0;
           let loopSafe = 0;
-          while (currentH < ridgeRise && loopSafe < 1000) {
+          while (currentH < spanRise && loopSafe < 1000) {
             loopSafe++;
-            let wAtBottom = W * (1 - currentH / ridgeRise);
+            let wAtBottom = W * (1 - currentH / spanRise);
             if (wAtBottom < 0) wAtBottom = 0;
             const pieces = Math.ceil(wAtBottom / pStock);
-            singleEndArea += pieces * pStock * pMod;
+            singleEndGableArea += pieces * pStock * pMod;
             currentH += pMod;
           }
 
-          if (activeWalls.east) gArea += singleEndArea * N;
-          if (activeWalls.west) gArea += singleEndArea * N;
-        } else {
-          // Точный физический раскрой вертикальных панелей
-          const longWallsPerimeter = (activeWalls.north ? L : 0) + (activeWalls.south ? L : 0);
-          const wAreaLong = Math.ceil(longWallsPerimeter / pMod) * pMod * wallH;
+          const activeEndsCount = (activeWalls.east ? 1 : 0) + (activeWalls.west ? 1 : 0);
+          const totalGableArea = singleEndGableArea * N * activeEndsCount;
 
+          totalWallPanelsArea = Math.max(0, longPanelsArea + endBoxArea + totalGableArea - aperturesDeductArea);
+        } else {
+          // 2. ВЕРТИКАЛЬНАЯ РАСКЛАДКА
+          let longPanelsArea = 0;
+
+          if (roofShape === "gable") {
+            const longPerimeter = (activeWalls.north ? L : 0) + (activeWalls.south ? L : 0);
+            longPanelsArea = Math.ceil(longPerimeter / pMod) * pMod * wallH;
+          } else {
+            const firstOri = (spanOrientations && spanOrientations[0]) || "right";
+            const lastOri = (spanOrientations && spanOrientations[N - 1]) || "right";
+
+            const northWallH = firstOri === "left" ? (wallH + spanRise) : wallH;
+            const southWallH = lastOri === "right" ? (wallH + spanRise) : wallH;
+
+            if (activeWalls.north) longPanelsArea += Math.ceil(L / pMod) * pMod * northWallH;
+            if (activeWalls.south) longPanelsArea += Math.ceil(L / pMod) * pMod * southWallH;
+
+            for (let i = 0; i < N - 1; i++) {
+              const oriCurrent = (spanOrientations && spanOrientations[i]) || "right";
+              const oriNext = (spanOrientations && spanOrientations[i + 1]) || "right";
+              const hRightCurrent = oriCurrent === "right" ? (wallH + spanRise) : wallH;
+              const hLeftNext = oriNext === "left" ? (wallH + spanRise) : wallH;
+              const stepH = Math.abs(hRightCurrent - hLeftNext);
+              if (stepH > 0.05) {
+                longPanelsArea += Math.ceil(L / pMod) * pMod * stepH;
+              }
+            }
+          }
+
+          // Торцевые панели (полная высота от пола до ската)
           let singleEndAreaTotal = 0;
           const numPanelsEnd = Math.ceil(W / pMod);
 
           for (let i = 0; i < numPanelsEnd; i++) {
             const xPanel = (i + 0.5) * pMod;
             let riseAtX = 0;
-
             if (roofShape === "gable") {
               const distFromEave = xPanel <= W / 2 ? xPanel : (W - xPanel);
               riseAtX = distFromEave * (S / 100);
             } else {
               riseAtX = xPanel * (S / 100);
             }
-
             const panelLength = wallH + riseAtX;
             singleEndAreaTotal += panelLength * pMod;
           }
 
-          if (activeWalls.east) gArea += singleEndAreaTotal * N;
-          if (activeWalls.west) gArea += singleEndAreaTotal * N;
+          const activeEndsCount = (activeWalls.east ? 1 : 0) + (activeWalls.west ? 1 : 0);
+          const totalEndArea = singleEndAreaTotal * N * activeEndsCount;
 
-          wAreaBox = Math.max(0, wAreaLong - aperturesDeductArea);
+          totalWallPanelsArea = Math.max(0, longPanelsArea + totalEndArea - aperturesDeductArea);
         }
 
-        const wCost = (wAreaBox + gArea) * wallPrice;
+        const wCost = totalWallPanelsArea * wallPrice;
         const rCost = rArea * roofPrice;
-        const tCost = (wAreaBox + gArea + rArea) * trimPrice;
+        const tCost = (totalWallPanelsArea + rArea) * trimPrice;
 
-        return { wAreaBox, gArea, rArea, wCost, rCost, tCost };
+        return { totalWallPanelsArea, rArea, wCost, rCost, tCost };
       };
 
       const actualEnv = calcEnvelope(fullWallHeight);
-      wallAreaBox = actualEnv.wAreaBox;
-      textGableArea = actualEnv.gArea;
+      wallAreaBox = actualEnv.totalWallPanelsArea;
       textRoofArea = actualEnv.rArea;
       wallCost = actualEnv.wCost;
       roofCost = actualEnv.rCost;
@@ -821,7 +938,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     };
   }, [
     spanWidth, spansCount, length, height, slope, roofShape, snowLoad,
-    windLoad, cranes, stories, gkPrice, lstkPrice, fasonkaPrice,
+    windLoad, cranes, spanOrientations, stories, gkPrice, lstkPrice, fasonkaPrice,
     useSandwich, layoutMode, panelModule, panelStockLength, wallPrice,
     roofPrice, trimPrice, frameType, baseMatrix210, snowCoefficients,
     roofPurlins, trussTable, windCoefficients, aperturesList, activeWalls,
@@ -856,6 +973,21 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         frameType={frameType} setFrameType={setFrameType}
         cranes={cranes} updateCrane={updateCrane}
         currentDiscount={estimation.currentDiscount}
+        spanOrientations={spanOrientations}
+        updateSpanOrientation={updateSpanOrientation}
+        setAllSpanOrientations={setAllSpanOrientations}
+      />
+
+      <QuickEstimatorSectionView
+        spanWidth={spanWidth}
+        spansCount={spansCount}
+        height={height}
+        stories={stories}
+        roofShape={roofShape}
+        slope={slope}
+        frameType={frameType}
+        cranes={cranes}
+        spanOrientations={spanOrientations}
       />
 
       <QuickEstimatorAnalytics dbAnalytics={dbAnalytics} />
@@ -1020,6 +1152,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         snowLoad={snowLoad}
         windLoad={windLoad}
         cranes={cranes}
+        spanOrientations={spanOrientations}
         gkPrice={gkPrice}
         lstkPrice={lstkPrice}
         fasonkaPrice={fasonkaPrice}
