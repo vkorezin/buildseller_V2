@@ -27,9 +27,9 @@ export default function PDFBuildingSectionEskiz({
   const isGable = String(roofShape) !== 'single';
   const isTruss = String(frameType) === 'truss';
 
-  // 1. Определение высоты балки / фермы
+  // 1. Определение высот балки / фермы
   let hBeamEave = 0.35;
-  let hBeamRidge = 0.35;
+  let hBeamMid = 0.35;
 
   if (isTruss) {
     let supportH = 0.35;
@@ -37,7 +37,7 @@ export default function PDFBuildingSectionEskiz({
     else if (W_span >= 33) supportH = 0.75;
     const trussAdd = S <= 21 ? 0.65 + (10 - S) * 0.0597 : 0;
     hBeamEave = supportH + trussAdd;
-    hBeamRidge = hBeamEave;
+    hBeamMid = hBeamEave;
   } else {
     // Балка: дискретный ряд <= 12м, переменка > 12м
     if (W_span <= 12.0) {
@@ -48,7 +48,7 @@ export default function PDFBuildingSectionEskiz({
       else if (W_span <= 11.0) hBeamEave = 0.443;
       else if (W_span <= 11.5) hBeamEave = 0.515;
       else hBeamEave = 0.613;
-      hBeamRidge = hBeamEave;
+      hBeamMid = hBeamEave;
     } else {
       if (W_span > 18 && W_span < 33) {
         hBeamEave = 0.35 + ((W_span - 18) * (0.75 - 0.35)) / (33 - 18);
@@ -57,7 +57,8 @@ export default function PDFBuildingSectionEskiz({
       } else {
         hBeamEave = 0.35;
       }
-      hBeamRidge = Math.min(1.50, 2.0 * hBeamEave);
+      // Высота по центру пролета (одинакова как для двухскатного, так и для односкатного)
+      hBeamMid = Math.min(1.50, 2.0 * hBeamEave);
     }
   }
 
@@ -126,7 +127,6 @@ export default function PDFBuildingSectionEskiz({
         return ridgeY + ((x - spanMid) / (spanX2 - spanMid)) * (yEaveTop - ridgeY);
       }
     } else {
-      // Для односкатной кровли подъем идет через всю ширину здания
       const progress = (x - colXList[0]) / realDrawW;
       const topRisePx = ridgeRise * scale;
       return yEaveTop - progress * topRisePx;
@@ -149,6 +149,10 @@ export default function PDFBuildingSectionEskiz({
       {colXList.map((x, i) => {
         const axisLabel = AXIS_LABELS[i] || `${i + 1}`;
         const colTopY = getRoofTopY(x);
+        
+        // Для односкатной кровли отметка низа балки на высокой опоре поднимается вместе с уклоном
+        const singleSlopeRiseAtCol = !isGable ? ((x - colXList[0]) / realDrawW) * (ridgeRise * scale) : 0;
+        const colHeadY = isGable ? yClear : (yClear - singleSlopeRiseAtCol);
 
         return (
           <G key={`col-axis-${i}`}>
@@ -162,18 +166,20 @@ export default function PDFBuildingSectionEskiz({
               opacity={0.6}
             />
 
+            {/* Колонна */}
             <Line
               x1={x}
               y1={baseGroundY}
               x2={x}
-              y2={yClear}
+              y2={colHeadY}
               stroke="#007bff"
               strokeWidth={i === 0 || i === N_spans ? 2.5 : 2}
             />
 
+            {/* Опорное ребро балки на оголовке */}
             <Line
               x1={x}
-              y1={yClear}
+              y1={colHeadY}
               x2={x}
               y2={colTopY}
               stroke="#007bff"
@@ -278,15 +284,16 @@ export default function PDFBuildingSectionEskiz({
       {Array.from({ length: N_spans }).map((_, i) => {
         const x1 = colXList[i];
         const x2 = colXList[i + 1];
-        const xMid = isGable ? (x1 + x2) / 2 : x2;
+        const xMid = (x1 + x2) / 2;
 
         const yTop1 = getRoofTopY(x1);
         const yTop2 = getRoofTopY(x2);
         const yTopMid = getRoofTopY(xMid);
 
-        const yBot1 = yClear;
+        // Точки низа балки
+        const yBot1 = isGable ? yClear : (yTop1 + hBeamEave * scale);
         const yBot2 = isGable ? yClear : (yTop2 + hBeamEave * scale);
-        const yBotMid = isGable ? (yTopMid + hBeamRidge * scale) : yBot2;
+        const yBotMid = yTopMid + (hBeamMid * scale);
 
         const crane = Array.isArray(cranes) && cranes[i] ? cranes[i] : null;
         const hasCrane = Number(crane?.cap) > 0;
@@ -336,28 +343,29 @@ export default function PDFBuildingSectionEskiz({
                 ))}
               </G>
             ) : (
-              /* Балка */
+              /* Балка: Двускатная или Односкатная (одинаковая высота на опорах + утолщение по центру) */
               <G>
                 {isGable ? (
                   <G>
                     <Polygon
-                      points={`${x1},${yBot1} ${x1},${yTop1} ${xMid},${yTopMid} ${x2},${yTop2} ${x2},${yBot1} ${xMid},${yBotMid}`}
+                      points={`${x1},${yBot1} ${x1},${yTop1} ${xMid},${yTopMid} ${x2},${yTop2} ${x2},${yBot2} ${xMid},${yBotMid}`}
                       fill="#e3f2fd"
                       stroke="#007bff"
                       strokeWidth={1.8}
                     />
                     <Line x1={xMid} y1={yBotMid} x2={xMid} y2={yTopMid} stroke="#0056b3" strokeWidth={1.5} />
                     <Line x1={x1} y1={yBot1} x2={x1} y2={yTop1} stroke="#0056b3" strokeWidth={1.5} />
-                    <Line x1={x2} y1={yBot1} x2={x2} y2={yTop2} stroke="#0056b3" strokeWidth={1.5} />
+                    <Line x1={x2} y1={yBot2} x2={x2} y2={yTop2} stroke="#0056b3" strokeWidth={1.5} />
                   </G>
                 ) : (
                   <G>
                     <Polygon
-                      points={`${x1},${yBot1} ${x1},${yTop1} ${x2},${yTop2} ${x2},${yBot2}`}
+                      points={`${x1},${yBot1} ${x1},${yTop1} ${x2},${yTop2} ${x2},${yBot2} ${xMid},${yBotMid}`}
                       fill="#e3f2fd"
                       stroke="#007bff"
                       strokeWidth={1.8}
                     />
+                    <Line x1={xMid} y1={yBotMid} x2={xMid} y2={yTopMid} stroke="#0056b3" strokeWidth={1.5} />
                     <Line x1={x1} y1={yBot1} x2={x1} y2={yTop1} stroke="#0056b3" strokeWidth={1.5} />
                     <Line x1={x2} y1={yBot2} x2={x2} y2={yTop2} stroke="#0056b3" strokeWidth={1.5} />
                   </G>
