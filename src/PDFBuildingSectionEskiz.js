@@ -75,7 +75,7 @@ export default function PDFBuildingSectionEskiz({
         y2={baseGroundY + 12}
         stroke="#999"
         strokeWidth={0.6}
-        strokeDasharray="3 2"
+        strokeDasharray={[3, 2]}
       />
       <Line
         x1={col2X}
@@ -84,7 +84,7 @@ export default function PDFBuildingSectionEskiz({
         y2={baseGroundY + 12}
         stroke="#999"
         strokeWidth={0.6}
-        strokeDasharray="3 2"
+        strokeDasharray={[3, 2]}
       />
 
       <Circle cx={col1X} cy={baseGroundY + 18} r={5} fill="#fff" stroke="#333" strokeWidth={0.7} />
@@ -142,18 +142,23 @@ export default function PDFBuildingSectionEskiz({
         <G>
           {craneType === 'support' ? (
             <>
+              {/* Консоли */}
               <Line x1={col1X} y1={craneBracketY} x2={col1X + 4} y2={craneBracketY} stroke="#e65100" strokeWidth={1.5} />
               <Line x1={col2X} y1={craneBracketY} x2={col2X - 4} y2={craneBracketY} stroke="#e65100" strokeWidth={1.5} />
+              {/* Подкрановые балки */}
               <Rect x={col1X + 2} y={craneBracketY - 3} width={3} height={3} fill="#e65100" />
               <Rect x={col2X - 5} y={craneBracketY - 3} width={3} height={3} fill="#e65100" />
+              {/* Мост крана */}
               <Line x1={col1X + 4} y1={craneBracketY - 4} x2={col2X - 4} y2={craneBracketY - 4} stroke="#f57c00" strokeWidth={2} />
               <Rect x={(col1X + col2X) / 2 - 4} y={craneBracketY - 6} width={8} height={4} fill="#ffb74d" stroke="#e65100" strokeWidth={0.5} />
+              {/* Текст грузоподъемности */}
               <Text x={(col1X + col2X) / 2} y={craneBracketY - 8} fontSize={5} textAnchor="middle" fill="#e65100" fontWeight="bold">
                 Кран {craneCap}т
               </Text>
             </>
           ) : (
             <>
+              {/* Подвесной кран */}
               <Line x1={col1X + 12} y1={eaveY} x2={col1X + 12} y2={eaveY + 5} stroke="#e65100" strokeWidth={1} />
               <Line x1={col2X - 12} y1={eaveY} x2={col2X - 12} y2={eaveY + 5} stroke="#e65100" strokeWidth={1} />
               <Line x1={col1X + 8} y1={eaveY + 5} x2={col2X - 8} y2={eaveY + 5} stroke="#f57c00" strokeWidth={1.5} />
