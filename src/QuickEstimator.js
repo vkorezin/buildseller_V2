@@ -173,25 +173,115 @@ const styles = {
   }
 };
 
-export default function QuickEstimator({ onBack, projectsDb }) {
-  const [spanWidth, setSpanWidth] = useState("18");
-  const [spansCount, setSpansCount] = useState("1");
-  const [length, setLength] = useState("48");
-  const [height, setHeight] = useState("6");
-  const [roofShape, setRoofShape] = useState("gable");
-  const [slope, setSlope] = useState("10");
-  const [stories, setStories] = useState(1);
-  const [snowLoad, setSnowLoad] = useState("180");
-  const [windLoad, setWindLoad] = useState("38");
-  const [cranes, setCranes] = useState([{ id: 0, cap: "0", type: "support" }]);
-  const [spanOrientations, setSpanOrientations] = useState(["right"]);
-  const [frameType, setFrameType] = useState("beam");
+export default function QuickEstimator({
+  onBack,
+  projectsDb,
+  initialBlock,
+  projectLoads,
+}) {
+  const [spanWidth, setSpanWidth] = useState(() => {
+    if (initialBlock?.data?.spans?.[0]?.spanWidth != null) {
+      return String(initialBlock.data.spans[0].spanWidth);
+    }
+    return "18";
+  });
 
-  const [activeWalls, setActiveWalls] = useState({
-    north: true,
-    south: true,
-    east: true,
-    west: true,
+  const [spansCount, setSpansCount] = useState(() => {
+    if (initialBlock?.data?.spans?.length) {
+      return String(initialBlock.data.spans.length);
+    }
+    return "1";
+  });
+
+  const [length, setLength] = useState(() => {
+    if (initialBlock?.data?.generalData?.blockLength != null) {
+      return String(initialBlock.data.generalData.blockLength);
+    }
+    return "48";
+  });
+
+  const [height, setHeight] = useState(() => {
+    if (initialBlock?.data?.generalData?.blockHeight != null) {
+      return String(initialBlock.data.generalData.blockHeight);
+    }
+    return "6";
+  });
+
+  const [roofShape, setRoofShape] = useState(() => {
+    if (initialBlock?.data?.spans?.[0]?.skateCount === 1) {
+      return "single";
+    }
+    return "gable";
+  });
+
+  const [slope, setSlope] = useState(() => {
+    if (initialBlock?.data?.spans?.[0]?.slope != null) {
+      return String(initialBlock.data.spans[0].slope);
+    }
+    return "10";
+  });
+
+  const [stories, setStories] = useState(() => {
+    if (initialBlock?.data?.mezzanines?.length) {
+      return initialBlock.data.mezzanines.length + 1;
+    }
+    return 1;
+  });
+
+  const [snowLoad, setSnowLoad] = useState(() => {
+    if (projectLoads?.snow != null) {
+      return String(Math.round(projectLoads.snow * 100));
+    }
+    if (initialBlock?.data?.loads?.snow != null) {
+      return String(Math.round(initialBlock.data.loads.snow * 100));
+    }
+    return "180";
+  });
+
+  const [windLoad, setWindLoad] = useState(() => {
+    if (projectLoads?.wind != null) {
+      return String(Math.round(projectLoads.wind * 100));
+    }
+    if (initialBlock?.data?.loads?.wind != null) {
+      return String(Math.round(initialBlock.data.loads.wind * 100));
+    }
+    return "38";
+  });
+
+  const [cranes, setCranes] = useState(() => {
+    if (initialBlock?.data?.spans?.length) {
+      return initialBlock.data.spans.map((s, idx) => {
+        const c = s.cranes?.[0];
+        return {
+          id: idx,
+          cap: c?.selectedCapacity ? String(c.selectedCapacity) : "0",
+          type: c?.type || "support",
+        };
+      });
+    }
+    return [{ id: 0, cap: "0", type: "support" }];
+  });
+
+  const [spanOrientations, setSpanOrientations] = useState(() => {
+    if (initialBlock?.data?.spans?.length) {
+      return initialBlock.data.spans.map((s) => s.slopeDirection || "right");
+    }
+    return ["right"];
+  });
+
+  const [frameType, setFrameType] = useState(() => {
+    return initialBlock?.data?.frameType || "beam";
+  });
+
+  const [activeWalls, setActiveWalls] = useState(() => {
+    return (
+      initialBlock?.data?.activeWalls || {
+        north: true,
+        south: true,
+        east: true,
+        west: true,
+      }
+    );
   });
 
   const [baseMatrix210, setBaseMatrix210] = useState(null);
@@ -207,13 +297,23 @@ export default function QuickEstimator({ onBack, projectsDb }) {
   const [isWindCoeffsOpen, setIsWindCoeffsOpen] = useState(false);
   const [isBuildingTypesOpen, setIsBuildingTypesOpen] = useState(false);
 
-  const [aperturesList, setAperturesList] = useState([]); 
+  const [aperturesList, setAperturesList] = useState(() => {
+    return initialBlock?.data?.cladding?.aperturesList || [];
+  });
 
   const [strictFilter, setStrictFilter] = useState(true);
-  const [useSandwich, setUseSandwich] = useState(true);
-  const [layoutMode, setLayoutMode] = useState("horizontal");
-  const [panelModule, setPanelModule] = useState(1.0);
-  const [panelStockLength, setPanelStockLength] = useState(6.0);
+  const [useSandwich, setUseSandwich] = useState(() => {
+    return initialBlock?.data?.cladding?.useSandwich ?? true;
+  });
+  const [layoutMode, setLayoutMode] = useState(() => {
+    return initialBlock?.data?.cladding?.layoutMode || "horizontal";
+  });
+  const [panelModule, setPanelModule] = useState(() => {
+    return initialBlock?.data?.cladding?.panelModule || 1.0;
+  });
+  const [panelStockLength, setPanelStockLength] = useState(() => {
+    return initialBlock?.data?.cladding?.panelStockLength || 6.0;
+  });
 
   const [gkPrice, setGkPrice] = useState(DEFAULT_GK_PRICE);
   const [lstkPrice, setLstkPrice] = useState(DEFAULT_LSTK_PRICE);
@@ -945,6 +1045,41 @@ export default function QuickEstimator({ onBack, projectsDb }) {
     concretePrice, rebarPrice, validationMetrics.isOverloaded
   ]);
 
+  const handleCloseWithData = () => {
+    const config = {
+      spanWidth,
+      spansCount,
+      length,
+      height,
+      roofShape,
+      slope,
+      stories,
+      snowLoad,
+      windLoad,
+      cranes,
+      spanOrientations,
+      frameType,
+      activeWalls,
+      useSandwich,
+      layoutMode,
+      panelModule,
+      panelStockLength,
+      aperturesList,
+      gkPrice,
+      lstkPrice,
+      fasonkaPrice,
+      wallPrice,
+      roofPrice,
+      trimPrice,
+      concretePrice,
+      rebarPrice,
+      estimation,
+    };
+    if (onBack) {
+      onBack(config);
+    }
+  };
+
   return (
     <div style={styles.container}>
       <div style={styles.header}>
@@ -957,7 +1092,9 @@ export default function QuickEstimator({ onBack, projectsDb }) {
           <button style={styles.settingsBtn} onClick={() => setIsTrussEditorOpen(true)} title="⚙️ Ферма">⚙️ Ферма</button>
           <button style={styles.settingsBtn} onClick={() => setIsBuildingTypesOpen(true)} title="⚙️ Типы зданий">⚙️ Типы</button>
         </div>
-        <button style={styles.closeButton} onClick={onBack}>Закрыть</button>
+        <button style={styles.closeButton} onClick={handleCloseWithData} title="Закрыть и применить к проекту">
+          Закрыть
+        </button>
       </div>
 
       <QuickEstimatorForm
@@ -986,6 +1123,7 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         roofShape={roofShape}
         slope={slope}
         frameType={frameType}
+        setFrameType={setFrameType}
         cranes={cranes}
         spanOrientations={spanOrientations}
       />
@@ -1157,6 +1295,41 @@ export default function QuickEstimator({ onBack, projectsDb }) {
         lstkPrice={lstkPrice}
         fasonkaPrice={fasonkaPrice}
       />
+
+      <div
+        style={{
+          marginTop: "25px",
+          padding: "15px",
+          backgroundColor: "#f8f9fa",
+          borderRadius: "8px",
+          border: "1px solid #dee2e6",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "10px",
+        }}
+      >
+        <div style={{ color: "#495057", fontSize: "0.95em" }}>
+          💡 Все заданные характеристики (пролёты, уклоны, этажи, краны) будут перенесены в Менеджер блоков для точной настройки.
+        </div>
+        <button
+          style={{
+            padding: "12px 24px",
+            backgroundColor: "#28a745",
+            color: "white",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontWeight: "bold",
+            fontSize: "1em",
+            boxShadow: "0 2px 6px rgba(40,167,69,0.3)",
+          }}
+          onClick={handleCloseWithData}
+        >
+          ✅ Сохранить и перейти в Менеджер блоков &rarr;
+        </button>
+      </div>
 
       <BaseMatrix210Editor isOpen={isBaseMatrixOpen} onClose={() => setIsBaseMatrixOpen(false)} onSave={setBaseMatrix210} />
       <SnowCoefficientsEditor isOpen={isSnowCoeffsOpen} onClose={() => setIsSnowCoeffsOpen(false)} onSave={setSnowCoefficients} />

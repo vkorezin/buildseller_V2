@@ -507,7 +507,7 @@ export default function App() {
     gammaWind: 1.4,
   });
 
-  const [currentView, setCurrentView] = useState("quickestimator");
+  const [currentView, setCurrentView] = useState("projectsetup");
   const [editingBlockId, setEditingBlockId] = useState(null);
   const [tempBlockData, setTempBlockData] = useState(null);
   const [pinInput, setPinInput] = useState("");
@@ -751,6 +751,128 @@ export default function App() {
     setCurrentView("manager");
   };
 
+  const handleQuickEstimatorClose = (estimatorData) => {
+    if (estimatorData) {
+      const N = Math.max(1, Number(estimatorData.spansCount) || 1);
+      const W = Number(estimatorData.spanWidth) || 18;
+      const L = Number(estimatorData.length) || 48;
+      const H = Number(estimatorData.height) || 6;
+      const S = Number(estimatorData.slope) || 10;
+      const isGable = (estimatorData.roofShape || "gable") === "gable";
+      const totalWidth = N * W;
+
+      const generatedSpans = Array.from({ length: N }).map((_, i) => {
+        const cr = estimatorData.cranes && estimatorData.cranes[i];
+        const craneList = [];
+        if (cr && cr.cap && cr.cap !== "0") {
+          craneList.push({
+            id: `crane_${i + 1}_${Date.now()}`,
+            selectedCapacity: Number(cr.cap),
+            type: cr.type || "support",
+          });
+        }
+        return {
+          id: i + 1,
+          spanWidth: W,
+          eaveHeight: H,
+          slope: S,
+          skateCount: isGable ? 2 : 1,
+          baseElevation: 0.0,
+          slopeDirection:
+            (estimatorData.spanOrientations &&
+              estimatorData.spanOrientations[i]) ||
+            "right",
+          skate1Length: isGable ? W / 2 : W,
+          cranes: craneList,
+        };
+      });
+
+      const storiesCount = Math.max(1, Number(estimatorData.stories) || 1);
+      let generatedMezzanines = [];
+      if (storiesCount > 1) {
+        generatedMezzanines = Array.from({ length: storiesCount - 1 }).map(
+          (_, mzIdx) => {
+            const elev = parseFloat(
+              ((H / storiesCount) * (mzIdx + 1)).toFixed(1)
+            );
+            return {
+              id: `mz_qe_${mzIdx + 1}`,
+              name: `Этаж ${mzIdx + 2} (${elev}м)`,
+              elevation: elev,
+              width: totalWidth,
+              length: L,
+              offsetX: 0.0,
+              offsetY: 0.0,
+              thickness: 120,
+              loadLive: 200,
+              loadPartitions: 50,
+              loadDead: 150,
+              safetyFactor: 1.2,
+              colsX: Math.max(2, Math.round(totalWidth / 6) + 1),
+              colsY: Math.max(2, Math.round(L / 6) + 1),
+            };
+          }
+        );
+      }
+
+      setBlocks((prevBlocks) => {
+        const existingBlock1 =
+          prevBlocks.find((b) => b.id === 1) || prevBlocks[0];
+        const updatedBlock1 = {
+          ...(existingBlock1 || {
+            id: 1,
+            name: "Блок 1",
+            adj: {
+              parentId: null,
+              parentSide: null,
+              mySide: null,
+              distance: 0,
+              offset: 0,
+            },
+          }),
+          data: {
+            ...(existingBlock1 ? existingBlock1.data : {}),
+            generalData: {
+              blockWidth: totalWidth,
+              blockLength: L,
+              blockHeight: H,
+            },
+            spans: generatedSpans,
+            columnStep: existingBlock1?.data?.columnStep || 6,
+            orientation: existingBlock1?.data?.orientation || "horizontal",
+            mezzanines: generatedMezzanines,
+            loads: {
+              snow: estimatorData.snowLoad
+                ? Number(estimatorData.snowLoad) / 100
+                : currentLoadData.snow,
+              wind: estimatorData.windLoad
+                ? Number(estimatorData.windLoad) / 100
+                : currentLoadData.wind,
+              seismic: currentLoadData.seismic || 0,
+            },
+            gridMatrix: null,
+            frameType: estimatorData.frameType,
+            activeWalls: estimatorData.activeWalls,
+            cladding: {
+              useSandwich: estimatorData.useSandwich,
+              layoutMode: estimatorData.layoutMode,
+              panelModule: estimatorData.panelModule,
+              panelStockLength: estimatorData.panelStockLength,
+              aperturesList: estimatorData.aperturesList,
+            },
+            quickEstimate: estimatorData.estimation,
+          },
+        };
+
+        if (prevBlocks.length === 0) return [updatedBlock1];
+        return prevBlocks.map((b) =>
+          b.id === updatedBlock1.id ? updatedBlock1 : b
+        );
+      });
+    }
+    setCurrentView("manager");
+  };
+
   const handleStep1Geometry = (geometryData) => {
     setTempBlockData((prev) => ({ ...prev, ...geometryData }));
     setCurrentView("loadseditor");
@@ -907,10 +1029,13 @@ export default function App() {
   }
 
   if (currentView === "quickestimator") {
+    const primaryBlock = blocks.find((b) => b.id === 1) || blocks[0];
     return (
       <QuickEstimator
-        onBack={() => setCurrentView("manager")}
+        onBack={handleQuickEstimatorClose}
         projectsDb={projectsDb}
+        initialBlock={primaryBlock}
+        projectLoads={currentLoadData}
       />
     );
   }
@@ -1268,7 +1393,7 @@ export default function App() {
                 style={{ ...styles.secondaryButton, marginTop: "10px", width: "100%" }}
                 onClick={() => setCurrentView("quickestimator")}
               >
-                💰 Быстрый расчёт (QuickEstimator)
+                💰 Быстрый расчёт
               </button>
             </>
           ) : (

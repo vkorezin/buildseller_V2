@@ -10,6 +10,7 @@ export default function QuickEstimatorSectionView({
   roofShape = "gable",
   slope = 10,
   frameType = "beam",
+  setFrameType = null,
   cranes = [],
   spanOrientations = [],
 }) {
@@ -189,9 +190,34 @@ export default function QuickEstimatorSectionView({
               : `${N_spans} пролёта по ${W_span} м (общ. ${totalBuildingWidth} м)`}
           </span>
         </div>
-        <div style={{ fontSize: "0.82em", color: "#57606a" }}>
-          Конструкция: <b>{isTruss ? "Ферма" : "Балка переменного сечения"}</b> | Кровля:{" "}
-          <b>{isGable ? "Двускатная" : "Односкатная"} ({S}%)</b>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <div style={{ fontSize: "0.82em", color: "#57606a" }}>
+            Конструкция: <b>{isTruss ? "Ферма" : "Балка переменного сечения"}</b> | Кровля:{" "}
+            <b>{isGable ? "Двускатная" : "Односкатная"} ({S}%)</b>
+          </div>
+          {setFrameType && (
+            <button
+              type="button"
+              onClick={() => setFrameType(isTruss ? "beam" : "truss")}
+              style={{
+                fontSize: "0.78em",
+                padding: "2px 8px",
+                backgroundColor: isTruss ? "#eff6ff" : "#f0fdf4",
+                color: isTruss ? "#1d4ed8" : "#15803d",
+                border: `1px solid ${isTruss ? "#93c5fd" : "#86efac"}`,
+                borderRadius: "5px",
+                cursor: "pointer",
+                fontWeight: "700",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "3px",
+              }}
+              title="Нажмите, чтобы переключить тип несущей конструкции (Балка / Ферма)"
+            >
+              <span>{isTruss ? "📐 Ферма" : "🏢 Балка"}</span>
+              <span style={{ opacity: 0.7 }}>⇄</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -626,6 +652,43 @@ export default function QuickEstimatorSectionView({
                         />
                       </g>
                     )}
+                  </g>
+                )}
+
+                {/* Интерактивный бейдж типа покрытия */}
+                {setFrameType && (
+                  <g
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFrameType(isTruss ? "beam" : "truss");
+                    }}
+                    style={{
+                      cursor: "pointer",
+                      pointerEvents: "all",
+                    }}
+                  >
+                    <rect
+                      x={xMid - 38}
+                      y={yClear + 4}
+                      width={76}
+                      height={16}
+                      rx={4}
+                      fill={isTruss ? "#eff6ff" : "#f0fdf4"}
+                      stroke={isTruss ? "#3b82f6" : "#22c55e"}
+                      strokeWidth={1.2}
+                      opacity={0.96}
+                    />
+                    <text
+                      x={xMid}
+                      y={yClear + 15}
+                      fontSize={8.5}
+                      fontWeight="bold"
+                      fill={isTruss ? "#1d4ed8" : "#15803d"}
+                      textAnchor="middle"
+                      style={{ pointerEvents: "none", userSelect: "none" }}
+                    >
+                      {isTruss ? "📐 Ферма ⇄" : "🏢 Балка ⇄"}
+                    </text>
                   </g>
                 )}
 
