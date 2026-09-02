@@ -436,38 +436,114 @@ export default function BlockEditor({
   };
 
   // --- HANDLERS (Геометрия) ---
+  // Автоматический расчет ширины блока по сумме ширин пролётов
+  const totalSpansWidth = useMemo(() => {
+    return (
+      Math.round(
+        (spans || []).reduce(
+          (sum, span) => sum + (Number(span.spanWidth) || 0),
+          0
+        ) * 1000
+      ) / 1000
+    );
+  }, [spans]);
+
+  // Синхронизация ширины блока в generalData
+  useEffect(() => {
+    if (generalData.blockWidth !== totalSpansWidth) {
+      setGeneralData((prev) => ({
+        ...prev,
+        blockWidth: totalSpansWidth,
+      }));
+    }
+  }, [totalSpansWidth, generalData.blockWidth]);
+
   const handleGeneralChange = (e) =>
     setGeneralData({
       ...generalData,
       [e.target.name]: parseFloat(e.target.value) || 0,
     });
 
-  const handleSpanCountChange = (e) => {
-    let count = parseInt(e.target.value, 10) || 0;
-    count = Math.max(0, Math.min(count, 10));
+  const createDefaultSpan = (referenceSpan = null, fallbackWidth = 18) => {
+    const ref = referenceSpan || (spans.length > 0 ? spans[0] : null);
+    const w = ref ? Number(ref.spanWidth) || fallbackWidth : fallbackWidth;
+    const h = ref
+      ? Number(ref.eaveHeight) || generalData.blockHeight || 6
+      : generalData.blockHeight || 6;
+    const s = ref ? Number(ref.slope) || 10 : 10;
+    const isGable = ref ? Number(ref.skateCount) === 2 : false;
+    const fType = ref ? ref.frameType || frameType || "beam" : frameType || "beam";
+    const sDir = ref ? ref.slopeDirection || "right" : "right";
 
-    const baseWidth = generalData.blockWidth || 0;
-    const newDefaultWidth =
-      count > 0 ? Math.round((baseWidth / count) * 1000) / 1000 : 0;
+    return {
+      id: "sp_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
+      spanWidth: w,
+      eaveHeight: h,
+      slope: s,
+      skateCount: isGable ? 2 : 1,
+      baseElevation: ref ? Number(ref.baseElevation) || 0.0 : 0.0,
+      slopeDirection: sDir,
+      skate1Length: isGable ? w / 2 : w,
+      lockParam: "none",
+      frameType: fType,
+      cranes: [],
+    };
+  };
 
-    const newSpans = [];
-    for (let i = 0; i < count; i++) {
-      newSpans.push(
-        spans[i] || {
-          id: i + 1,
-          spanWidth: newDefaultWidth,
-          eaveHeight: generalData.blockHeight,
-          slope: 10,
-          skateCount: 1,
-          baseElevation: 0.0,
-          slopeDirection: "right",
-          skate1Length: newDefaultWidth / 2,
-          lockParam: "none",
-          cranes: [],
-        }
-      );
+  const handleAddSpanLeft = () => {
+    setSpans((prevSpans) => {
+      const refSpan = prevSpans[0];
+      const newSpan = createDefaultSpan(refSpan);
+      return [newSpan, ...prevSpans];
+    });
+  };
+
+  const handleAddSpanRight = () => {
+    setSpans((prevSpans) => {
+      const refSpan = prevSpans[prevSpans.length - 1];
+      const newSpan = createDefaultSpan(refSpan);
+      return [...prevSpans, newSpan];
+    });
+  };
+
+  const handleAddSpanAt = (index, position = "after") => {
+    setSpans((prevSpans) => {
+      const targetIdx = position === "before" ? index : index + 1;
+      const refSpan = prevSpans[index];
+      const newSpan = createDefaultSpan(refSpan);
+      const next = [...prevSpans];
+      next.splice(targetIdx, 0, newSpan);
+      return next;
+    });
+  };
+
+  const handleDeleteSpan = (index) => {
+    if (spans.length <= 1) {
+      alert("В здании должен оставаться как минимум один пролёт.");
+      return;
     }
-    setSpans(newSpans);
+    setSpans((prevSpans) => prevSpans.filter((_, i) => i !== index));
+  };
+
+  const handleSpanCountChange = (e) => {
+    let count = parseInt(e.target.value, 10);
+    if (isNaN(count)) return;
+    count = Math.max(1, Math.min(count, 15));
+
+    setSpans((prevSpans) => {
+      const curCount = prevSpans.length;
+      if (count === curCount) return prevSpans;
+      if (count > curCount) {
+        const added = [];
+        for (let i = curCount; i < count; i++) {
+          const ref = prevSpans[curCount - 1];
+          added.push(createDefaultSpan(ref));
+        }
+        return [...prevSpans, ...added];
+      } else {
+        return prevSpans.slice(0, count);
+      }
+    });
   };
 
   const handleSpanChange = (idx, eOrField, directValue) => {
@@ -589,12 +665,8 @@ export default function BlockEditor({
 
   // --- ВАЛИДАЦИЯ ---
   const validation = useMemo(() => {
-    const totalSpansWidth = spans.reduce(
-      (sum, span) => sum + (span.spanWidth || 0),
-      0
-    );
-    const isWidthValid =
-      Math.abs(totalSpansWidth - generalData.blockWidth) < 0.01;
+    // Ширина блока всегда равна сумме ширин пролётов (автоматический расчет)
+    const isWidthValid = true;
 
     let layoutInfo = null;
     if (columnStep > 0 && generalData.blockLength > 0) {
@@ -615,7 +687,7 @@ export default function BlockEditor({
       }
     }
     return { isWidthValid, layoutInfo };
-  }, [generalData, spans, columnStep]);
+  }, [generalData.blockLength, columnStep]);
 
   // --- РАСЧЕТ РАСКЛАДКИ КОЛОНН ---
   const derivedColumnLayout = useMemo(() => {
@@ -754,7 +826,10 @@ export default function BlockEditor({
 
   // --- СБОР ДАННЫХ ДЛЯ ВЫХОДА ---
   const collectData = () => ({
-    generalData,
+    generalData: {
+      ...generalData,
+      blockWidth: totalSpansWidth,
+    },
     spans,
     columnStep,
     gridMatrix: editMode === "manual" ? gridMatrix : null,
@@ -1167,7 +1242,7 @@ export default function BlockEditor({
                   editMode={editMode}
                   handleBakeGrid={handleBakeGrid}
                   generalData={generalData}
-                  spanCount={spanCount}
+                  spanCount={spans.length}
                   spans={spans}
                   columnStep={columnStep}
                   frameType={frameType}
@@ -1178,6 +1253,11 @@ export default function BlockEditor({
                   handleSpanCountChange={handleSpanCountChange}
                   handleSpanChange={handleSpanChange}
                   handleColumnStepChange={handleColumnStepChange}
+                  onAddSpanLeft={handleAddSpanLeft}
+                  onAddSpanRight={handleAddSpanRight}
+                  onAddSpanAt={handleAddSpanAt}
+                  onDeleteSpan={handleDeleteSpan}
+                  totalSpansWidth={totalSpansWidth}
                   availableCapacities={availableCapacities}
                   handleCraneAdd={handleCraneAdd}
                   handleCraneChange={handleCraneChange}
@@ -1645,6 +1725,9 @@ export default function BlockEditor({
                     zoom={sectionZoom}
                     onToggleFrameType={handleToggleGlobalFrameType}
                     onToggleSpanFrameType={handleToggleSpanFrameType}
+                    onAddSpanLeft={handleAddSpanLeft}
+                    onAddSpanRight={handleAddSpanRight}
+                    onDeleteSpan={handleDeleteSpan}
                     styles={styles}
                   />
                 </div>
@@ -2012,6 +2095,9 @@ export default function BlockEditor({
                     zoom={sectionZoom}
                     onToggleFrameType={handleToggleGlobalFrameType}
                     onToggleSpanFrameType={handleToggleSpanFrameType}
+                    onAddSpanLeft={handleAddSpanLeft}
+                    onAddSpanRight={handleAddSpanRight}
+                    onDeleteSpan={handleDeleteSpan}
                     styles={styles}
                   />
                 </div>
@@ -2206,6 +2292,9 @@ export default function BlockEditor({
                     zoom={sectionZoom}
                     onToggleFrameType={handleToggleGlobalFrameType}
                     onToggleSpanFrameType={handleToggleSpanFrameType}
+                    onAddSpanLeft={handleAddSpanLeft}
+                    onAddSpanRight={handleAddSpanRight}
+                    onDeleteSpan={handleDeleteSpan}
                     styles={styles}
                   />
                 </div>
@@ -2372,6 +2461,9 @@ export default function BlockEditor({
                 zoom={sectionZoom}
                 onToggleFrameType={handleToggleGlobalFrameType}
                 onToggleSpanFrameType={handleToggleSpanFrameType}
+                onAddSpanLeft={handleAddSpanLeft}
+                onAddSpanRight={handleAddSpanRight}
+                onDeleteSpan={handleDeleteSpan}
                 styles={styles}
               />
             </div>

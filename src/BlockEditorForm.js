@@ -26,6 +26,11 @@ export default function FormColumn({
   handleSpanCountChange,
   handleSpanChange,
   handleColumnStepChange,
+  onAddSpanLeft,
+  onAddSpanRight,
+  onAddSpanAt,
+  onDeleteSpan,
+  totalSpansWidth,
   availableCapacities,
   handleCraneAdd,
   handleCraneChange,
@@ -64,6 +69,11 @@ export default function FormColumn({
     fontSize: "0.98em",
   };
 
+  const calculatedBlockWidth =
+    generalData.blockWidth ||
+    totalSpansWidth ||
+    (spans || []).reduce((acc, s) => acc + (Number(s.spanWidth) || 0), 0);
+
   return (
     <div style={{ width: "100%" }}>
       {/* --- БЛОК 1: ГЕОМЕТРИЯ --- */}
@@ -92,7 +102,7 @@ export default function FormColumn({
                 color: "#475569",
               }}
             >
-              {generalData.blockWidth || 0}×{generalData.blockLength || 0}м ({spans.length} прол.)
+              {calculatedBlockWidth}×{generalData.blockLength || 0}м ({spans.length} прол.)
             </span>
           </div>
           <span style={{ fontSize: "0.85em", color: "#64748b" }}>
@@ -102,17 +112,78 @@ export default function FormColumn({
 
         {openSections.grid && (
           <div>
-            <div style={styles.mainBlock}>
-              <label style={styles.label}>Ширина блока, м (п. 1)</label>
+            {/* Ширина блока: Не редактируется вручную, а вычисляется автоматически */}
+            <div
+              style={{
+                ...styles.formGroup,
+                backgroundColor: "#f8fafc",
+                padding: "10px",
+                borderRadius: "6px",
+                border: "1px solid #cbd5e1",
+                marginBottom: "12px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "4px",
+                }}
+              >
+                <label
+                  style={{
+                    ...styles.label,
+                    marginBottom: 0,
+                    fontWeight: "700",
+                    color: "#1e293b",
+                  }}
+                >
+                  Ширина блока, м (п. 1)
+                </label>
+                <span
+                  style={{
+                    fontSize: "0.75em",
+                    backgroundColor: "#dbeafe",
+                    color: "#1e40af",
+                    padding: "2px 8px",
+                    borderRadius: "10px",
+                    fontWeight: "600",
+                  }}
+                >
+                  🔒 Авторасчёт = Σ пролётов
+                </span>
+              </div>
               <input
                 name="blockWidth"
                 type="number"
-                value={generalData.blockWidth}
-                onChange={handleGeneralChange}
-                style={isWizardLocked ? lockedInputStyle : styles.input}
-                readOnly={isWizardLocked}
+                value={calculatedBlockWidth}
+                readOnly
+                style={{
+                  ...lockedInputStyle,
+                  fontWeight: "800",
+                  fontSize: "1.1em",
+                  color: "#0f172a",
+                  backgroundColor: "#f1f5f9",
+                  border: "1px solid #cbd5e1",
+                  cursor: "not-allowed",
+                }}
+                title="Ширина блока не редактируется вручную, а автоматически вычисляется как сумма ширин всех пролётов."
               />
+              <div
+                style={{
+                  fontSize: "0.78em",
+                  color: "#64748b",
+                  marginTop: "5px",
+                }}
+              >
+                Формула: W = {spans.map((s, i) => `${s.spanWidth || 0}м (Пр.${i + 1})`).join(" + ")} ={" "}
+                <b style={{ color: "#0f172a" }}>{calculatedBlockWidth} м</b>
+              </div>
+            </div>
 
+            {/* Длина блока */}
+            <div style={styles.formGroup}>
               <label style={styles.label}>Длина блока, м (п. 2)</label>
               <input
                 name="blockLength"
@@ -124,39 +195,213 @@ export default function FormColumn({
               />
             </div>
 
-            {!validation.isWidthValid && (
-              <div style={styles.errorBox}>
-                Ошибка: Сумма ширин пролетов не совпадает с общей шириной!
-              </div>
-            )}
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Кол-во свободных пролетов (п. 4)</label>
-              <input
-                name="spanCount"
-                type="number"
-                value={spanCount}
-                onChange={handleSpanCountChange}
-                style={isWizardLocked ? lockedInputStyle : styles.input}
-                readOnly={isWizardLocked}
-              />
+            {/* Кнопки быстрого добавления пролёта слева и справа */}
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                margin: "12px 0 10px 0",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                type="button"
+                onClick={onAddSpanLeft}
+                disabled={isWizardLocked}
+                style={{
+                  flex: "1 1 140px",
+                  padding: "8px 10px",
+                  backgroundColor: "#f0fdf4",
+                  color: "#166534",
+                  border: "1.5px solid #86efac",
+                  borderRadius: "6px",
+                  fontWeight: "700",
+                  fontSize: "0.85em",
+                  cursor: isWizardLocked ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                }}
+                title="Добавить дополнительный пролёт слева здания"
+              >
+                <span>⬅️➕ Добавить пролёт слева</span>
+              </button>
+              <button
+                type="button"
+                onClick={onAddSpanRight}
+                disabled={isWizardLocked}
+                style={{
+                  flex: "1 1 140px",
+                  padding: "8px 10px",
+                  backgroundColor: "#f0fdf4",
+                  color: "#166534",
+                  border: "1.5px solid #86efac",
+                  borderRadius: "6px",
+                  fontWeight: "700",
+                  fontSize: "0.85em",
+                  cursor: isWizardLocked ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                }}
+                title="Добавить дополнительный пролёт справа здания"
+              >
+                <span>➕➡️ Добавить пролёт справа</span>
+              </button>
             </div>
 
+            {/* Кол-во свободных пролетов с кнопками +/- */}
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Кол-во свободных пролетов (п. 4)</label>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <button
+                  type="button"
+                  disabled={isWizardLocked || spans.length <= 1}
+                  onClick={() => onDeleteSpan && onDeleteSpan(spans.length - 1)}
+                  style={{
+                    width: "36px",
+                    height: "36px",
+                    backgroundColor: "#f1f5f9",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "6px",
+                    fontWeight: "bold",
+                    fontSize: "1.1em",
+                    cursor:
+                      isWizardLocked || spans.length <= 1
+                        ? "not-allowed"
+                        : "pointer",
+                    color: spans.length <= 1 ? "#94a3b8" : "#334155",
+                  }}
+                  title="Удалить последний пролет"
+                >
+                  −
+                </button>
+                <input
+                  name="spanCount"
+                  type="number"
+                  min="1"
+                  max="15"
+                  value={spanCount || spans.length}
+                  onChange={handleSpanCountChange}
+                  style={{
+                    ...(isWizardLocked ? lockedInputStyle : styles.input),
+                    textAlign: "center",
+                    fontWeight: "bold",
+                  }}
+                  readOnly={isWizardLocked}
+                />
+                <button
+                  type="button"
+                  disabled={isWizardLocked}
+                  onClick={onAddSpanRight}
+                  style={{
+                    width: "36px",
+                    height: "36px",
+                    backgroundColor: "#f1f5f9",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "6px",
+                    fontWeight: "bold",
+                    fontSize: "1.1em",
+                    cursor: isWizardLocked ? "not-allowed" : "pointer",
+                    color: "#334155",
+                  }}
+                  title="Добавить пролет справа"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            {/* Карточки пролётов для настройки ширины */}
             {spans.map((span, index) => (
               <div
-                key={`width-${span.id}`}
+                key={`width-${span.id || index}`}
                 style={{
                   ...styles.spanCard,
                   opacity: isWizardLocked ? 0.6 : 1,
                   pointerEvents: isWizardLocked ? "none" : "auto",
+                  marginBottom: "10px",
                 }}
               >
-                <h3 style={styles.h3}>Настройки сетки: Пролет {index + 1}</h3>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "6px",
+                    flexWrap: "wrap",
+                    gap: "4px",
+                  }}
+                >
+                  <h3 style={{ ...styles.h3, margin: 0 }}>
+                    Настройки сетки: Пролет {index + 1}
+                  </h3>
+                  <div style={{ display: "flex", gap: "4px" }}>
+                    <button
+                      type="button"
+                      onClick={() => onAddSpanAt && onAddSpanAt(index, "before")}
+                      style={{
+                        padding: "2px 6px",
+                        fontSize: "0.72em",
+                        backgroundColor: "#f8fafc",
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        color: "#334155",
+                        fontWeight: "600",
+                      }}
+                      title="Вставить новый пролёт перед этим"
+                    >
+                      ⬅️ + Слева
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onAddSpanAt && onAddSpanAt(index, "after")}
+                      style={{
+                        padding: "2px 6px",
+                        fontSize: "0.72em",
+                        backgroundColor: "#f8fafc",
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        color: "#334155",
+                        fontWeight: "600",
+                      }}
+                      title="Вставить новый пролёт после этого"
+                    >
+                      + Справа ➡️
+                    </button>
+                    {spans.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => onDeleteSpan && onDeleteSpan(index)}
+                        style={{
+                          padding: "2px 6px",
+                          fontSize: "0.72em",
+                          backgroundColor: "#fee2e2",
+                          border: "1px solid #fca5a5",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          color: "#991b1b",
+                          fontWeight: "600",
+                        }}
+                        title="Удалить данный пролёт"
+                      >
+                        🗑️
+                      </button>
+                    )}
+                  </div>
+                </div>
                 <div style={styles.blockCardBody}>
                   <label style={styles.label}>Ширина пролета, м:</label>
                   <input
                     name="spanWidth"
                     type="number"
+                    step="0.5"
                     value={span.spanWidth}
                     onChange={(e) => handleSpanChange(index, e)}
                     style={isWizardLocked ? lockedInputStyle : styles.input}
@@ -347,6 +592,25 @@ export default function FormColumn({
                         <span>{isSpanTruss ? "📐 Ферма" : "🏢 Балка"}</span>
                         <span style={{ fontSize: "0.85em", opacity: 0.7 }}>⇄</span>
                       </button>
+                      {spans.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteSpan && onDeleteSpan(index)}
+                          style={{
+                            padding: "2px 6px",
+                            fontSize: "0.72em",
+                            backgroundColor: "#fee2e2",
+                            border: "1px solid #fca5a5",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            color: "#991b1b",
+                            fontWeight: "600",
+                          }}
+                          title="Удалить данный пролёт"
+                        >
+                          🗑️
+                        </button>
+                      )}
                     </div>
                     <span
                       style={{

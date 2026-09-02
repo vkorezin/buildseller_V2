@@ -9,6 +9,9 @@ export default function BuildingSectionView({
   frameType = "beam",
   onToggleFrameType = null,
   onToggleSpanFrameType = null,
+  onAddSpanLeft = null,
+  onAddSpanRight = null,
+  onDeleteSpan = null,
   zoom = 100,
   showHeader = false,
   styles = {},
@@ -381,30 +384,88 @@ export default function BuildingSectionView({
           </div>
         </div>
 
-        {onToggleFrameType && (
-          <button
-            type="button"
-            data-interactive="true"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleFrameType();
-            }}
-            style={{
-              fontSize: "0.78em",
-              padding: "4px 10px",
-              backgroundColor: "#ffffff",
-              border: "1px solid #cbd5e1",
-              borderRadius: "5px",
-              cursor: "pointer",
-              fontWeight: "600",
-              color: "#475569",
-              boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
-            }}
-            title="Переключить тип несущей конструкции для всех пролётов"
-          >
-            Все {isGlobalTruss ? "Балки" : "Фермы"}
-          </button>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+          {onAddSpanLeft && (
+            <button
+              type="button"
+              data-interactive="true"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddSpanLeft();
+              }}
+              style={{
+                fontSize: "0.78em",
+                padding: "4px 8px",
+                backgroundColor: "#f0fdf4",
+                border: "1px solid #86efac",
+                borderRadius: "5px",
+                cursor: "pointer",
+                fontWeight: "600",
+                color: "#15803d",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+              }}
+              title="Добавить дополнительный пролёт слева"
+            >
+              ⬅️ + Пролёт слева
+            </button>
+          )}
+
+          {onAddSpanRight && (
+            <button
+              type="button"
+              data-interactive="true"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddSpanRight();
+              }}
+              style={{
+                fontSize: "0.78em",
+                padding: "4px 8px",
+                backgroundColor: "#f0fdf4",
+                border: "1px solid #86efac",
+                borderRadius: "5px",
+                cursor: "pointer",
+                fontWeight: "600",
+                color: "#15803d",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+              }}
+              title="Добавить дополнительный пролёт справа"
+            >
+              + Пролёт справа ➡️
+            </button>
+          )}
+
+          {onToggleFrameType && (
+            <button
+              type="button"
+              data-interactive="true"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFrameType();
+              }}
+              style={{
+                fontSize: "0.78em",
+                padding: "4px 10px",
+                backgroundColor: "#ffffff",
+                border: "1px solid #cbd5e1",
+                borderRadius: "5px",
+                cursor: "pointer",
+                fontWeight: "600",
+                color: "#475569",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+              }}
+              title="Переключить тип несущей конструкции для всех пролётов"
+            >
+              Все {isGlobalTruss ? "Балки" : "Фермы"}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Опциональная внутренняя расширенная шапка разреза (если showHeader=true) */}
