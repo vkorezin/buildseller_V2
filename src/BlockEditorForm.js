@@ -519,12 +519,12 @@ export default function FormColumn({
             </div>
 
             {spans.map((span, index) => {
-              const geo = computeSpanRoofHeights(span);
+              const spanFrameType = span.frameType || frameType || "beam";
+              const isSpanTruss = String(spanFrameType) === "truss";
+              const geo = computeSpanRoofHeights(span, spanFrameType);
               const deg = slopePctToDegrees(geo.slope);
               const isGable = Number(span.skateCount) === 2;
               const lock = geo.lockParam; // "none" | "eave" | "ridge" | "slope"
-              const spanFrameType = span.frameType || frameType || "beam";
-              const isSpanTruss = String(spanFrameType) === "truss";
               const peakLabel = isGable
                 ? "Высота конька (верх), м"
                 : "Высота высокой части (верх), м";
@@ -829,9 +829,12 @@ export default function FormColumn({
                           color: "#64748b",
                           marginTop: "3px",
                           minHeight: "16px",
+                          display: "flex",
+                          justifyContent: "space-between",
                         }}
                       >
-                        Низ: {geo.eaveH.toFixed(2)} м
+                        <span>Низ: {geo.eaveH.toFixed(2)} м</span>
+                        <span title="Отметка верха балки/фермы на карнизе">Верх карниза: +{geo.eaveTopH.toFixed(2)} м</span>
                       </div>
                     </div>
 
@@ -900,8 +903,10 @@ export default function FormColumn({
                           minHeight: "16px",
                         }}
                       >
-                        <span>Подъем ΔH:</span>
-                        <strong>+{geo.rise.toFixed(2)} м</strong>
+                        <span title={`Строительный подъем/опора: ${geo.hBeamEave.toFixed(2)} м + прогоны: ${geo.hPurlin.toFixed(2)} м`}>
+                          Конструкция: +{geo.roofStructureThick.toFixed(2)} м
+                        </span>
+                        <span>ΔH уклона: <strong>+{geo.rise.toFixed(2)} м</strong></span>
                       </div>
                     </div>
 

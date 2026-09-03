@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { getAxisLabel } from "./BlockEditorUtils";
+import { getAxisLabel, computeSpanRoofHeights } from "./BlockEditorUtils";
 
 export default function BuildingSectionView({
   generalData,
@@ -1354,8 +1354,15 @@ export default function BuildingSectionView({
             );
           })()}
 
-          {/* Отметки коньков / высших точек кровли */}
+          {/* Отметки коньков / высших точек кровли (привязаны к фактической отметке верха конструкций пролёта) */}
           {spanConfigs.map((sc, i) => {
+            const rawSpan = (spans && spans[i]) || {};
+            const geo = computeSpanRoofHeights(rawSpan, frameType);
+            const peakH =
+              typeof geo.peakH === "number" && !isNaN(geo.peakH)
+                ? geo.peakH
+                : Number(sc.eaveTopH || 0) + Number(sc.spanRise || 0) + Number(sc.hPurlin || 0);
+
             const x1 = colXList[i];
             const x2 = colXList[i + 1];
             const xMid = sc.isGable
@@ -1365,7 +1372,7 @@ export default function BuildingSectionView({
               : x2;
 
             const ridgeY = getSpanRoofTopY(i, xMid) - sc.hPurlin * scale;
-            const hRidgeVal = (sc.eaveTopH + sc.spanRise + sc.hPurlin).toFixed(2);
+            const signStr = peakH >= 0 ? `+${peakH.toFixed(2)}` : `${peakH.toFixed(2)}`;
 
             return (
               <g key={`ridge-elev-${i}`}>
@@ -1389,7 +1396,7 @@ export default function BuildingSectionView({
                   fill="#1a7f37"
                   textAnchor="middle"
                 >
-                  {`+${hRidgeVal}`}
+                  {signStr}
                 </text>
               </g>
             );

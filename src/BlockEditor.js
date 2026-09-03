@@ -561,7 +561,7 @@ export default function BlockEditor({
     setSpans((prevSpans) =>
       prevSpans.map((span, i) => {
         if (i !== idx) return span;
-        return updateSpanRoofGeometry(span, name, value);
+        return updateSpanRoofGeometry(span, name, value, frameType);
       })
     );
   };
