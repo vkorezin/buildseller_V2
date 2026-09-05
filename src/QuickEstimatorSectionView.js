@@ -1,5 +1,8 @@
-import React from "react";
-import { getValidFloorElevations } from "./floorStructureConstants";
+import React, { useState, useEffect, useRef } from "react";
+import {
+  getValidFloorElevations,
+  getEffectiveMezzanineDimensions,
+} from "./floorStructureConstants";
 
 const AXIS_LABELS = ["А", "Б", "В", "Г", "Д", "Е", "Ж", "И", "К", "Л"];
 
@@ -15,7 +18,84 @@ export default function QuickEstimatorSectionView({
   cranes = [],
   spanOrientations = [],
   floorStructure = null,
+  length = 36,
 }) {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const containerRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+  const isPointerDownRef = useRef(false);
+
+  // Обработка клавиши Escape и стрелок для сдвига в полноэкранном режиме
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && isFullscreen) {
+        setIsFullscreen(false);
+      } else if (isFullscreen && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
+        if (containerRef.current) {
+          e.preventDefault();
+          const step = e.key === "ArrowRight" ? 200 : -200;
+          containerRef.current.scrollBy({ left: step, behavior: "smooth" });
+        }
+      }
+    };
+    if (isFullscreen) {
+      window.addEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "hidden";
+    } else {
+      setZoom(1);
+    }
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [isFullscreen]);
+
+  // Глобальное отслеживание перетаскивания (drag-to-pan) мышью
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      isPointerDownRef.current = false;
+      setIsDragging(false);
+    };
+    const handleGlobalMouseMove = (e) => {
+      if (!isFullscreen || !isPointerDownRef.current || !containerRef.current) return;
+      const dx = e.clientX - dragStartRef.current.x;
+      const dy = e.clientY - dragStartRef.current.y;
+      if (!isDragging && Math.hypot(dx, dy) > 3) {
+        setIsDragging(true);
+      }
+      if (isDragging || Math.hypot(dx, dy) > 3) {
+        e.preventDefault();
+        containerRef.current.scrollLeft = dragStartRef.current.scrollLeft - dx;
+        containerRef.current.scrollTop = dragStartRef.current.scrollTop - dy;
+      }
+    };
+    if (isFullscreen) {
+      window.addEventListener("mouseup", handleGlobalMouseUp);
+      window.addEventListener("mousemove", handleGlobalMouseMove);
+    }
+    return () => {
+      window.removeEventListener("mouseup", handleGlobalMouseUp);
+      window.removeEventListener("mousemove", handleGlobalMouseMove);
+    };
+  }, [isFullscreen, isDragging]);
+
+  const handleMouseDown = (e) => {
+    if (!isFullscreen) return;
+    if (e.button !== 0) return;
+    if (e.target.closest("button, input, select, a, [data-interactive='true']")) return;
+    isPointerDownRef.current = true;
+    if (containerRef.current) {
+      dragStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        scrollLeft: containerRef.current.scrollLeft,
+        scrollTop: containerRef.current.scrollTop,
+      };
+    }
+  };
+
   const W_span = Number(spanWidth) > 0 ? Number(spanWidth) : 18;
   const numStories = Math.max(1, Math.min(4, Number(stories) || 1));
 
@@ -117,6 +197,18 @@ export default function QuickEstimatorSectionView({
       ? floorLevels[floorLevels.length - 1].yLevel
       : baseGroundY;
 
+  const bL = Number(length) || 36;
+  const mezzDims = getEffectiveMezzanineDimensions(
+    floorStructure,
+    totalBuildingWidth,
+    bL
+  );
+  const effectiveMezzWidth = mezzDims.width;
+  const isPartialWidth = mezzDims.isCustomWidth;
+  const mezzStartX = colXList[0];
+  const mezzEndX = mezzStartX + effectiveMezzWidth * scale;
+  const hitsMainCol = colXList.some((cx) => Math.abs(cx - mezzEndX) < 3);
+
   // Логика промежуточных колонн:
   // Если заданы ручные пролеты в floorStructure (columnSpansMode === "manual"),
   // иначе по нормативному правилу: при W_span >= 9м делим пополам и каждые следующие 9м
@@ -195,88 +287,443 @@ export default function QuickEstimatorSectionView({
   };
 
   return (
-    <div
-      style={{
-        backgroundColor: "#ffffff",
-        border: "1px solid #d0d7de",
-        borderRadius: "8px",
-        padding: "16px",
-        marginBottom: "20px",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "10px",
-          borderBottom: "1px solid #e1e4e8",
-          paddingBottom: "8px",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ fontSize: "1.1em", fontWeight: "bold", color: "#24292f" }}>
-            📐 Эскиз поперечного разреза здания
-          </span>
-          <span
-            style={{
-              backgroundColor: "#e8f4fd",
-              color: "#007bff",
-              fontSize: "0.8em",
-              padding: "2px 8px",
-              borderRadius: "12px",
-              fontWeight: "600",
-            }}
-          >
-            {N_spans === 1
-              ? `1 пролёт (${W_span} м)`
-              : `${N_spans} пролёта по ${W_span} м (общ. ${totalBuildingWidth} м)`}
-          </span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          <div style={{ fontSize: "0.82em", color: "#57606a" }}>
-            Конструкция: <b>{isTruss ? "Ферма" : "Балка переменного сечения"}</b> | Кровля:{" "}
-            <b>{isGable ? "Двускатная" : "Односкатная"} ({S}%)</b>
-          </div>
-          {setFrameType && (
-            <button
-              type="button"
-              onClick={() => setFrameType(isTruss ? "beam" : "truss")}
-              style={{
-                fontSize: "0.78em",
-                padding: "2px 8px",
-                backgroundColor: isTruss ? "#eff6ff" : "#f0fdf4",
-                color: isTruss ? "#1d4ed8" : "#15803d",
-                border: `1px solid ${isTruss ? "#93c5fd" : "#86efac"}`,
-                borderRadius: "5px",
-                cursor: "pointer",
-                fontWeight: "700",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "3px",
-              }}
-              title="Нажмите, чтобы переключить тип несущей конструкции (Балка / Ферма)"
-            >
-              <span>{isTruss ? "📐 Ферма" : "🏢 Балка"}</span>
-              <span style={{ opacity: 0.7 }}>⇄</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div style={{ width: "100%", overflowX: "auto", display: "flex", justifyContent: "center" }}>
-        <svg
-          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+    <>
+      {isFullscreen && (
+        <div
           style={{
-            width: "100%",
-            maxWidth: "800px",
-            height: "auto",
-            backgroundColor: "#fbfcfd",
-            borderRadius: "6px",
-            border: "1px solid #eaeef2",
+            height: "320px",
+            marginBottom: "20px",
+            backgroundColor: "#f6f8fa",
+            borderRadius: "8px",
+            border: "1px dashed #d0d7de",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#57606a",
+            fontSize: "0.9em",
+            userSelect: "none",
           }}
         >
+          📐 Разрез развернут на весь экран
+        </div>
+      )}
+
+      <div
+        style={
+          isFullscreen
+            ? {
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                backgroundColor: "rgba(15, 23, 42, 0.88)",
+                backdropFilter: "blur(6px)",
+                zIndex: 999999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "16px",
+                boxSizing: "border-box",
+              }
+            : {
+                backgroundColor: "#ffffff",
+                border: "1px solid #d0d7de",
+                borderRadius: "8px",
+                padding: "16px",
+                marginBottom: "20px",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+              }
+        }
+        onClick={(e) => {
+          if (isFullscreen && e.target === e.currentTarget) {
+            setIsFullscreen(false);
+          }
+        }}
+      >
+        <div
+          style={
+            isFullscreen
+              ? {
+                  backgroundColor: "#ffffff",
+                  width: "98vw",
+                  height: "94vh",
+                  maxWidth: "1800px",
+                  borderRadius: "12px",
+                  boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden",
+                  border: "1px solid #cbd5e1",
+                }
+              : { width: "100%" }
+          }
+        >
+          {/* Header */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: isFullscreen ? 0 : "10px",
+              padding: isFullscreen ? "12px 18px" : "0 0 8px 0",
+              backgroundColor: isFullscreen ? "#f8fafc" : "transparent",
+              borderBottom: "1px solid #e1e4e8",
+              flexWrap: "wrap",
+              gap: "8px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <span style={{ fontSize: isFullscreen ? "1.15em" : "1.1em", fontWeight: "bold", color: "#24292f" }}>
+                📐 {isFullscreen ? "Поперечный разрез здания" : "Эскиз поперечного разреза здания"}
+              </span>
+              <span
+                style={{
+                  backgroundColor: "#e8f4fd",
+                  color: "#007bff",
+                  fontSize: "0.8em",
+                  padding: "2px 8px",
+                  borderRadius: "12px",
+                  fontWeight: "600",
+                }}
+              >
+                {N_spans === 1
+                  ? `1 пролёт (${W_span} м)`
+                  : `${N_spans} пролёта по ${W_span} м (общ. ${totalBuildingWidth} м)`}
+              </span>
+              {isFullscreen && (
+                <>
+                  <span
+                    style={{
+                      backgroundColor: "#f1f5f9",
+                      color: "#334155",
+                      fontSize: "0.8em",
+                      padding: "2px 8px",
+                      borderRadius: "6px",
+                      border: "1px solid #cbd5e1",
+                    }}
+                  >
+                    Низ несущих: <strong>+{H_clear} м</strong>
+                  </span>
+                  <span
+                    style={{
+                      backgroundColor: "#f1f5f9",
+                      color: "#334155",
+                      fontSize: "0.8em",
+                      padding: "2px 8px",
+                      borderRadius: "6px",
+                      border: "1px solid #cbd5e1",
+                    }}
+                  >
+                    Этажей: <strong>{numStories}</strong>
+                  </span>
+                  <span
+                    style={{
+                      backgroundColor: "#f1f5f9",
+                      color: "#334155",
+                      fontSize: "0.8em",
+                      padding: "2px 8px",
+                      borderRadius: "6px",
+                      border: "1px solid #cbd5e1",
+                    }}
+                  >
+                    {isGable ? "Двускатная" : "Односкатная"} ({S}%)
+                  </span>
+                </>
+              )}
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              {!isFullscreen && (
+                <div style={{ fontSize: "0.82em", color: "#57606a" }}>
+                  Конструкция: <b>{isTruss ? "Ферма" : "Балка переменного сечения"}</b> | Кровля:{" "}
+                  <b>{isGable ? "Двускатная" : "Односкатная"} ({S}%)</b>
+                </div>
+              )}
+              {setFrameType && (
+                <button
+                  type="button"
+                  onClick={() => setFrameType(isTruss ? "beam" : "truss")}
+                  style={{
+                    fontSize: "0.78em",
+                    padding: isFullscreen ? "4px 10px" : "2px 8px",
+                    backgroundColor: isTruss ? "#eff6ff" : "#f0fdf4",
+                    color: isTruss ? "#1d4ed8" : "#15803d",
+                    border: `1px solid ${isTruss ? "#93c5fd" : "#86efac"}`,
+                    borderRadius: "5px",
+                    cursor: "pointer",
+                    fontWeight: "700",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "3px",
+                  }}
+                  title="Нажмите, чтобы переключить тип несущей конструкции (Балка / Ферма)"
+                >
+                  <span>{isTruss ? "📐 Ферма" : "🏢 Балка"}</span>
+                  <span style={{ opacity: 0.7 }}>⇄</span>
+                </button>
+              )}
+
+              {/* Fullscreen controls or open button */}
+              {isFullscreen ? (
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "6px",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setZoom((z) => Math.max(0.6, Math.round((z - 0.2) * 10) / 10))}
+                      disabled={zoom <= 0.6}
+                      style={{
+                        padding: "3px 9px",
+                        border: "none",
+                        backgroundColor: "transparent",
+                        cursor: zoom <= 0.6 ? "not-allowed" : "pointer",
+                        fontSize: "0.88em",
+                        fontWeight: "bold",
+                        color: "#475569",
+                      }}
+                      title="Уменьшить масштаб"
+                    >
+                      −
+                    </button>
+                    <span
+                      style={{
+                        padding: "3px 7px",
+                        fontSize: "0.78em",
+                        fontWeight: 600,
+                        color: "#1e293b",
+                        minWidth: "42px",
+                        textAlign: "center",
+                        borderLeft: "1px solid #e2e8f0",
+                        borderRight: "1px solid #e2e8f0",
+                      }}
+                    >
+                      {Math.round(zoom * 100)}%
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setZoom((z) => Math.min(3, Math.round((z + 0.2) * 10) / 10))}
+                      disabled={zoom >= 3}
+                      style={{
+                        padding: "3px 9px",
+                        border: "none",
+                        backgroundColor: "transparent",
+                        cursor: zoom >= 3 ? "not-allowed" : "pointer",
+                        fontSize: "0.88em",
+                        fontWeight: "bold",
+                        color: "#475569",
+                      }}
+                      title="Увеличить масштаб"
+                    >
+                      +
+                    </button>
+                    {zoom !== 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setZoom(1);
+                          if (containerRef.current) {
+                            containerRef.current.scrollLeft = 0;
+                            containerRef.current.scrollTop = 0;
+                          }
+                        }}
+                        style={{
+                          padding: "3px 7px",
+                          border: "none",
+                          borderLeft: "1px solid #e2e8f0",
+                          backgroundColor: "#f8fafc",
+                          cursor: "pointer",
+                          fontSize: "0.72em",
+                          color: "#0284c7",
+                          fontWeight: 600,
+                        }}
+                        title="Сбросить масштаб к 100%"
+                      >
+                        100%
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Кнопки сдвига влево / вправо при увеличении или в полноэкранном режиме */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "6px",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (containerRef.current) {
+                          containerRef.current.scrollBy({ left: -220, behavior: "smooth" });
+                        }
+                      }}
+                      style={{
+                        padding: "3px 8px",
+                        border: "none",
+                        backgroundColor: "transparent",
+                        cursor: "pointer",
+                        fontSize: "0.8em",
+                        fontWeight: 600,
+                        color: "#334155",
+                        borderRight: "1px solid #e2e8f0",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "2px",
+                      }}
+                      title="Сдвинуть чертеж влево (или перетаскивайте мышью)"
+                    >
+                      ◀ Влево
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (containerRef.current) {
+                          containerRef.current.scrollBy({ left: 220, behavior: "smooth" });
+                        }
+                      }}
+                      style={{
+                        padding: "3px 8px",
+                        border: "none",
+                        backgroundColor: "transparent",
+                        cursor: "pointer",
+                        fontSize: "0.8em",
+                        fontWeight: 600,
+                        color: "#334155",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "2px",
+                      }}
+                      title="Сдвинуть чертеж вправо (или перетаскивайте мышью)"
+                    >
+                      Вправо ▶
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsFullscreen(false)}
+                    style={{
+                      padding: "4px 12px",
+                      backgroundColor: "#ef4444",
+                      color: "#ffffff",
+                      border: "none",
+                      borderRadius: "6px",
+                      fontSize: "0.82em",
+                      fontWeight: "700",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                    title="Свернуть разрез (Esc)"
+                  >
+                    <span>✕</span>
+                    <span>Свернуть (Esc)</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(true)}
+                  style={{
+                    fontSize: "0.78em",
+                    padding: "3px 10px",
+                    backgroundColor: "#0969da",
+                    color: "#ffffff",
+                    border: "1px solid #0969da",
+                    borderRadius: "5px",
+                    cursor: "pointer",
+                    fontWeight: "700",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+                  }}
+                  title="Развернуть разрез на весь экран"
+                >
+                  <span>⛶</span>
+                  <span>На весь экран</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* SVG Container: скроллируемый контейнер с поддержкой перетаскивания (pan/drag) */}
+          <div
+            ref={containerRef}
+            onMouseDown={handleMouseDown}
+            onClick={!isFullscreen ? () => setIsFullscreen(true) : undefined}
+            title={!isFullscreen ? "Нажмите на разрез, чтобы развернуть на весь экран" : undefined}
+            style={
+              isFullscreen
+                ? {
+                    flex: 1,
+                    width: "100%",
+                    overflow: "auto",
+                    backgroundColor: "#f8fafc",
+                    padding: "16px",
+                    boxSizing: "border-box",
+                    position: "relative",
+                    cursor: isDragging ? "grabbing" : zoom > 1 ? "grab" : "default",
+                    userSelect: isDragging ? "none" : "auto",
+                  }
+                : {
+                    width: "100%",
+                    overflowX: "auto",
+                    display: "flex",
+                    justifyContent: "center",
+                    cursor: "zoom-in",
+                    position: "relative",
+                  }
+            }
+          >
+            <div
+              style={
+                isFullscreen
+                  ? {
+                      minWidth: zoom <= 1 ? "100%" : `${Math.round(zoom * 100)}%`,
+                      width: zoom <= 1 ? "100%" : `${Math.round(zoom * 100)}%`,
+                      minHeight: "100%",
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      boxSizing: "border-box",
+                    }
+                  : {
+                      width: "100%",
+                      display: "flex",
+                      justifyContent: "center",
+                    }
+              }
+            >
+              <svg
+                viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                style={{
+                  width: "100%",
+                  maxWidth: isFullscreen ? (zoom <= 1 ? "100%" : "none") : "800px",
+                  height: "auto",
+                  maxHeight: isFullscreen ? (zoom <= 1.05 ? "calc(92vh - 160px)" : "none") : "none",
+                  backgroundColor: "#ffffff",
+                  borderRadius: "6px",
+                  border: "1px solid #eaeef2",
+                  display: "block",
+                  boxShadow: isFullscreen ? "0 4px 20px rgba(0,0,0,0.08)" : "none",
+                  pointerEvents: isDragging ? "none" : "auto",
+                }}
+              >
           {/* 1. Уровень земли / пола 0.000 */}
           <line
             x1={colXList[0] - 25}
@@ -509,11 +956,11 @@ export default function QuickEstimatorSectionView({
 
                 return (
                   <g key={`floor-level-beam-${fl.index}`}>
-                    {/* Плита перекрытия */}
+                    {/* Плита перекрытия (с учетом фактической ширины антресоли) */}
                     <rect
-                      x={colXList[0]}
+                      x={mezzStartX}
                       y={fl.yLevel - 4}
-                      width={colXList[N_spans] - colXList[0]}
+                      width={mezzEndX - mezzStartX}
                       height={4}
                       fill={slabFill}
                       stroke={slabStroke}
@@ -521,30 +968,251 @@ export default function QuickEstimatorSectionView({
                     />
                     {/* Несущая балка перекрытия */}
                     <line
-                      x1={colXList[0]}
+                      x1={mezzStartX}
                       y1={fl.yLevel}
-                      x2={colXList[N_spans]}
+                      x2={mezzEndX}
                       y2={fl.yLevel}
                       stroke="#0056b3"
                       strokeWidth={2.8}
                     />
-                    {/* Текстовая отметка уровня этажа */}
-                    <text
-                      x={colXList[0] - 6}
-                      y={fl.yLevel + 3}
-                      fontSize={8}
-                      fontFamily="Roboto, sans-serif"
-                      fill="#0056b3"
-                      fontWeight="bold"
-                      textAnchor="end"
-                    >
-                      {`+${fl.hLevel.toFixed(2)} м`}
-                    </text>
                   </g>
                 );
               })}
 
-              {/* Промежуточные колонны 1-го этажа */}
+              {/* Опорная стойка края антресоли (если перекрытие не доходит до основной колонны) */}
+              {isPartialWidth && !hitsMainCol && (
+                <g key="mezzanine-edge-column">
+                  {/* Осевая штрихпунктирная линия */}
+                  <line
+                    x1={mezzEndX}
+                    y1={baseGroundY + 6}
+                    x2={mezzEndX}
+                    y2={topMezzanineY - 4}
+                    stroke="#d97706"
+                    strokeWidth={0.8}
+                    strokeDasharray="4 2"
+                  />
+                  {/* Ствол крайней опорной стойки */}
+                  <rect
+                    x={mezzEndX - 2.5}
+                    y={topMezzanineY}
+                    width={5}
+                    height={baseGroundY - topMezzanineY}
+                    fill="#f59e0b"
+                    stroke="#b45309"
+                    strokeWidth={0.8}
+                    rx={0.5}
+                  />
+                  {/* Опорная база стойки */}
+                  <rect
+                    x={mezzEndX - 6}
+                    y={baseGroundY - 3}
+                    width={12}
+                    height={3}
+                    fill="#1e293b"
+                    stroke="#0f172a"
+                    strokeWidth={0.5}
+                    rx={0.5}
+                  />
+                  <rect
+                    x={mezzEndX - 8}
+                    y={baseGroundY}
+                    width={16}
+                    height={4}
+                    fill="#cbd5e1"
+                    stroke="#94a3b8"
+                    strokeWidth={0.5}
+                  />
+                  {/* Оголовки стойки на уровнях этажей */}
+                  {floorLevels.map((fl) => (
+                    <rect
+                      key={`edge-cap-${fl.index}`}
+                      x={mezzEndX - 5}
+                      y={fl.yLevel - 1.5}
+                      width={10}
+                      height={3}
+                      fill="#b45309"
+                      stroke="#78350f"
+                      strokeWidth={0.5}
+                      rx={0.5}
+                    />
+                  ))}
+                  {/* Подпись стойки */}
+                  <text
+                    x={mezzEndX}
+                    y={baseGroundY - 6}
+                    fontSize={6.5}
+                    fontFamily="Roboto, sans-serif"
+                    fill="#b45309"
+                    textAnchor="middle"
+                    fontWeight="bold"
+                  >
+                    стойка края
+                  </text>
+                </g>
+              )}
+
+              {/* Защитное ограждение на открытом краю антресоли */}
+              {isPartialWidth && (
+                <g key="mezzanine-safety-railing">
+                  {floorLevels.map((fl) => (
+                    <g key={`railing-${fl.index}`}>
+                      {/* Стойка ограждения h=1.0м */}
+                      <line
+                        x1={mezzEndX}
+                        y1={fl.yLevel - 4}
+                        x2={mezzEndX}
+                        y2={fl.yLevel - 14}
+                        stroke="#d97706"
+                        strokeWidth={1.6}
+                      />
+                      {/* Поручень ограждения */}
+                      <line
+                        x1={mezzEndX - 8}
+                        y1={fl.yLevel - 14}
+                        x2={mezzEndX}
+                        y2={fl.yLevel - 14}
+                        stroke="#d97706"
+                        strokeWidth={2}
+                      />
+                      {/* Средний леер */}
+                      <line
+                        x1={mezzEndX - 8}
+                        y1={fl.yLevel - 9}
+                        x2={mezzEndX}
+                        y2={fl.yLevel - 9}
+                        stroke="#f59e0b"
+                        strokeWidth={1}
+                      />
+                      {/* Бортик (toe board) */}
+                      <rect
+                        x={mezzEndX - 8}
+                        y={fl.yLevel - 6}
+                        width={8}
+                        height={2}
+                        fill="#fde68a"
+                        stroke="#d97706"
+                        strokeWidth={0.5}
+                      />
+                      <text
+                        x={mezzEndX + 3}
+                        y={fl.yLevel - 10}
+                        fontSize={6}
+                        fontFamily="Roboto, sans-serif"
+                        fill="#b45309"
+                        fontWeight="bold"
+                      >
+                        ограждение
+                      </text>
+                    </g>
+                  ))}
+                </g>
+              )}
+
+              {/* Размерная цепочка ширины антресоли при неполном пролете */}
+              {isPartialWidth && (
+                <g key="mezzanine-width-dimension-chain">
+                  {/* Размерная линия ширины антресоли */}
+                  <line
+                    x1={mezzStartX}
+                    y1={topMezzanineY - 14}
+                    x2={mezzEndX}
+                    y2={topMezzanineY - 14}
+                    stroke="#0284c7"
+                    strokeWidth={1}
+                  />
+                  {/* Засечки */}
+                  <line
+                    x1={mezzStartX - 3}
+                    y1={topMezzanineY - 11}
+                    x2={mezzStartX + 3}
+                    y2={topMezzanineY - 17}
+                    stroke="#0284c7"
+                    strokeWidth={1.2}
+                  />
+                  <line
+                    x1={mezzEndX - 3}
+                    y1={topMezzanineY - 11}
+                    x2={mezzEndX + 3}
+                    y2={topMezzanineY - 17}
+                    stroke="#0284c7"
+                    strokeWidth={1.2}
+                  />
+                  {/* Выносные линии */}
+                  <line
+                    x1={mezzStartX}
+                    y1={topMezzanineY - 4}
+                    x2={mezzStartX}
+                    y2={topMezzanineY - 18}
+                    stroke="#0284c7"
+                    strokeWidth={0.6}
+                    strokeDasharray="2 1"
+                  />
+                  <line
+                    x1={mezzEndX}
+                    y1={topMezzanineY - 4}
+                    x2={mezzEndX}
+                    y2={topMezzanineY - 18}
+                    stroke="#0284c7"
+                    strokeWidth={0.6}
+                    strokeDasharray="2 1"
+                  />
+                  <text
+                    x={(mezzStartX + mezzEndX) / 2}
+                    y={topMezzanineY - 16}
+                    fontSize={7.5}
+                    fontFamily="Roboto, sans-serif"
+                    fill="#0284c7"
+                    textAnchor="middle"
+                    fontWeight="bold"
+                  >
+                    {`Антресоль B = ${effectiveMezzWidth.toFixed(1)} м`}
+                  </text>
+
+                  {/* Оставшийся свободный пролет здания */}
+                  {colXList[N_spans] - mezzEndX > 15 && (
+                    <g key="mezzanine-remaining-free-span">
+                      <line
+                        x1={mezzEndX}
+                        y1={topMezzanineY - 14}
+                        x2={colXList[N_spans]}
+                        y2={topMezzanineY - 14}
+                        stroke="#94a3b8"
+                        strokeWidth={0.8}
+                      />
+                      <line
+                        x1={colXList[N_spans] - 3}
+                        y1={topMezzanineY - 11}
+                        x2={colXList[N_spans] + 3}
+                        y2={topMezzanineY - 17}
+                        stroke="#94a3b8"
+                        strokeWidth={1.2}
+                      />
+                      <line
+                        x1={colXList[N_spans]}
+                        y1={topMezzanineY - 4}
+                        x2={colXList[N_spans]}
+                        y2={topMezzanineY - 18}
+                        stroke="#94a3b8"
+                        strokeWidth={0.6}
+                        strokeDasharray="2 1"
+                      />
+                      <text
+                        x={(mezzEndX + colXList[N_spans]) / 2}
+                        y={topMezzanineY - 16}
+                        fontSize={7}
+                        fontFamily="Roboto, sans-serif"
+                        fill="#64748b"
+                        textAnchor="middle"
+                      >
+                        {`Свободно ${(totalBuildingWidth - effectiveMezzWidth).toFixed(1)} м`}
+                      </text>
+                    </g>
+                  )}
+                </g>
+              )}
+
+              {/* Промежуточные колонны 1-го этажа (только в зоне перекрытия антресоли) */}
               {intermediateColsData.length > 0 &&
                 Array.from({ length: N_spans }).map((_, i) => {
                   const x1 = colXList[i];
@@ -554,6 +1222,7 @@ export default function QuickEstimatorSectionView({
                     <g key={`inter-cols-group-span-${i}`}>
                       {intermediateColsData.map((colItem, cIdx) => {
                         const cx = x1 + colItem.ratio * (x2 - x1);
+                        if (cx > mezzEndX - 3) return null;
                         return (
                           <g key={`inter-col-${i}-${cIdx}`}>
                             {/* Осевая штрихпунктирная линия */}
@@ -1068,18 +1737,23 @@ export default function QuickEstimatorSectionView({
           {/* 5. Высотные отметки */}
           {/* Отметка 0.000 */}
           <line
-            x1={colXList[0] - 6}
+            x1={colXList[0] - 4}
             y1={baseGroundY}
-            x2={colXList[0] - 20}
+            x2={colXList[0] - 24}
             y2={baseGroundY}
             stroke="#24292f"
             strokeWidth={0.8}
           />
+          <polygon
+            points={`${colXList[0] - 4},${baseGroundY} ${colXList[0] - 10},${baseGroundY - 3} ${colXList[0] - 10},${baseGroundY + 3}`}
+            fill="#24292f"
+          />
           <text
-            x={colXList[0] - 22}
+            x={colXList[0] - 26}
             y={baseGroundY + 3}
             fontSize={8.5}
             fontWeight="bold"
+            fontFamily="Roboto, sans-serif"
             fill="#24292f"
             textAnchor="end"
           >
@@ -1090,18 +1764,23 @@ export default function QuickEstimatorSectionView({
           {floorLevels.map((fl) => (
             <g key={`floor-level-mark-${fl.index}`}>
               <line
-                x1={colXList[0] - 6}
+                x1={colXList[0] - 4}
                 y1={fl.yLevel}
-                x2={colXList[0] - 20}
+                x2={colXList[0] - 24}
                 y2={fl.yLevel}
                 stroke="#0056b3"
-                strokeWidth={0.8}
+                strokeWidth={0.9}
+              />
+              <polygon
+                points={`${colXList[0] - 4},${fl.yLevel} ${colXList[0] - 10},${fl.yLevel - 3} ${colXList[0] - 10},${fl.yLevel + 3}`}
+                fill="#0056b3"
               />
               <text
-                x={colXList[0] - 22}
+                x={colXList[0] - 26}
                 y={fl.yLevel + 3}
-                fontSize={8}
+                fontSize={8.5}
                 fontWeight="bold"
+                fontFamily="Roboto, sans-serif"
                 fill="#0056b3"
                 textAnchor="end"
               >
@@ -1112,18 +1791,23 @@ export default function QuickEstimatorSectionView({
 
           {/* Отметка низа несущих конструкций */}
           <line
-            x1={colXList[0] - 6}
+            x1={colXList[0] - 4}
             y1={yClear}
-            x2={colXList[0] - 20}
+            x2={colXList[0] - 24}
             y2={yClear}
             stroke="#0969da"
             strokeWidth={0.8}
           />
+          <polygon
+            points={`${colXList[0] - 4},${yClear} ${colXList[0] - 10},${yClear - 3} ${colXList[0] - 10},${yClear + 3}`}
+            fill="#0969da"
+          />
           <text
-            x={colXList[0] - 22}
+            x={colXList[0] - 26}
             y={yClear + 3}
             fontSize={8.5}
             fontWeight="bold"
+            fontFamily="Roboto, sans-serif"
             fill="#0969da"
             textAnchor="end"
           >
@@ -1205,33 +1889,75 @@ export default function QuickEstimatorSectionView({
               </g>
             ));
           })()}
-        </svg>
+              </svg>
+            </div>
+
+        {/* Hover hint badge when inline */}
+        {!isFullscreen && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: "8px",
+              right: "12px",
+              backgroundColor: "rgba(15, 23, 42, 0.75)",
+              color: "#ffffff",
+              fontSize: "0.74em",
+              fontWeight: 600,
+              padding: "4px 9px",
+              borderRadius: "5px",
+              pointerEvents: "none",
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+              backdropFilter: "blur(4px)",
+              boxShadow: "0 2px 5px rgba(0,0,0,0.2)",
+            }}
+          >
+            <span>🔍</span>
+            <span>Нажмите для разворота на весь экран</span>
+          </div>
+        )}
       </div>
 
       {numStories > 1 && (
         <div
           style={{
-            marginTop: "10px",
-            padding: "8px 14px",
-            backgroundColor: "#f0f7ff",
-            border: "1px solid #bfdbfe",
-            borderRadius: "6px",
+            marginTop: isFullscreen ? 0 : "10px",
+            padding: isFullscreen ? "10px 18px" : "8px 14px",
+            backgroundColor: isFullscreen ? "#f8fafc" : "#f0f7ff",
+            border: isFullscreen ? "none" : "1px solid #bfdbfe",
+            borderTop: isFullscreen ? "1px solid #e2e8f0" : "none",
+            borderRadius: isFullscreen ? 0 : "6px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             flexWrap: "wrap",
             gap: "8px",
             fontSize: "0.82em",
-            color: "#1e3a8a",
+            color: isFullscreen ? "#334155" : "#1e3a8a",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
             <span style={{ fontSize: "1.1em" }}>🏢</span>
             <span>
               <strong>Межэтажное перекрытие:</strong> {floorStructure?.typeName || "Монолитный ж/б по несъемной опалубке из профлиста"} (t={floorStructure?.thickness || 120} мм)
             </span>
+            <span
+              style={{
+                backgroundColor: isPartialWidth || mezzDims.isCustomLength ? "#fef3c7" : "#dbeafe",
+                color: isPartialWidth || mezzDims.isCustomLength ? "#92400e" : "#1e40af",
+                padding: "2px 8px",
+                borderRadius: "4px",
+                fontWeight: 700,
+                fontSize: "0.92em",
+              }}
+            >
+              Антресоль: {effectiveMezzWidth.toFixed(1)} м (ширина) × {mezzDims.length.toFixed(1)} м (длина) = {mezzDims.area} м²
+              {isPartialWidth ? " [частичная ширина]" : ""}
+              {mezzDims.isCustomLength ? " [часть длины]" : ""}
+            </span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", color: "#1e40af" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", color: isFullscreen ? "#475569" : "#1e40af" }}>
             <span>Полезная нагрузка: <strong>{floorStructure?.liveLoad || 400} кг/м²</strong></span>
             <span>Коэф. запаса: <strong>γf={floorStructure?.safetyFactor || 1.2}</strong></span>
             <span>Расчетная q: <strong>{floorStructure?.designLoadKg || Math.round(((floorStructure?.deadLoad || 280) * 1.1 + (floorStructure?.liveLoad || 400) * (floorStructure?.safetyFactor || 1.2)))} кг/м²</strong></span>
@@ -1243,8 +1969,35 @@ export default function QuickEstimatorSectionView({
               </span>
             )}
           </div>
+          {isFullscreen && (
+            <div style={{ fontSize: "0.78em", color: "#64748b", display: "flex", gap: "12px", alignItems: "center" }}>
+              <span>✋ Перетаскивайте чертеж зажатой мышью или клавишами ◀ ▶</span>
+              <span>•</span>
+              <span>💡 <strong>Esc</strong> для возврата</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isFullscreen && numStories === 1 && (
+        <div
+          style={{
+            padding: "10px 18px",
+            backgroundColor: "#f8fafc",
+            borderTop: "1px solid #e2e8f0",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            fontSize: "0.78em",
+            color: "#64748b",
+          }}
+        >
+          <span>✋ Зажмите левую кнопку мыши и перетаскивайте разрез влево/вправо, либо используйте стрелки ◀ ▶ на клавиатуре</span>
+          <span>💡 Клавиша <strong>Esc</strong> или клик вне окна для возврата</span>
         </div>
       )}
     </div>
-  );
+  </div>
+</>
+);
 }

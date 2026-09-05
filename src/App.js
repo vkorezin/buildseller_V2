@@ -791,6 +791,19 @@ export default function App() {
       const floorStruct = estimatorData.floorStructure || null;
       let generatedMezzanines = [];
       if (storiesCount > 1) {
+        const rawMW =
+          floorStruct?.mezzanineWidth != null &&
+          Number(floorStruct.mezzanineWidth) > 0
+            ? Number(floorStruct.mezzanineWidth)
+            : null;
+        const rawML =
+          floorStruct?.mezzanineLength != null &&
+          Number(floorStruct.mezzanineLength) > 0
+            ? Number(floorStruct.mezzanineLength)
+            : null;
+        const effW = rawMW !== null ? Math.min(totalWidth, rawMW) : totalWidth;
+        const effL = rawML !== null ? Math.min(L, rawML) : L;
+
         generatedMezzanines = Array.from({ length: storiesCount - 1 }).map(
           (_, mzIdx) => {
             const customElev =
@@ -804,10 +817,10 @@ export default function App() {
                 : parseFloat(((H / storiesCount) * (mzIdx + 1)).toFixed(2));
             return {
               id: `mz_qe_${mzIdx + 1}`,
-              name: `Этаж ${mzIdx + 2} (+${elev.toFixed(2)}м)`,
+              name: `Этаж ${mzIdx + 2} (+${elev.toFixed(2)}м, ${effW}×${effL}м)`,
               elevation: elev,
-              width: totalWidth,
-              length: L,
+              width: effW,
+              length: effL,
               offsetX: 0.0,
               offsetY: 0.0,
               thickness: floorStruct ? floorStruct.thickness : 120,
@@ -815,8 +828,8 @@ export default function App() {
               loadPartitions: floorStruct ? floorStruct.partitionsLoad : 50,
               loadDead: floorStruct ? floorStruct.deadLoad : 280,
               safetyFactor: floorStruct ? floorStruct.safetyFactor : 1.2,
-              colsX: Math.max(2, Math.round(totalWidth / 6) + 1),
-              colsY: Math.max(2, Math.round(L / 6) + 1),
+              colsX: Math.max(2, Math.round(effW / 6) + 1),
+              colsY: Math.max(2, Math.round(effL / 6) + 1),
             };
           }
         );

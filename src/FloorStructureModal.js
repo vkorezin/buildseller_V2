@@ -18,8 +18,21 @@ export default function FloorStructureModal({
   onSave,
   storiesCount = 2,
   spanWidth = 18,
+  spansCount = 1,
+  buildingLength = 36,
   height = 6,
 }) {
+  const totalBldgWidth = (Number(spansCount) || 1) * (Number(spanWidth) || 18);
+  const totalBldgLength = Number(buildingLength) || 36;
+
+  const [mezzanineWidth, setMezzanineWidth] = useState(() => {
+    return initialStructure?.mezzanineWidth != null ? initialStructure.mezzanineWidth : null;
+  });
+
+  const [mezzanineLength, setMezzanineLength] = useState(() => {
+    return initialStructure?.mezzanineLength != null ? initialStructure.mezzanineLength : null;
+  });
+
   const [selectedType, setSelectedType] = useState(() => {
     return initialStructure?.type || DEFAULT_FLOOR_STRUCTURE.type;
   });
@@ -242,6 +255,14 @@ export default function FloorStructureModal({
       columnSpans: effectiveSpans,
       deckProfile: "Н75-750-0.8",
       storyElevations: validElevations,
+      mezzanineWidth:
+        mezzanineWidth != null && !isNaN(Number(mezzanineWidth)) && Number(mezzanineWidth) > 0
+          ? Number(mezzanineWidth)
+          : null,
+      mezzanineLength:
+        mezzanineLength != null && !isNaN(Number(mezzanineLength)) && Number(mezzanineLength) > 0
+          ? Number(mezzanineLength)
+          : null,
     };
     onSave(result);
     onClose();
@@ -1720,7 +1741,316 @@ export default function FloorStructureModal({
             )}
           </div>
 
-          {/* Section 6: Инженерный сводный расчет нагрузок */}
+          {/* Section 6: Габариты антресоли (ширина и длина перекрытия) */}
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "10px",
+              padding: "16px",
+              border: "1px solid #bfdbfe",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "12px",
+                flexWrap: "wrap",
+                gap: "8px",
+              }}
+            >
+              <div>
+                <strong style={{ fontSize: "0.95em", color: "#1e3a8a" }}>
+                  6. Габариты антресоли (ширина и длина перекрытия)
+                </strong>
+                <div style={{ fontSize: "0.76em", color: "#64748b", marginTop: "2px" }}>
+                  Возможность сделать перекрытие не на весь пролет (частичная антресоль) или не на всю длину здания.
+                </div>
+              </div>
+
+              {(() => {
+                const effW =
+                  mezzanineWidth != null && Number(mezzanineWidth) > 0
+                    ? Math.min(totalBldgWidth, Number(mezzanineWidth))
+                    : totalBldgWidth;
+                const effL =
+                  mezzanineLength != null && Number(mezzanineLength) > 0
+                    ? Math.min(totalBldgLength, Number(mezzanineLength))
+                    : totalBldgLength;
+                const isPartW = effW < totalBldgWidth - 0.05;
+                const isPartL = effL < totalBldgLength - 0.05;
+                const area = Math.round(effW * effL * 10) / 10;
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span
+                      style={{
+                        fontSize: "0.78em",
+                        backgroundColor: isPartW || isPartL ? "#fef3c7" : "#dbeafe",
+                        color: isPartW || isPartL ? "#92400e" : "#1e40af",
+                        padding: "3px 8px",
+                        borderRadius: "5px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {isPartW || isPartL
+                        ? `Частичная (${effW} × ${effL} м = ${area} м²)`
+                        : `На все здание (${effW} × ${effL} м = ${area} м²)`}
+                    </span>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                gap: "14px",
+              }}
+            >
+              {/* Ширина перекрытия */}
+              <div
+                style={{
+                  backgroundColor: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  padding: "12px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "8px",
+                  }}
+                >
+                  <span style={{ fontSize: "0.85em", fontWeight: 700, color: "#334155" }}>
+                    Ширина антресоли (пролет)
+                  </span>
+                  <span style={{ fontSize: "0.75em", color: "#64748b" }}>
+                    здание: {totalBldgWidth} м
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "10px" }}>
+                  <button
+                    type="button"
+                    onClick={() => setMezzanineWidth(null)}
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: "5px",
+                      fontSize: "0.78em",
+                      fontWeight: mezzanineWidth == null ? 700 : 500,
+                      border: mezzanineWidth == null ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                      backgroundColor: mezzanineWidth == null ? "#eff6ff" : "#ffffff",
+                      color: mezzanineWidth == null ? "#1d4ed8" : "#475569",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Вся ({totalBldgWidth}м)
+                  </button>
+
+                  {Number(spansCount) > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setMezzanineWidth(Number(spanWidth))}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: "5px",
+                        fontSize: "0.78em",
+                        fontWeight: Number(mezzanineWidth) === Number(spanWidth) ? 700 : 500,
+                        border: Number(mezzanineWidth) === Number(spanWidth) ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                        backgroundColor: Number(mezzanineWidth) === Number(spanWidth) ? "#eff6ff" : "#ffffff",
+                        color: Number(mezzanineWidth) === Number(spanWidth) ? "#1d4ed8" : "#475569",
+                        cursor: "pointer",
+                      }}
+                    >
+                      1 пролет ({spanWidth}м)
+                    </button>
+                  )}
+
+                  {Number(spanWidth) >= 10 && (
+                    <button
+                      type="button"
+                      onClick={() => setMezzanineWidth(Math.round(Number(spanWidth) / 2))}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: "5px",
+                        fontSize: "0.78em",
+                        fontWeight: Number(mezzanineWidth) === Math.round(Number(spanWidth) / 2) ? 700 : 500,
+                        border: Number(mezzanineWidth) === Math.round(Number(spanWidth) / 2) ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                        backgroundColor: Number(mezzanineWidth) === Math.round(Number(spanWidth) / 2) ? "#eff6ff" : "#ffffff",
+                        color: Number(mezzanineWidth) === Math.round(Number(spanWidth) / 2) ? "#1d4ed8" : "#475569",
+                        cursor: "pointer",
+                      }}
+                    >
+                      1/2 пролета ({Math.round(Number(spanWidth) / 2)}м)
+                    </button>
+                  )}
+
+                  {[6, 9, 12].filter(w => w < totalBldgWidth && w !== Number(spanWidth) && w !== Math.round(Number(spanWidth) / 2)).map(w => (
+                    <button
+                      key={`m-modal-w-${w}`}
+                      type="button"
+                      onClick={() => setMezzanineWidth(w)}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: "5px",
+                        fontSize: "0.78em",
+                        fontWeight: Number(mezzanineWidth) === w ? 700 : 500,
+                        border: Number(mezzanineWidth) === w ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                        backgroundColor: Number(mezzanineWidth) === w ? "#eff6ff" : "#ffffff",
+                        color: Number(mezzanineWidth) === w ? "#1d4ed8" : "#475569",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {w}м
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "0.8em", color: "#64748b" }}>Точная ширина:</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="1"
+                    max={totalBldgWidth}
+                    value={mezzanineWidth != null ? mezzanineWidth : ""}
+                    placeholder={String(totalBldgWidth)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "") setMezzanineWidth(null);
+                      else {
+                        const num = parseFloat(v);
+                        if (!isNaN(num)) setMezzanineWidth(Math.max(1, Math.min(totalBldgWidth, num)));
+                      }
+                    }}
+                    style={{
+                      width: "70px",
+                      padding: "4px 8px",
+                      borderRadius: "5px",
+                      border: "1px solid #94a3b8",
+                      fontSize: "0.9em",
+                      fontWeight: 700,
+                      textAlign: "center",
+                    }}
+                  />
+                  <span style={{ fontSize: "0.8em", color: "#64748b" }}>м</span>
+                  {mezzanineWidth != null && Number(mezzanineWidth) < totalBldgWidth && (
+                    <span style={{ fontSize: "0.75em", color: "#d97706", marginLeft: "auto" }}>
+                      ⚠️ Не на весь пролет
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Длина перекрытия */}
+              <div
+                style={{
+                  backgroundColor: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  padding: "12px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "8px",
+                  }}
+                >
+                  <span style={{ fontSize: "0.85em", fontWeight: 700, color: "#334155" }}>
+                    Длина антресоли (вдоль здания)
+                  </span>
+                  <span style={{ fontSize: "0.75em", color: "#64748b" }}>
+                    здание: {totalBldgLength} м
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "10px" }}>
+                  <button
+                    type="button"
+                    onClick={() => setMezzanineLength(null)}
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: "5px",
+                      fontSize: "0.78em",
+                      fontWeight: mezzanineLength == null ? 700 : 500,
+                      border: mezzanineLength == null ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                      backgroundColor: mezzanineLength == null ? "#eff6ff" : "#ffffff",
+                      color: mezzanineLength == null ? "#1d4ed8" : "#475569",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Вся ({totalBldgLength}м)
+                  </button>
+
+                  {[6, 12, 18, 24, 30, 36, 48].filter(l => l < totalBldgLength).map(l => (
+                    <button
+                      key={`m-modal-l-${l}`}
+                      type="button"
+                      onClick={() => setMezzanineLength(l)}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: "5px",
+                        fontSize: "0.78em",
+                        fontWeight: Number(mezzanineLength) === l ? 700 : 500,
+                        border: Number(mezzanineLength) === l ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                        backgroundColor: Number(mezzanineLength) === l ? "#eff6ff" : "#ffffff",
+                        color: Number(mezzanineLength) === l ? "#1d4ed8" : "#475569",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {l}м
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "0.8em", color: "#64748b" }}>Точная длина:</span>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    max={totalBldgLength}
+                    value={mezzanineLength != null ? mezzanineLength : ""}
+                    placeholder={String(totalBldgLength)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "") setMezzanineLength(null);
+                      else {
+                        const num = parseFloat(v);
+                        if (!isNaN(num)) setMezzanineLength(Math.max(1, Math.min(totalBldgLength, num)));
+                      }
+                    }}
+                    style={{
+                      width: "70px",
+                      padding: "4px 8px",
+                      borderRadius: "5px",
+                      border: "1px solid #94a3b8",
+                      fontSize: "0.9em",
+                      fontWeight: 700,
+                      textAlign: "center",
+                    }}
+                  />
+                  <span style={{ fontSize: "0.8em", color: "#64748b" }}>м</span>
+                  {mezzanineLength != null && Number(mezzanineLength) < totalBldgLength && (
+                    <span style={{ fontSize: "0.75em", color: "#d97706", marginLeft: "auto" }}>
+                      ⚠️ Часть длины
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 7: Инженерный сводный расчет нагрузок */}
           <div
             style={{
               backgroundColor: "#f1f5f9",
@@ -1740,7 +2070,7 @@ export default function FloorStructureModal({
                 gap: "6px",
               }}
             >
-              <span>📊 Инженерная сводка нагрузок</span>
+              <span>📊 7. Инженерная сводка нагрузок</span>
             </div>
 
             <div

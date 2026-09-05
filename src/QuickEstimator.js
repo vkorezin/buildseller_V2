@@ -641,7 +641,18 @@ export default function QuickEstimator({
     let floorMult = 1;
     if (stories > 1) {
       const pRatio = Math.max(0.7, Math.min(1.6, (floorStructure?.liveLoad || 400) / 400));
-      floorMult = 1 + (stories - 1) * 0.4 * pRatio;
+      const spansCount = Math.max(1, N || 1);
+      const totalBldgArea = (W * spansCount) * L;
+      const rawMW = floorStructure?.mezzanineWidth != null && Number(floorStructure.mezzanineWidth) > 0
+        ? Number(floorStructure.mezzanineWidth)
+        : null;
+      const rawML = floorStructure?.mezzanineLength != null && Number(floorStructure.mezzanineLength) > 0
+        ? Number(floorStructure.mezzanineLength)
+        : null;
+      const effMW = rawMW !== null ? Math.min(W * spansCount, rawMW) : (W * spansCount);
+      const effML = rawML !== null ? Math.min(L, rawML) : L;
+      const areaRatio = totalBldgArea > 0 ? (effMW * effML) / totalBldgArea : 1;
+      floorMult = 1 + (stories - 1) * 0.4 * pRatio * Math.max(0.05, Math.min(1.0, areaRatio));
     }
 
     let totalFrameKgRaw = 0;
@@ -1144,6 +1155,11 @@ export default function QuickEstimator({
         onUpdateFloorElevations={(elevs) =>
           setFloorStructure((prev) => ({ ...prev, storyElevations: elevs }))
         }
+        onUpdateFloorStructure={(updater) =>
+          setFloorStructure((prev) =>
+            typeof updater === "function" ? updater(prev) : { ...prev, ...updater }
+          )
+        }
       />
 
       <QuickEstimatorSectionView
@@ -1158,6 +1174,7 @@ export default function QuickEstimator({
         cranes={cranes}
         spanOrientations={spanOrientations}
         floorStructure={floorStructure}
+        length={length}
       />
 
       <QuickEstimatorAnalytics dbAnalytics={dbAnalytics} />
@@ -1382,6 +1399,8 @@ export default function QuickEstimator({
         }}
         storiesCount={stories}
         spanWidth={spanWidth}
+        spansCount={spansCount}
+        buildingLength={length}
         height={height}
       />
     </div>

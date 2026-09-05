@@ -1,5 +1,8 @@
 import React from "react";
-import { getValidFloorElevations } from "./floorStructureConstants";
+import {
+  getValidFloorElevations,
+  getEffectiveMezzanineDimensions,
+} from "./floorStructureConstants";
 
 const styles = {
   sectionTitle: {
@@ -95,11 +98,16 @@ export default function QuickEstimatorForm({
   floorStructure = null,
   onOpenFloorModal = null,
   onUpdateFloorElevations = null,
+  onUpdateFloorStructure = null,
 }) {
   const H = Number(height) || 0;
   const showHeightWarning = H > 20;
   const numSpans = Math.max(1, Number(spansCount) || 1);
+  const W_span = Number(spanWidth) || 18;
+  const totalW = numSpans * W_span;
+  const bL = Number(length) || 36;
   const currentElevations = getValidFloorElevations(stories, height, floorStructure?.storyElevations);
+  const mezzDims = getEffectiveMezzanineDimensions(floorStructure, totalW, bL);
 
   return (
     <>
@@ -340,6 +348,363 @@ export default function QuickEstimatorForm({
             )
           )}
         </div>
+
+        {/* Панель настройки габаритов антресоли (ширина и длина) */}
+        {stories > 1 && (
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              backgroundColor: "#f8fafc",
+              border: "1px solid #bfdbfe",
+              borderRadius: "8px",
+              padding: "12px 16px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "10px",
+                flexWrap: "wrap",
+                gap: "8px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "1.1em" }}>📐</span>
+                <strong style={{ fontSize: "0.92em", color: "#1e3a8a" }}>
+                  Габариты и размещение антресоли ({stories - 1} {stories === 2 ? "ярус" : "яруса"})
+                </strong>
+                {mezzDims.isPartial ? (
+                  <span
+                    style={{
+                      fontSize: "0.72em",
+                      backgroundColor: "#fef3c7",
+                      color: "#92400e",
+                      border: "1px solid #fde68a",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    Частичная антресоль {mezzDims.isCustomWidth ? "(не на весь пролет)" : ""}
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      fontSize: "0.72em",
+                      backgroundColor: "#dbeafe",
+                      color: "#1e40af",
+                      border: "1px solid #bfdbfe",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Во все здание
+                  </span>
+                )}
+              </div>
+
+              <div style={{ fontSize: "0.8em", color: "#475569" }}>
+                Площадь этажа: <strong style={{ color: "#0f172a" }}>{mezzDims.width} × {mezzDims.length} м = {mezzDims.area} м²</strong>
+                {stories > 2 && (
+                  <span style={{ color: "#2563eb", marginLeft: "6px" }}>
+                    (всего: {Math.round(mezzDims.area * (stories - 1))} м²)
+                  </span>
+                )}
+                <span style={{ color: "#64748b", marginLeft: "6px" }}>
+                  ({Math.round((mezzDims.area / (totalW * bL)) * 100)}% от площади здания)
+                </span>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                gap: "14px",
+              }}
+            >
+              {/* Ширина антресоли */}
+              <div
+                style={{
+                  backgroundColor: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "6px",
+                  padding: "10px 12px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "6px",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.82em",
+                      fontWeight: 700,
+                      color: "#334155",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <span>Ширина антресоли:</span>
+                    <strong style={{ color: "#2563eb" }}>{mezzDims.width} м</strong>
+                  </label>
+                  <span style={{ fontSize: "0.72em", color: "#64748b" }}>
+                    здание: {totalW} м ({numSpans} прол.)
+                  </span>
+                </div>
+
+                {/* Быстрые кнопки ширины */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "5px", marginBottom: "8px" }}>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateFloorStructure && onUpdateFloorStructure({ mezzanineWidth: null })}
+                    style={{
+                      padding: "3px 7px",
+                      borderRadius: "4px",
+                      fontSize: "0.75em",
+                      fontWeight: !mezzDims.isCustomWidth ? 700 : 500,
+                      border: !mezzDims.isCustomWidth ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                      backgroundColor: !mezzDims.isCustomWidth ? "#eff6ff" : "#f8fafc",
+                      color: !mezzDims.isCustomWidth ? "#1d4ed8" : "#475569",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Вся ({totalW}м)
+                  </button>
+
+                  {numSpans > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => onUpdateFloorStructure && onUpdateFloorStructure({ mezzanineWidth: W_span })}
+                      style={{
+                        padding: "3px 7px",
+                        borderRadius: "4px",
+                        fontSize: "0.75em",
+                        fontWeight: mezzDims.width === W_span && mezzDims.isCustomWidth ? 700 : 500,
+                        border: mezzDims.width === W_span && mezzDims.isCustomWidth ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                        backgroundColor: mezzDims.width === W_span && mezzDims.isCustomWidth ? "#eff6ff" : "#f8fafc",
+                        color: mezzDims.width === W_span && mezzDims.isCustomWidth ? "#1d4ed8" : "#475569",
+                        cursor: "pointer",
+                      }}
+                    >
+                      1 пролет ({W_span}м)
+                    </button>
+                  )}
+
+                  {W_span >= 10 && (
+                    <button
+                      type="button"
+                      onClick={() => onUpdateFloorStructure && onUpdateFloorStructure({ mezzanineWidth: Math.round(W_span / 2) })}
+                      style={{
+                        padding: "3px 7px",
+                        borderRadius: "4px",
+                        fontSize: "0.75em",
+                        fontWeight: mezzDims.width === Math.round(W_span / 2) && mezzDims.isCustomWidth ? 700 : 500,
+                        border: mezzDims.width === Math.round(W_span / 2) && mezzDims.isCustomWidth ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                        backgroundColor: mezzDims.width === Math.round(W_span / 2) && mezzDims.isCustomWidth ? "#eff6ff" : "#f8fafc",
+                        color: mezzDims.width === Math.round(W_span / 2) && mezzDims.isCustomWidth ? "#1d4ed8" : "#475569",
+                        cursor: "pointer",
+                      }}
+                    >
+                      1/2 пролета ({Math.round(W_span / 2)}м)
+                    </button>
+                  )}
+
+                  {[6, 9, 12].filter(w => w < totalW && w !== W_span && w !== Math.round(W_span / 2)).map(w => (
+                    <button
+                      key={`w-btn-${w}`}
+                      type="button"
+                      onClick={() => onUpdateFloorStructure && onUpdateFloorStructure({ mezzanineWidth: w })}
+                      style={{
+                        padding: "3px 7px",
+                        borderRadius: "4px",
+                        fontSize: "0.75em",
+                        fontWeight: mezzDims.width === w && mezzDims.isCustomWidth ? 700 : 500,
+                        border: mezzDims.width === w && mezzDims.isCustomWidth ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                        backgroundColor: mezzDims.width === w && mezzDims.isCustomWidth ? "#eff6ff" : "#f8fafc",
+                        color: mezzDims.width === w && mezzDims.isCustomWidth ? "#1d4ed8" : "#475569",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {w}м
+                    </button>
+                  ))}
+                </div>
+
+                {/* Поле ручного ввода ширины */}
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ fontSize: "0.76em", color: "#64748b" }}>Своя ширина:</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="1"
+                    max={totalW}
+                    value={floorStructure?.mezzanineWidth != null ? floorStructure.mezzanineWidth : ""}
+                    placeholder={String(totalW)}
+                    onChange={(e) => {
+                      if (!onUpdateFloorStructure) return;
+                      const raw = e.target.value;
+                      if (raw === "") {
+                        onUpdateFloorStructure({ mezzanineWidth: null });
+                      } else {
+                        const val = parseFloat(raw);
+                        if (!isNaN(val)) {
+                          onUpdateFloorStructure({
+                            mezzanineWidth: Math.max(1, Math.min(totalW, val)),
+                          });
+                        }
+                      }
+                    }}
+                    style={{
+                      width: "60px",
+                      padding: "3px 6px",
+                      borderRadius: "4px",
+                      border: "1px solid #94a3b8",
+                      fontSize: "0.85em",
+                      fontWeight: 700,
+                      textAlign: "center",
+                      color: "#0f172a",
+                    }}
+                  />
+                  <span style={{ fontSize: "0.8em", color: "#64748b" }}>м</span>
+                  {mezzDims.isCustomWidth && (
+                    <span style={{ fontSize: "0.72em", color: "#d97706", marginLeft: "auto" }}>
+                      * не на весь пролет
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Длина антресоли */}
+              <div
+                style={{
+                  backgroundColor: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "6px",
+                  padding: "10px 12px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "6px",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.82em",
+                      fontWeight: 700,
+                      color: "#334155",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <span>Длина антресоли:</span>
+                    <strong style={{ color: "#2563eb" }}>{mezzDims.length} м</strong>
+                  </label>
+                  <span style={{ fontSize: "0.72em", color: "#64748b" }}>
+                    здание: {bL} м
+                  </span>
+                </div>
+
+                {/* Быстрые кнопки длины */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "5px", marginBottom: "8px" }}>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateFloorStructure && onUpdateFloorStructure({ mezzanineLength: null })}
+                    style={{
+                      padding: "3px 7px",
+                      borderRadius: "4px",
+                      fontSize: "0.75em",
+                      fontWeight: !mezzDims.isCustomLength ? 700 : 500,
+                      border: !mezzDims.isCustomLength ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                      backgroundColor: !mezzDims.isCustomLength ? "#eff6ff" : "#f8fafc",
+                      color: !mezzDims.isCustomLength ? "#1d4ed8" : "#475569",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Вся ({bL}м)
+                  </button>
+
+                  {[6, 12, 18, 24, 30, 36, 48].filter(l => l < bL).map(l => (
+                    <button
+                      key={`l-btn-${l}`}
+                      type="button"
+                      onClick={() => onUpdateFloorStructure && onUpdateFloorStructure({ mezzanineLength: l })}
+                      style={{
+                        padding: "3px 7px",
+                        borderRadius: "4px",
+                        fontSize: "0.75em",
+                        fontWeight: mezzDims.length === l && mezzDims.isCustomLength ? 700 : 500,
+                        border: mezzDims.length === l && mezzDims.isCustomLength ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                        backgroundColor: mezzDims.length === l && mezzDims.isCustomLength ? "#eff6ff" : "#f8fafc",
+                        color: mezzDims.length === l && mezzDims.isCustomLength ? "#1d4ed8" : "#475569",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {l}м
+                    </button>
+                  ))}
+                </div>
+
+                {/* Поле ручного ввода длины */}
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ fontSize: "0.76em", color: "#64748b" }}>Своя длина:</span>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    max={bL}
+                    value={floorStructure?.mezzanineLength != null ? floorStructure.mezzanineLength : ""}
+                    placeholder={String(bL)}
+                    onChange={(e) => {
+                      if (!onUpdateFloorStructure) return;
+                      const raw = e.target.value;
+                      if (raw === "") {
+                        onUpdateFloorStructure({ mezzanineLength: null });
+                      } else {
+                        const val = parseFloat(raw);
+                        if (!isNaN(val)) {
+                          onUpdateFloorStructure({
+                            mezzanineLength: Math.max(1, Math.min(bL, val)),
+                          });
+                        }
+                      }
+                    }}
+                    style={{
+                      width: "60px",
+                      padding: "3px 6px",
+                      borderRadius: "4px",
+                      border: "1px solid #94a3b8",
+                      fontSize: "0.85em",
+                      fontWeight: 700,
+                      textAlign: "center",
+                      color: "#0f172a",
+                    }}
+                  />
+                  <span style={{ fontSize: "0.8em", color: "#64748b" }}>м</span>
+                  {mezzDims.isCustomLength && (
+                    <span style={{ fontSize: "0.72em", color: "#d97706", marginLeft: "auto" }}>
+                      * часть длины
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div
           style={{

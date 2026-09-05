@@ -300,7 +300,39 @@ export const DEFAULT_FLOOR_STRUCTURE = {
   columnSpans: null, // массив пролетов стоек, например [6, 6, 6]
   deckProfile: "Н75-750-0.8",
   storyElevations: null, // массив отметок перекрытий [3.6, 7.2], null = равномерный шаг
+  mezzanineWidth: null, // null = во всю ширину здания, либо число в метрах (например, 6, 9, 12)
+  mezzanineLength: null, // null = на всю длину здания, либо число в метрах (например, 12, 18, 24)
 };
+
+/**
+ * Расчет эффективных размеров и площади антресоли
+ */
+export function getEffectiveMezzanineDimensions(floorStructure, totalBuildingWidth, buildingLength) {
+  const bW = Number(totalBuildingWidth) > 0 ? Number(totalBuildingWidth) : 18;
+  const bL = Number(buildingLength) > 0 ? Number(buildingLength) : 36;
+
+  const rawW = floorStructure?.mezzanineWidth != null && !isNaN(Number(floorStructure.mezzanineWidth))
+    ? Number(floorStructure.mezzanineWidth)
+    : null;
+  const rawL = floorStructure?.mezzanineLength != null && !isNaN(Number(floorStructure.mezzanineLength))
+    ? Number(floorStructure.mezzanineLength)
+    : null;
+
+  const isCustomWidth = rawW !== null && rawW > 0 && rawW < bW;
+  const isCustomLength = rawL !== null && rawL > 0 && rawL < bL;
+
+  const width = isCustomWidth ? Math.max(1, Math.min(bW, Math.round(rawW * 10) / 10)) : bW;
+  const length = isCustomLength ? Math.max(1, Math.min(bL, Math.round(rawL * 10) / 10)) : bL;
+
+  return {
+    width,
+    length,
+    area: Math.round(width * length * 10) / 10,
+    isCustomWidth,
+    isCustomLength,
+    isPartial: isCustomWidth || isCustomLength,
+  };
+}
 
 /**
  * Расчет собственного веса перекрытия (кг/м²) в зависимости от типа и толщины.
