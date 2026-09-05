@@ -1,4 +1,5 @@
 import React from "react";
+import { getValidFloorElevations } from "./floorStructureConstants";
 
 const AXIS_LABELS = ["А", "Б", "В", "Г", "Д", "Е", "Ж", "И", "К", "Л"];
 
@@ -13,6 +14,7 @@ export default function QuickEstimatorSectionView({
   setFrameType = null,
   cranes = [],
   spanOrientations = [],
+  floorStructure = null,
 }) {
   const W_span = Number(spanWidth) > 0 ? Number(spanWidth) : 18;
   const numStories = Math.max(1, Math.min(4, Number(stories) || 1));
@@ -102,10 +104,11 @@ export default function QuickEstimatorSectionView({
     colXList.push(offsetX + i * (W_span * scale));
   }
 
-  const floorLevels = [];
   const floorHeight = H_clear / numStories;
+  const floorLevels = [];
+  const validElevs = getValidFloorElevations(numStories, H_clear, floorStructure?.storyElevations);
   for (let f = 1; f < numStories; f++) {
-    const hLevel = f * floorHeight;
+    const hLevel = validElevs[f - 1] !== undefined ? validElevs[f - 1] : ((f * H_clear) / numStories);
     const yLevel = baseGroundY - hLevel * scale;
     floorLevels.push({ index: f, hLevel, yLevel });
   }
@@ -113,6 +116,47 @@ export default function QuickEstimatorSectionView({
     floorLevels.length > 0
       ? floorLevels[floorLevels.length - 1].yLevel
       : baseGroundY;
+
+  // Логика промежуточных колонн:
+  // Если заданы ручные пролеты в floorStructure (columnSpansMode === "manual"),
+  // иначе по нормативному правилу: при W_span >= 9м делим пополам и каждые следующие 9м
+  const intermediateColsData = [];
+  let subBaysCount = 1;
+  if (numStories > 1) {
+    if (
+      floorStructure?.columnSpansMode === "manual" &&
+      Array.isArray(floorStructure?.columnSpans) &&
+      floorStructure.columnSpans.length > 0
+    ) {
+      const rawSpans = floorStructure.columnSpans
+        .map((v) => Number(v) || 0)
+        .filter((v) => v > 0);
+      subBaysCount = rawSpans.length;
+      if (rawSpans.length > 1) {
+        const totalS = rawSpans.reduce((a, b) => a + b, 0) || W_span;
+        let accum = 0;
+        for (let s = 0; s < rawSpans.length - 1; s++) {
+          accum += rawSpans[s];
+          intermediateColsData.push({
+            ratio: accum / totalS,
+            label: `${rawSpans[s].toFixed(1)}м`,
+          });
+        }
+      }
+    } else {
+      const kSub = W_span >= 9 ? Math.floor(W_span / 9) + 1 : 1;
+      subBaysCount = kSub;
+      if (kSub > 1) {
+        const subBayMeters = W_span / kSub;
+        for (let s = 1; s < kSub; s++) {
+          intermediateColsData.push({
+            ratio: s / kSub,
+            label: `${subBayMeters.toFixed(1)}м`,
+          });
+        }
+      }
+    }
+  }
 
   // Функция расчета координаты верха кровли в точке x внутри конкретного пролёта spanIndex
   const getSpanRoofTopY = (spanIdx, x) => {
@@ -435,29 +479,160 @@ export default function QuickEstimatorSectionView({
             </g>
           )}
 
-          {/* 3. Междуэтажные перекрытия */}
+          {/* 3. Междуэтажные перекрытия и промежуточные колонны 1-го этажа */}
           {numStories > 1 && (
             <g>
-              {floorLevels.map((fl) => (
-                <g key={`floor-level-beam-${fl.index}`}>
-                  <line
-                    x1={colXList[0]}
-                    y1={fl.yLevel}
-                    x2={colXList[N_spans]}
-                    y2={fl.yLevel}
-                    stroke="#0056b3"
-                    strokeWidth={2.5}
-                  />
-                  <line
-                    x1={colXList[0]}
-                    y1={fl.yLevel - 2}
-                    x2={colXList[N_spans]}
-                    y2={fl.yLevel - 2}
-                    stroke="#6e7781"
-                    strokeWidth={1.5}
-                  />
-                </g>
-              ))}
+              {floorLevels.map((fl) => {
+                // Стиль плиты в зависимости от выбранного типа перекрытия
+                let slabFill = "#c6d8ef";
+                let slabStroke = "#0056b3";
+                const flType = floorStructure?.type || "monolithic_deck";
+                if (flType === "precast_hollow_core") {
+                  slabFill = "#d0d7de";
+                  slabStroke = "#475569";
+                } else if (flType === "monolithic_slab") {
+                  slabFill = "#94a3b8";
+                  slabStroke = "#334155";
+                } else if (flType === "timber_deck") {
+                  slabFill = "#fde68a";
+                  slabStroke = "#b45309";
+                } else if (flType === "steel_grating") {
+                  slabFill = "#94a3b8";
+                  slabStroke = "#059669";
+                } else if (flType === "knauf_dry_floor") {
+                  slabFill = "#e9d5ff";
+                  slabStroke = "#7c3aed";
+                } else if (flType === "precast_block_composite") {
+                  slabFill = "#fed7aa";
+                  slabStroke = "#c2410c";
+                }
+
+                return (
+                  <g key={`floor-level-beam-${fl.index}`}>
+                    {/* Плита перекрытия */}
+                    <rect
+                      x={colXList[0]}
+                      y={fl.yLevel - 4}
+                      width={colXList[N_spans] - colXList[0]}
+                      height={4}
+                      fill={slabFill}
+                      stroke={slabStroke}
+                      strokeWidth={0.8}
+                    />
+                    {/* Несущая балка перекрытия */}
+                    <line
+                      x1={colXList[0]}
+                      y1={fl.yLevel}
+                      x2={colXList[N_spans]}
+                      y2={fl.yLevel}
+                      stroke="#0056b3"
+                      strokeWidth={2.8}
+                    />
+                    {/* Текстовая отметка уровня этажа */}
+                    <text
+                      x={colXList[0] - 6}
+                      y={fl.yLevel + 3}
+                      fontSize={8}
+                      fontFamily="Roboto, sans-serif"
+                      fill="#0056b3"
+                      fontWeight="bold"
+                      textAnchor="end"
+                    >
+                      {`+${fl.hLevel.toFixed(2)} м`}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Промежуточные колонны 1-го этажа */}
+              {intermediateColsData.length > 0 &&
+                Array.from({ length: N_spans }).map((_, i) => {
+                  const x1 = colXList[i];
+                  const x2 = colXList[i + 1];
+
+                  return (
+                    <g key={`inter-cols-group-span-${i}`}>
+                      {intermediateColsData.map((colItem, cIdx) => {
+                        const cx = x1 + colItem.ratio * (x2 - x1);
+                        return (
+                          <g key={`inter-col-${i}-${cIdx}`}>
+                            {/* Осевая штрихпунктирная линия */}
+                            <line
+                              x1={cx}
+                              y1={baseGroundY + 6}
+                              x2={cx}
+                              y2={topMezzanineY - 4}
+                              stroke="#94a3b8"
+                              strokeWidth={0.7}
+                              strokeDasharray="4 2"
+                            />
+
+                            {/* Ствол промежуточной колонны */}
+                            <rect
+                              x={cx - 2}
+                              y={topMezzanineY}
+                              width={4}
+                              height={baseGroundY - topMezzanineY}
+                              fill="#0284c7"
+                              stroke="#0369a1"
+                              strokeWidth={0.6}
+                              rx={0.5}
+                            />
+
+                            {/* Опорная база на отметке пола */}
+                            <rect
+                              x={cx - 5}
+                              y={baseGroundY - 3}
+                              width={10}
+                              height={3}
+                              fill="#1e293b"
+                              stroke="#0f172a"
+                              strokeWidth={0.5}
+                              rx={0.5}
+                            />
+                            <rect
+                              x={cx - 7}
+                              y={baseGroundY}
+                              width={14}
+                              height={4}
+                              fill="#cbd5e1"
+                              stroke="#94a3b8"
+                              strokeWidth={0.5}
+                            />
+
+                            {/* Оголовки колонны в местах опирания балок перекрытий */}
+                            {floorLevels.map((fl) => (
+                              <rect
+                                key={`inter-cap-${i}-${cIdx}-${fl.index}`}
+                                x={cx - 4.5}
+                                y={fl.yLevel - 1.5}
+                                width={9}
+                                height={3}
+                                fill="#0369a1"
+                                stroke="#075985"
+                                strokeWidth={0.5}
+                                rx={0.5}
+                              />
+                            ))}
+
+                            {/* Подпись шага/стойки */}
+                            <text
+                              x={cx}
+                              y={baseGroundY - 6}
+                              fontSize={6.5}
+                              fontFamily="Roboto, sans-serif"
+                              fill="#0369a1"
+                              textAnchor="middle"
+                              fontWeight="bold"
+                            >
+                              {`стойка ${colItem.label}`}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </g>
+                  );
+                })}
             </g>
           )}
 
@@ -1032,6 +1207,44 @@ export default function QuickEstimatorSectionView({
           })()}
         </svg>
       </div>
+
+      {numStories > 1 && (
+        <div
+          style={{
+            marginTop: "10px",
+            padding: "8px 14px",
+            backgroundColor: "#f0f7ff",
+            border: "1px solid #bfdbfe",
+            borderRadius: "6px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "8px",
+            fontSize: "0.82em",
+            color: "#1e3a8a",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span style={{ fontSize: "1.1em" }}>🏢</span>
+            <span>
+              <strong>Межэтажное перекрытие:</strong> {floorStructure?.typeName || "Монолитный ж/б по несъемной опалубке из профлиста"} (t={floorStructure?.thickness || 120} мм)
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", color: "#1e40af" }}>
+            <span>Полезная нагрузка: <strong>{floorStructure?.liveLoad || 400} кг/м²</strong></span>
+            <span>Коэф. запаса: <strong>γf={floorStructure?.safetyFactor || 1.2}</strong></span>
+            <span>Расчетная q: <strong>{floorStructure?.designLoadKg || Math.round(((floorStructure?.deadLoad || 280) * 1.1 + (floorStructure?.liveLoad || 400) * (floorStructure?.safetyFactor || 1.2)))} кг/м²</strong></span>
+            {subBaysCount > 1 && (
+              <span style={{ backgroundColor: "#dbeafe", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                {floorStructure?.columnSpansMode === "manual" && Array.isArray(floorStructure?.columnSpans)
+                  ? `Промежуточные стойки: ${floorStructure.columnSpans.join(" + ")} м`
+                  : `Промежуточные стойки 1-го этажа шагом ${(W_span / subBaysCount).toFixed(1)} м`}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

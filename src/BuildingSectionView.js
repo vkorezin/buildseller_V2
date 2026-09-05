@@ -15,6 +15,7 @@ export default function BuildingSectionView({
   zoom = 100,
   showHeader = false,
   styles = {},
+  floorStructure = null,
 }) {
   if (
     !generalData ||
@@ -787,6 +788,110 @@ export default function BuildingSectionView({
                 </g>
               );
             })}
+
+          {/* Промежуточные колонны 1-го этажа / антресолей при ширине пролета >= 9м */}
+          {mezzanines &&
+            mezzanines.length > 0 &&
+            (() => {
+              const maxElev = Math.max(
+                ...mezzanines.map((m) => Number(m.elevation) || 0)
+              );
+              const yTopMezz = yElevation(maxElev);
+              const yBase = yElevation(0);
+
+              return spanConfigs.map((sc, i) => {
+                const W = sc.W;
+                const intermediateColsData = [];
+                if (
+                  floorStructure?.columnSpansMode === "manual" &&
+                  Array.isArray(floorStructure?.columnSpans) &&
+                  floorStructure.columnSpans.length > 0
+                ) {
+                  const rawSpans = floorStructure.columnSpans
+                    .map((v) => Number(v) || 0)
+                    .filter((v) => v > 0);
+                  if (rawSpans.length > 1) {
+                    const totalS = rawSpans.reduce((a, b) => a + b, 0) || W;
+                    let accum = 0;
+                    for (let s = 0; s < rawSpans.length - 1; s++) {
+                      accum += rawSpans[s];
+                      intermediateColsData.push({
+                        ratio: accum / totalS,
+                        label: `${rawSpans[s].toFixed(1)}м`,
+                      });
+                    }
+                  }
+                } else {
+                  const kSubSpans = W >= 9 ? Math.floor(W / 9) + 1 : 1;
+                  if (kSubSpans > 1) {
+                    const subBayMeters = W / kSubSpans;
+                    for (let s = 1; s < kSubSpans; s++) {
+                      intermediateColsData.push({
+                        ratio: s / kSubSpans,
+                        label: `${subBayMeters.toFixed(1)}м`,
+                      });
+                    }
+                  }
+                }
+
+                if (intermediateColsData.length === 0) return null;
+
+                const x1 = colXList[i];
+                const x2 = colXList[i + 1];
+
+                return (
+                  <g key={`building-inter-cols-${i}`}>
+                    {intermediateColsData.map((colItem, sIdx) => {
+                      const cx = x1 + colItem.ratio * (x2 - x1);
+                      return (
+                        <g key={`building-col-${i}-${sIdx}`}>
+                          <line
+                            x1={cx}
+                            y1={yBase + 5}
+                            x2={cx}
+                            y2={yTopMezz - 3}
+                            stroke="#94a3b8"
+                            strokeWidth={0.7}
+                            strokeDasharray="4 2"
+                          />
+                          <rect
+                            x={cx - 2}
+                            y={yTopMezz}
+                            width={4}
+                            height={yBase - yTopMezz}
+                            fill="#0284c7"
+                            stroke="#0369a1"
+                            strokeWidth={0.6}
+                            rx={0.5}
+                          />
+                          <rect
+                            x={cx - 5}
+                            y={yBase - 3}
+                            width={10}
+                            height={3}
+                            fill="#1e293b"
+                            stroke="#0f172a"
+                            strokeWidth={0.5}
+                            rx={0.5}
+                          />
+                          <text
+                            x={cx}
+                            y={yBase - 5}
+                            fontSize={6.5}
+                            fontFamily="Roboto, sans-serif"
+                            fill="#0369a1"
+                            textAnchor="middle"
+                            fontWeight="bold"
+                          >
+                            {`стойка ${colItem.label}`}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </g>
+                );
+              });
+            })()}
 
           {/* 4. Несущие конструкции покрытия по каждому пролету */}
           {spanConfigs.map((sc, i) => {

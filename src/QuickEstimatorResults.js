@@ -54,7 +54,8 @@ export default function QuickEstimatorResults({
   spanOrientations = [],
   gkPrice = 140000,
   lstkPrice = 160000,
-  fasonkaPrice = 150000
+  fasonkaPrice = 150000,
+  floorStructure = null,
 }) {
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [showPdf, setShowPdf] = useState(false);
@@ -213,6 +214,7 @@ export default function QuickEstimatorResults({
       spanWidth,
       spansCount,
       stories,
+      floorStructure,
       length,
       height,
       roofShape,

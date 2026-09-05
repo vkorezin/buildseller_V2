@@ -13,6 +13,7 @@ export default function PDFBuildingSectionEskiz({
   frameType = 'beam',
   cranes = [],
   spanOrientations = [],
+  floorStructure = null,
 }) {
   const W_span = Number(spanWidth) > 0 ? Number(spanWidth) : 18;
   const numStories = Math.max(1, Math.min(4, Number(stories) || 1));
@@ -105,10 +106,30 @@ export default function PDFBuildingSectionEskiz({
   const topMezzanineY = floorLevels.length > 0 ? floorLevels[floorLevels.length - 1].yLevel : baseGroundY;
 
   const intermediateColsPerSpan = [];
-  const kSubSpans = Math.max(1, Math.ceil(W_span / 8.0));
-  if (numStories > 1 && kSubSpans > 1) {
-    for (let s = 1; s < kSubSpans; s++) {
-      intermediateColsPerSpan.push(s / kSubSpans);
+  if (numStories > 1) {
+    if (
+      floorStructure?.columnSpansMode === "manual" &&
+      Array.isArray(floorStructure?.columnSpans) &&
+      floorStructure.columnSpans.length > 0
+    ) {
+      const rawSpans = floorStructure.columnSpans
+        .map((v) => Number(v) || 0)
+        .filter((v) => v > 0);
+      if (rawSpans.length > 1) {
+        const totalS = rawSpans.reduce((a, b) => a + b, 0) || W_span;
+        let accum = 0;
+        for (let s = 0; s < rawSpans.length - 1; s++) {
+          accum += rawSpans[s];
+          intermediateColsPerSpan.push(accum / totalS);
+        }
+      }
+    } else {
+      const kSubSpans = W_span >= 9 ? Math.floor(W_span / 9) + 1 : 1;
+      if (kSubSpans > 1) {
+        for (let s = 1; s < kSubSpans; s++) {
+          intermediateColsPerSpan.push(s / kSubSpans);
+        }
+      }
     }
   }
 
@@ -285,15 +306,16 @@ export default function PDFBuildingSectionEskiz({
                 x2={colXList[N_spans]}
                 y2={fl.yLevel}
                 stroke="#0056b3"
-                strokeWidth={2}
+                strokeWidth={2.2}
               />
-              <Line
-                x1={colXList[0]}
-                y1={fl.yLevel - 1.5}
-                x2={colXList[N_spans]}
-                y2={fl.yLevel - 1.5}
-                stroke="#6c757d"
-                strokeWidth={1}
+              <Rect
+                x={colXList[0]}
+                y={fl.yLevel - 3}
+                width={colXList[N_spans] - colXList[0]}
+                height={3}
+                fill="#d0e2ff"
+                stroke="#0056b3"
+                strokeWidth={0.5}
               />
             </G>
           ))}
@@ -311,13 +333,13 @@ export default function PDFBuildingSectionEskiz({
                     x2={cx}
                     y2={topMezzanineY}
                     stroke="#007bff"
-                    strokeWidth={1.5}
+                    strokeWidth={1.8}
                   />
                   <Rect
-                    x={cx - 1.5}
-                    y={baseGroundY - 2}
-                    width={3}
-                    height={2}
+                    x={cx - 2}
+                    y={baseGroundY - 2.5}
+                    width={4}
+                    height={2.5}
                     fill="#333333"
                   />
                 </G>

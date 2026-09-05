@@ -1,4 +1,5 @@
 import React from "react";
+import { getValidFloorElevations } from "./floorStructureConstants";
 
 const styles = {
   sectionTitle: {
@@ -91,10 +92,14 @@ export default function QuickEstimatorForm({
   spanOrientations = [],
   updateSpanOrientation,
   setAllSpanOrientations,
+  floorStructure = null,
+  onOpenFloorModal = null,
+  onUpdateFloorElevations = null,
 }) {
   const H = Number(height) || 0;
   const showHeightWarning = H > 20;
   const numSpans = Math.max(1, Number(spansCount) || 1);
+  const currentElevations = getValidFloorElevations(stories, height, floorStructure?.storyElevations);
 
   return (
     <>
@@ -201,6 +206,139 @@ export default function QuickEstimatorForm({
             value={stories}
             onChange={(e) => setStories(Number(e.target.value))}
           />
+          {onOpenFloorModal && (
+            stories > 1 ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onOpenFloorModal}
+                  style={{
+                    marginTop: "6px",
+                    width: "100%",
+                    padding: "6px 8px",
+                    backgroundColor: "#eff6ff",
+                    border: "1px solid #bfdbfe",
+                    borderRadius: "6px",
+                    color: "#1d4ed8",
+                    fontSize: "0.76em",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "4px",
+                    textAlign: "center",
+                  }}
+                  title="Настроить конструкцию перекрытия, отметки этажей, полезную нагрузку"
+                >
+                  <span>⚙️</span>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {floorStructure?.shortName || "Ж/б по профлисту Н75"}{floorStructure?.thickness ? ` ${floorStructure.thickness}мм` : ""} ({floorStructure?.liveLoad || 400} кг/м²)
+                  </span>
+                </button>
+
+                {/* Быстрый выбор отметок пола каждого этажа */}
+                <div style={{ marginTop: "6px" }}>
+                  <div
+                    style={{
+                      fontSize: "0.7em",
+                      fontWeight: 600,
+                      color: "#475569",
+                      marginBottom: "3px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <span>Отметки пола:</span>
+                    <span style={{ color: "#059669" }}>низ балок: +{Number(height).toFixed(1)}м</span>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                    {currentElevations.map((elev, idx) => {
+                      const floorNum = idx + 2;
+                      const prevH = idx === 0 ? 0 : currentElevations[idx - 1];
+                      const nextH =
+                        idx === currentElevations.length - 1
+                          ? Number(height)
+                          : currentElevations[idx + 1];
+                      const minAllowed = Math.round((prevH + 0.2) * 100) / 100;
+                      const maxAllowed = Math.round(nextH * 100) / 100;
+
+                      return (
+                        <div
+                          key={idx}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "2px",
+                            backgroundColor: "#ffffff",
+                            padding: "2px 4px",
+                            borderRadius: "4px",
+                            border: "1px solid #cbd5e1",
+                            fontSize: "0.72em",
+                          }}
+                          title={`Отметка пола ${floorNum} этажа (от +${minAllowed}м до +${maxAllowed}м)`}
+                        >
+                          <span style={{ color: "#1d4ed8", fontWeight: 700 }}>
+                            {floorNum} эт: +
+                          </span>
+                          <input
+                            type="number"
+                            step="0.05"
+                            min={minAllowed}
+                            max={maxAllowed}
+                            value={elev}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              if (!isNaN(val) && onUpdateFloorElevations) {
+                                const updated = [...currentElevations];
+                                const clamped = Math.max(
+                                  minAllowed,
+                                  Math.min(maxAllowed, Math.round(val * 100) / 100)
+                                );
+                                updated[idx] = clamped;
+                                onUpdateFloorElevations(updated);
+                              }
+                            }}
+                            style={{
+                              width: "46px",
+                              padding: "2px 2px",
+                              borderRadius: "3px",
+                              border: "1px solid #93c5fd",
+                              fontSize: "0.9em",
+                              fontWeight: 700,
+                              textAlign: "center",
+                              color: "#0f172a",
+                            }}
+                          />
+                          <span style={{ color: "#64748b" }}>м</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenFloorModal}
+                style={{
+                  marginTop: "6px",
+                  width: "100%",
+                  padding: "5px 6px",
+                  backgroundColor: "#f8fafc",
+                  border: "1px dashed #cbd5e1",
+                  borderRadius: "6px",
+                  color: "#64748b",
+                  fontSize: "0.72em",
+                  cursor: "pointer",
+                  textAlign: "center",
+                }}
+                title="Настроить конструкцию межэтажного перекрытия и нагрузки"
+              >
+                ⚙️ Состав перекрытия
+              </button>
+            )
+          )}
         </div>
 
         <div

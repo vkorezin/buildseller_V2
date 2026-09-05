@@ -788,26 +788,33 @@ export default function App() {
       });
 
       const storiesCount = Math.max(1, Number(estimatorData.stories) || 1);
+      const floorStruct = estimatorData.floorStructure || null;
       let generatedMezzanines = [];
       if (storiesCount > 1) {
         generatedMezzanines = Array.from({ length: storiesCount - 1 }).map(
           (_, mzIdx) => {
-            const elev = parseFloat(
-              ((H / storiesCount) * (mzIdx + 1)).toFixed(1)
-            );
+            const customElev =
+              floorStruct?.storyElevations &&
+              floorStruct.storyElevations[mzIdx] !== undefined
+                ? Number(floorStruct.storyElevations[mzIdx])
+                : null;
+            const elev =
+              customElev !== null
+                ? customElev
+                : parseFloat(((H / storiesCount) * (mzIdx + 1)).toFixed(2));
             return {
               id: `mz_qe_${mzIdx + 1}`,
-              name: `Этаж ${mzIdx + 2} (${elev}м)`,
+              name: `Этаж ${mzIdx + 2} (+${elev.toFixed(2)}м)`,
               elevation: elev,
               width: totalWidth,
               length: L,
               offsetX: 0.0,
               offsetY: 0.0,
-              thickness: 120,
-              loadLive: 200,
-              loadPartitions: 50,
-              loadDead: 150,
-              safetyFactor: 1.2,
+              thickness: floorStruct ? floorStruct.thickness : 120,
+              loadLive: floorStruct ? floorStruct.liveLoad : 400,
+              loadPartitions: floorStruct ? floorStruct.partitionsLoad : 50,
+              loadDead: floorStruct ? floorStruct.deadLoad : 280,
+              safetyFactor: floorStruct ? floorStruct.safetyFactor : 1.2,
               colsX: Math.max(2, Math.round(totalWidth / 6) + 1),
               colsY: Math.max(2, Math.round(L / 6) + 1),
             };
@@ -841,6 +848,7 @@ export default function App() {
             columnStep: existingBlock1?.data?.columnStep || 6,
             orientation: existingBlock1?.data?.orientation || "horizontal",
             mezzanines: generatedMezzanines,
+            floorStructure: floorStruct,
             loads: {
               snow: estimatorData.snowLoad
                 ? Number(estimatorData.snowLoad) / 100

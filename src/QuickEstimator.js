@@ -11,6 +11,8 @@ import QuickEstimatorForm from "./QuickEstimatorForm";
 import QuickEstimatorSectionView from "./QuickEstimatorSectionView";
 import QuickEstimatorAnalytics from "./QuickEstimatorAnalytics";
 import QuickEstimatorResults from "./QuickEstimatorResults";
+import FloorStructureModal from "./FloorStructureModal";
+import { DEFAULT_FLOOR_STRUCTURE } from "./floorStructureConstants";
 import {
   generateBase210Matrix,
   generateSnowCoefficients,
@@ -227,6 +229,25 @@ export default function QuickEstimator({
     }
     return 1;
   });
+
+  const [floorStructure, setFloorStructure] = useState(() => {
+    if (initialBlock?.data?.floorStructure) {
+      return initialBlock.data.floorStructure;
+    }
+    const mz0 = initialBlock?.data?.mezzanines?.[0];
+    if (mz0) {
+      return {
+        ...DEFAULT_FLOOR_STRUCTURE,
+        liveLoad: mz0.loadLive || 400,
+        deadLoad: mz0.loadDead || 280,
+        partitionsLoad: mz0.loadPartitions || 50,
+        thickness: mz0.thickness || 120,
+        safetyFactor: mz0.safetyFactor || 1.2,
+      };
+    }
+    return DEFAULT_FLOOR_STRUCTURE;
+  });
+  const [isFloorModalOpen, setIsFloorModalOpen] = useState(false);
 
   const [snowLoad, setSnowLoad] = useState(() => {
     if (projectLoads?.snow != null) {
@@ -618,7 +639,10 @@ export default function QuickEstimator({
     let lMult = 1;
     if (L < 30) lMult += 0.05;
     let floorMult = 1;
-    if (stories > 1) floorMult = 1 + (stories - 1) * 0.4;
+    if (stories > 1) {
+      const pRatio = Math.max(0.7, Math.min(1.6, (floorStructure?.liveLoad || 400) / 400));
+      floorMult = 1 + (stories - 1) * 0.4 * pRatio;
+    }
 
     let totalFrameKgRaw = 0;
     let totalPurlinsKg = 0;
@@ -1054,6 +1078,7 @@ export default function QuickEstimator({
       roofShape,
       slope,
       stories,
+      floorStructure,
       snowLoad,
       windLoad,
       cranes,
@@ -1090,6 +1115,7 @@ export default function QuickEstimator({
           <button style={styles.settingsBtn} onClick={() => setIsWindCoeffsOpen(true)} title="💨 Ветер">💨 Ветер</button>
           <button style={styles.settingsBtn} onClick={() => setIsPurlinsOpen(true)} title="🏗️ Прогоны">🏗️ Прогоны</button>
           <button style={styles.settingsBtn} onClick={() => setIsTrussEditorOpen(true)} title="⚙️ Ферма">⚙️ Ферма</button>
+          <button style={styles.settingsBtn} onClick={() => setIsFloorModalOpen(true)} title="🏢 Межэтажные перекрытия">🏢 Перекрытия</button>
           <button style={styles.settingsBtn} onClick={() => setIsBuildingTypesOpen(true)} title="⚙️ Типы зданий">⚙️ Типы</button>
         </div>
         <button style={styles.closeButton} onClick={handleCloseWithData} title="Закрыть и применить к проекту">
@@ -1113,6 +1139,11 @@ export default function QuickEstimator({
         spanOrientations={spanOrientations}
         updateSpanOrientation={updateSpanOrientation}
         setAllSpanOrientations={setAllSpanOrientations}
+        floorStructure={floorStructure}
+        onOpenFloorModal={() => setIsFloorModalOpen(true)}
+        onUpdateFloorElevations={(elevs) =>
+          setFloorStructure((prev) => ({ ...prev, storyElevations: elevs }))
+        }
       />
 
       <QuickEstimatorSectionView
@@ -1126,6 +1157,7 @@ export default function QuickEstimator({
         setFrameType={setFrameType}
         cranes={cranes}
         spanOrientations={spanOrientations}
+        floorStructure={floorStructure}
       />
 
       <QuickEstimatorAnalytics dbAnalytics={dbAnalytics} />
@@ -1294,6 +1326,7 @@ export default function QuickEstimator({
         gkPrice={gkPrice}
         lstkPrice={lstkPrice}
         fasonkaPrice={fasonkaPrice}
+        floorStructure={floorStructure}
       />
 
       <div
@@ -1337,6 +1370,20 @@ export default function QuickEstimator({
       <RoofPurlinsEditor isOpen={isPurlinsOpen} onClose={() => setIsPurlinsOpen(false)} onSave={setRoofPurlins} />
       <TrussEfficiencyEditor isOpen={isTrussEditorOpen} onClose={() => setIsTrussEditorOpen(false)} onSave={setTrussTable} />
       {isBuildingTypesOpen && <BuildingTypesEditor onClose={() => setIsBuildingTypesOpen(false)} />}
+      <FloorStructureModal
+        isOpen={isFloorModalOpen}
+        onClose={() => setIsFloorModalOpen(false)}
+        initialStructure={floorStructure}
+        onSave={(newStruct) => {
+          setFloorStructure(newStruct);
+          if (stories === 1) {
+            setStories(2);
+          }
+        }}
+        storiesCount={stories}
+        spanWidth={spanWidth}
+        height={height}
+      />
     </div>
   );
 }

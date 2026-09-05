@@ -173,7 +173,7 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
                 • Габариты: {spansCountNum > 1 ? `${spansCountNum} прол. по ${spanWidthNum} м (общ. ${totalBuildingWidth} м)` : `Пролет ${spanWidthNum} м`} × Длина {data.length || '-'} м
               </Text>
               <Text style={styles.listText}>
-                • Этажность: {storiesNum > 1 ? `${storiesNum} этажа (междуэтажные перекрытия)` : '1 этаж (однообъемное здание)'}
+                • Этажность: {storiesNum > 1 ? `${storiesNum} эт. (${data.floorStructure?.shortName || 'Ж/б перекрытие'}, толщ. ${data.floorStructure?.thickness || 120} мм, полезная ${data.floorStructure?.liveLoad || 400} кг/м², γf=${data.floorStructure?.safetyFactor || 1.2})` : '1 этаж (однообъемное здание)'}
               </Text>
               <Text style={styles.listText}>• Высота до низа несущих конструкций: {data.height || '-'} м</Text>
               <Text style={styles.listText}>• Несущий каркас: {data.frameType === 'truss' ? 'Решетчатая ферма' : 'Рамная балка'}</Text>
@@ -197,6 +197,7 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
               frameType={data.frameType}
               cranes={data.cranes}
               spanOrientations={data.spanOrientations}
+              floorStructure={data.floorStructure}
             />
           </View>
         </View>
