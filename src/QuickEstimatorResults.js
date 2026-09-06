@@ -143,6 +143,9 @@ export default function QuickEstimatorResults({
   if (hasAnyCrane) blockType1 = "Краны недопустимы для полностью ЛСТК каркаса";
   if (hasSuspensionCrane) blockType2 = "Подвесные краны недопустимы для комби-каркаса";
 
+  const baseMezzanineKg = parseFloat(estimation.mezzanineWeight || 0) * 1000;
+  const mezzanineCost = (baseMezzanineKg / 1000) * pGk;
+
   const types = [
     {
       id: 1,
@@ -151,7 +154,7 @@ export default function QuickEstimatorResults({
       blocked: blockType1,
       calc: () => {
         const purlinsCost = (roofPurlinsKg / 1000 * pLstk) + (wpLstk / 1000 * pLstk) + (wpFas / 1000 * pFas);
-        const metalCost = ((framesKg1 * (1 - config.type1Fastener)) / 1000 * pLstk) + ((framesKg1 * config.type1Fastener) / 1000 * pFas) + (baseTiesKg / 1000 * pFas) + purlinsCost;
+        const metalCost = ((framesKg1 * (1 - config.type1Fastener)) / 1000 * pLstk) + ((framesKg1 * config.type1Fastener) / 1000 * pFas) + (baseTiesKg / 1000 * pFas) + purlinsCost + mezzanineCost;
         return { frames: framesKg1, purlins: roofPurlinsKg + wpLstk + wpFas, metalCost };
       }
     },
@@ -163,7 +166,7 @@ export default function QuickEstimatorResults({
       calc: () => {
         const framesKg2 = hasAnyCrane ? (baseFramesKg / (config.craneType2 || 1)) : ((framesKg1 + baseFramesKg) / 2);
         const purlinsCost = (roofPurlinsKg / 1000 * pLstk) + (wpLstk / 1000 * pLstk) + (wpFas / 1000 * pFas);
-        const metalCost = ((framesKg2 * config.type2Gk) / 1000 * pGk) + ((framesKg2 * (1 - config.type2Gk)) / 1000 * pLstk) + (baseTiesKg / 1000 * pGk) + (baseCraneKg / 1000 * pGk) + purlinsCost;
+        const metalCost = ((framesKg2 * config.type2Gk) / 1000 * pGk) + ((framesKg2 * (1 - config.type2Gk)) / 1000 * pLstk) + (baseTiesKg / 1000 * pGk) + (baseCraneKg / 1000 * pGk) + purlinsCost + mezzanineCost;
         return { frames: framesKg2, purlins: roofPurlinsKg + wpLstk + wpFas, metalCost };
       }
     },
@@ -175,7 +178,7 @@ export default function QuickEstimatorResults({
       isBase: true,
       calc: () => {
         const purlinsCost = (roofPurlinsKg / 1000 * pLstk) + (wpLstk / 1000 * pLstk) + (wpFas / 1000 * pFas);
-        const metalCost = (baseFramesKg / 1000 * pGk) + (baseTiesKg / 1000 * pGk) + (baseCraneKg / 1000 * pGk) + purlinsCost;
+        const metalCost = (baseFramesKg / 1000 * pGk) + (baseTiesKg / 1000 * pGk) + (baseCraneKg / 1000 * pGk) + purlinsCost + mezzanineCost;
         return { frames: baseFramesKg, purlins: roofPurlinsKg + wpLstk + wpFas, metalCost };
       }
     },
@@ -187,7 +190,7 @@ export default function QuickEstimatorResults({
       calc: () => {
         const roofPurlinsKg4 = roofPurlinsKg / (config.purlinType4 || 0.47);
         const purlinsCost = (roofPurlinsKg4 / 1000 * pGk) + (wpGk / 1000 * pGk);
-        const metalCost = (baseFramesKg / 1000 * pGk) + (baseTiesKg / 1000 * pGk) + (baseCraneKg / 1000 * pGk) + purlinsCost;
+        const metalCost = (baseFramesKg / 1000 * pGk) + (baseTiesKg / 1000 * pGk) + (baseCraneKg / 1000 * pGk) + purlinsCost + mezzanineCost;
         return { frames: baseFramesKg, purlins: roofPurlinsKg4 + wpGk, metalCost };
       }
     }
@@ -233,6 +236,9 @@ export default function QuickEstimatorResults({
       wallCost: estimation.wallCost || 0,
       roofCost: estimation.roofCost || 0,
       trimCost: estimation.trimCost || 0,
+      mezzanineWeight: estimation.mezzanineWeight || "0.00",
+      mezzanineRate: estimation.mezzanineRate || "0.0",
+      mezzanineCost: estimation.mezzanineCost || 0,
       savingsAmount: estimation.savingsAmount || 0,
       envelopeDiffAmount: estimation.envelopeDiffAmount || 0
     };
@@ -324,6 +330,14 @@ export default function QuickEstimatorResults({
                     
                     <div style={styles.techDataTitle}>📐 Спецификация масс и площадей:</div>
                     <div style={styles.dataRow}><span>Рамы / Колонны:</span><span style={styles.dataVal}>{(data.frames / 1000).toFixed(2)} т</span></div>
+                    {stories > 1 && parseFloat(estimation.mezzanineWeight || 0) > 0 && (
+                      <div style={{ ...styles.dataRow, backgroundColor: "#f0fdf4", padding: "2px 4px", borderRadius: "3px" }}>
+                        <span style={{ color: "#166534", fontWeight: 600 }}>🏢 Металлокаркас антресоли:</span>
+                        <span style={{ ...styles.dataVal, color: "#166534", fontWeight: 700 }}>
+                          {estimation.mezzanineWeight} т ({estimation.mezzanineRate} кг/м²)
+                        </span>
+                      </div>
+                    )}
                     <div style={styles.dataRow}><span>Прогоны системы:</span><span style={styles.dataVal}>{(data.purlins / 1000).toFixed(2)} т</span></div>
                     <div style={styles.dataRow}><span>Связевые панели:</span><span style={styles.dataVal}>{(baseTiesKg / 1000).toFixed(2)} т</span></div>
                     {baseCraneKg > 0 && <div style={styles.dataRow}><span>Крановые пути:</span><span style={styles.dataVal}>{(baseCraneKg / 1000).toFixed(2)} т</span></div>}

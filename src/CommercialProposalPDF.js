@@ -175,6 +175,11 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
               <Text style={styles.listText}>
                 • Этажность: {storiesNum > 1 ? `${storiesNum} эт. (${data.floorStructure?.shortName || 'Ж/б перекрытие'}, толщ. ${data.floorStructure?.thickness || 120} мм, полезная ${data.floorStructure?.liveLoad || 400} кг/м², γf=${data.floorStructure?.safetyFactor || 1.2})` : '1 этаж (однообъемное здание)'}
               </Text>
+              {storiesNum > 1 && parseFloat(data.mezzanineWeight || 0) > 0 && (
+                <Text style={styles.listText}>
+                  • Каркас антресоли: {data.mezzanineWeight} т (удельный {data.mezzanineRate || '-'} кг/м², балочная клетка + стойки)
+                </Text>
+              )}
               <Text style={styles.listText}>• Высота до низа несущих конструкций: {data.height || '-'} м</Text>
               <Text style={styles.listText}>• Несущий каркас: {data.frameType === 'truss' ? 'Решетчатая ферма' : 'Рамная балка'}</Text>
             </View>
@@ -227,6 +232,17 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
             ))}
           </View>
 
+          {storiesNum > 1 && parseFloat(data.mezzanineWeight || 0) > 0 && (
+            <View style={[styles.row, { backgroundColor: '#fcfdfd' }]}>
+              <Text style={{ width: labelCellWidth, fontSize: 7.5, color: '#166534', paddingLeft: 6 }}>  в т.ч. каркас антресоли ({data.mezzanineWeight} т)</Text>
+              {visibleTypes.map((t, index) => (
+                <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 7.5, color: '#166534', backgroundColor: t.isBase ? '#effbf2' : '#fcfdfd', paddingVertical: 1.5 }}>
+                  {Math.round(data.mezzanineCost || 0).toLocaleString('ru-RU')} ₽
+                </Text>
+              ))}
+            </View>
+          )}
+
           {data.useSandwich && (
             <View style={styles.row}>
               <Text style={{ width: labelCellWidth, fontSize: 8 }}>Обшивка (Сэндвич-панели) (₽)</Text>
@@ -265,10 +281,20 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
         </View>
 
         {/* 3. ПОЯСНЕНИЯ К СТОИМОСТИ СМЕТНЫХ РАЗДЕЛОВ */}
-        {(data.useSandwich || data.foundationCost > 0) && (
+        {(data.useSandwich || data.foundationCost > 0 || (storiesNum > 1 && parseFloat(data.mezzanineWeight || 0) > 0)) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>3. ПОЯСНЕНИЯ К СТОИМОСТИ СМЕТНЫХ РАЗДЕЛОВ</Text>
             
+            {storiesNum > 1 && parseFloat(data.mezzanineWeight || 0) > 0 && (
+              <View style={{ marginBottom: 4 }}>
+                <Text style={styles.breakdownTitle}>Металлоконструкции междуэтажного перекрытия (Антресоль):</Text>
+                <Text style={styles.listText}>• Несущий металлокаркас антресоли: {data.mezzanineWeight} т на сумму {Math.round(data.mezzanineCost || 0).toLocaleString('ru-RU')} ₽ (удельный расход {data.mezzanineRate || '-'} кг/м²)</Text>
+                <Text style={styles.breakdownNote}>
+                  * Включает главные балки (ригели), второстепенные балки балочной клетки и промежуточные опорные стойки. Расчет выполнен по физической модели СП 20.13330 / СП 16.13330 под нормативную полезную нагрузку {data.floorStructure?.liveLoad || 400} кг/м².
+                </Text>
+              </View>
+            )}
+
             {data.useSandwich && (
               <View style={{ marginBottom: 4 }}>
                 <Text style={styles.breakdownTitle}>Ограждающие конструкции комплекта здания:</Text>

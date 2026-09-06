@@ -69,20 +69,30 @@ const styles = {
   },
 };
 
-export default function PinProtectedSection({ children, onCancel, onSuccess }) {
+export default function PinProtectedSection({
+  children,
+  onCancel,
+  onSuccess,
+  expectedPin = CORRECT_PIN,
+  title = "Введите PIN-код",
+  subtitle = null,
+}) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [isUnlocked, setIsUnlocked] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const isNumericOnly = /^\d+$/.test(expectedPin);
 
   const handleSubmit = () => {
-    if (pin === CORRECT_PIN) {
+    if (pin === expectedPin) {
       setIsUnlocked(true);
       setError("");
       if (onSuccess) {
         onSuccess();
       }
     } else {
-      setError("❌ Неверный PIN-код");
+      setError(isNumericOnly ? "❌ Неверный PIN-код" : "❌ Неверный пароль доступа");
       setPin("");
     }
   };
@@ -90,6 +100,8 @@ export default function PinProtectedSection({ children, onCancel, onSuccess }) {
   const handleKeyPress = (e) => {
     if (e.key === "Enter") {
       handleSubmit();
+    } else if (e.key === "Escape" && onCancel) {
+      onCancel();
     }
   };
 
@@ -101,18 +113,72 @@ export default function PinProtectedSection({ children, onCancel, onSuccess }) {
     <div style={styles.overlay} onClick={(e) => e.stopPropagation()}>
       <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div style={styles.icon}>🔒</div>
-        <h3 style={styles.title}>Введите PIN-код</h3>
+        <h3 style={styles.title}>{title}</h3>
+        {subtitle && (
+          <div style={{ fontSize: "0.88em", color: "#64748b", marginBottom: "15px" }}>
+            {subtitle}
+          </div>
+        )}
         {error && <div style={styles.error}>{error}</div>}
-        <input
-          type="password"
-          maxLength="4"
-          style={styles.input}
-          value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-          onKeyPress={handleKeyPress}
-          placeholder="****"
-          autoFocus
-        />
+        <div
+          style={{
+            position: "relative",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: "20px",
+          }}
+        >
+          <input
+            type={showPassword ? "text" : "password"}
+            maxLength={isNumericOnly ? expectedPin.length : 32}
+            style={{
+              ...styles.input,
+              width: isNumericOnly ? "150px" : "220px",
+              letterSpacing: isNumericOnly ? "8px" : "2px",
+              marginBottom: 0,
+              paddingRight: isNumericOnly ? "12px" : "38px",
+            }}
+            value={pin}
+            onChange={(e) => {
+              const val = isNumericOnly
+                ? e.target.value.replace(/\D/g, "")
+                : e.target.value;
+              setPin(val);
+              if (error) setError("");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && onCancel) onCancel();
+            }}
+            onKeyPress={handleKeyPress}
+            placeholder={isNumericOnly ? "*".repeat(expectedPin.length) : "Введите пароль"}
+            autoFocus
+          />
+          {!isNumericOnly && (
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{
+                position: "absolute",
+                right: "8px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "1.1em",
+                color: "#64748b",
+                padding: "4px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              title={showPassword ? "Скрыть" : "Показать"}
+            >
+              {showPassword ? "👁️" : "👁️‍🗨️"}
+            </button>
+          )}
+        </div>
         <div>
           <button style={styles.button} onClick={handleSubmit}>
             Подтвердить

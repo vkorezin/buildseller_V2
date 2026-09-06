@@ -13,6 +13,10 @@ import QuickEstimatorAnalytics from "./QuickEstimatorAnalytics";
 import QuickEstimatorResults from "./QuickEstimatorResults";
 import FloorStructureModal from "./FloorStructureModal";
 import { DEFAULT_FLOOR_STRUCTURE } from "./floorStructureConstants";
+import MezzanineCoefficientsEditor, {
+  DEFAULT_MEZZANINE_COEFFS,
+  calculateMezzanineMetal,
+} from "./MezzanineCoefficientsEditor";
 import {
   generateBase210Matrix,
   generateSnowCoefficients,
@@ -248,6 +252,14 @@ export default function QuickEstimator({
     return DEFAULT_FLOOR_STRUCTURE;
   });
   const [isFloorModalOpen, setIsFloorModalOpen] = useState(false);
+  const [isMezzanineCoeffsOpen, setIsMezzanineCoeffsOpen] = useState(false);
+  const [mezzanineCoeffs, setMezzanineCoeffs] = useState(() => {
+    try {
+      const saved = localStorage.getItem("euroangar_mezzanine_coeffs");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return DEFAULT_MEZZANINE_COEFFS;
+  });
 
   const [snowLoad, setSnowLoad] = useState(() => {
     if (projectLoads?.snow != null) {
@@ -638,22 +650,18 @@ export default function QuickEstimator({
 
     let lMult = 1;
     if (L < 30) lMult += 0.05;
-    let floorMult = 1;
-    if (stories > 1) {
-      const pRatio = Math.max(0.7, Math.min(1.6, (floorStructure?.liveLoad || 400) / 400));
-      const spansCount = Math.max(1, N || 1);
-      const totalBldgArea = (W * spansCount) * L;
-      const rawMW = floorStructure?.mezzanineWidth != null && Number(floorStructure.mezzanineWidth) > 0
-        ? Number(floorStructure.mezzanineWidth)
-        : null;
-      const rawML = floorStructure?.mezzanineLength != null && Number(floorStructure.mezzanineLength) > 0
-        ? Number(floorStructure.mezzanineLength)
-        : null;
-      const effMW = rawMW !== null ? Math.min(W * spansCount, rawMW) : (W * spansCount);
-      const effML = rawML !== null ? Math.min(L, rawML) : L;
-      const areaRatio = totalBldgArea > 0 ? (effMW * effML) / totalBldgArea : 1;
-      floorMult = 1 + (stories - 1) * 0.4 * pRatio * Math.max(0.05, Math.min(1.0, areaRatio));
-    }
+
+    // Физическая модель расчета металлоемкости антресоли (СП 20 / балочная клетка)
+    const mezzCalc = calculateMezzanineMetal({
+      floorStructure,
+      stories,
+      spanWidth: W,
+      spansCount: N,
+      buildingLength: L,
+      height: H,
+      coeffs: mezzanineCoeffs || DEFAULT_MEZZANINE_COEFFS,
+    });
+    const kBldg = mezzCalc.kBldg;
 
     let totalFrameKgRaw = 0;
     let totalPurlinsKg = 0;
@@ -694,7 +702,7 @@ export default function QuickEstimator({
       let pureBeamFramesAndTies210 = baseBeamTotal210 - basePurlinsGK210;
       if (pureBeamFramesAndTies210 < 0) pureBeamFramesAndTies210 = 0;
 
-      pureBeamFramesAndTies210 *= lMult * floorMult;
+      pureBeamFramesAndTies210 *= lMult * kBldg;
 
       if (hasThisCrane && crane.type === "support") {
         if (capVal <= 5) pureBeamFramesAndTies210 *= 1.15;
@@ -857,7 +865,10 @@ export default function QuickEstimator({
 
     totalFrameKgRaw += aperturesFrameKg; 
 
-    const totalFrameKg = totalFrameKgRaw + totalPurlinsKg + totalTiesKg;
+    const mezzanineWeightKg = mezzCalc.mezzanineWeightKg;
+    const mezzanineCost = Math.round((mezzanineWeightKg / 1000) * activeMetalPrice);
+
+    const totalFrameKg = totalFrameKgRaw + totalPurlinsKg + totalTiesKg + mezzanineWeightKg;
     const totalMetalKg = totalFrameKg + totalCraneSystemKg;
     const metalWeightTons = totalMetalKg / 1000;
     const metalCost = metalWeightTons * activeMetalPrice;
@@ -1068,12 +1079,18 @@ export default function QuickEstimator({
       wallCost: Math.round(wallCost),
       roofCost: Math.round(roofCost),
       trimCost: Math.round(trimCost),
+      mezzanineWeight: (mezzanineWeightKg / 1000).toFixed(2),
+      mezzanineRate: mezzCalc.mezzanineRate,
+      mezzanineCost,
+      mezzanineArea: mezzCalc.mezzanineArea,
+      mezzanineWeightKg,
       totalCost: Math.round(totalCostNum).toLocaleString("ru-RU"),
       isBlockedByValidation: validationMetrics.isOverloaded 
     };
   }, [
     spanWidth, spansCount, length, height, slope, roofShape, snowLoad,
-    windLoad, cranes, spanOrientations, stories, gkPrice, lstkPrice, fasonkaPrice,
+    windLoad, cranes, spanOrientations, stories, floorStructure, mezzanineCoeffs,
+    gkPrice, lstkPrice, fasonkaPrice,
     useSandwich, layoutMode, panelModule, panelStockLength, wallPrice,
     roofPrice, trimPrice, frameType, baseMatrix210, snowCoefficients,
     roofPurlins, trussTable, windCoefficients, aperturesList, activeWalls,
@@ -1127,6 +1144,7 @@ export default function QuickEstimator({
           <button style={styles.settingsBtn} onClick={() => setIsPurlinsOpen(true)} title="🏗️ Прогоны">🏗️ Прогоны</button>
           <button style={styles.settingsBtn} onClick={() => setIsTrussEditorOpen(true)} title="⚙️ Ферма">⚙️ Ферма</button>
           <button style={styles.settingsBtn} onClick={() => setIsFloorModalOpen(true)} title="🏢 Межэтажные перекрытия">🏢 Перекрытия</button>
+          <button style={styles.settingsBtn} onClick={() => setIsMezzanineCoeffsOpen(true)} title="🔒 Коэффициенты антресоли (доступ по коду)">🔒 Коэф. антресоли</button>
           <button style={styles.settingsBtn} onClick={() => setIsBuildingTypesOpen(true)} title="⚙️ Типы зданий">⚙️ Типы</button>
         </div>
         <button style={styles.closeButton} onClick={handleCloseWithData} title="Закрыть и применить к проекту">
@@ -1398,6 +1416,17 @@ export default function QuickEstimator({
           }
         }}
         storiesCount={stories}
+        spanWidth={spanWidth}
+        spansCount={spansCount}
+        buildingLength={length}
+        height={height}
+      />
+      <MezzanineCoefficientsEditor
+        isOpen={isMezzanineCoeffsOpen}
+        onClose={() => setIsMezzanineCoeffsOpen(false)}
+        onSave={(newCoeffs) => setMezzanineCoeffs(newCoeffs)}
+        currentStructure={floorStructure}
+        stories={stories}
         spanWidth={spanWidth}
         spansCount={spansCount}
         buildingLength={length}
