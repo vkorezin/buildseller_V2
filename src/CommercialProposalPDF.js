@@ -2,23 +2,39 @@ import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Font, Image } from '@react-pdf/renderer';
 import PDFBuildingSectionEskiz from './PDFBuildingSectionEskiz';
 
-Font.register({
-  family: 'Roboto',
-  fonts: [
-    { 
-      src: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.9/fonts/Roboto/Roboto-Regular.ttf', 
-      fontWeight: 'normal' 
-    },
-    { 
-      src: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.9/fonts/Roboto/Roboto-Medium.ttf', 
-      fontWeight: 500 
-    },
-    { 
-      src: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.9/fonts/Roboto/Roboto-Medium.ttf', 
-      fontWeight: 'bold' 
-    }
-  ]
-});
+const FONT_REGULAR = typeof window !== 'undefined' && window.location?.origin
+  ? `${window.location.origin}/fonts/Roboto-Regular.ttf`
+  : 'https://cdn.jsdelivr.net/gh/googlefonts/roboto@main/src/hinted/Roboto-Regular.ttf';
+
+const FONT_MEDIUM = typeof window !== 'undefined' && window.location?.origin
+  ? `${window.location.origin}/fonts/Roboto-Medium.ttf`
+  : 'https://cdn.jsdelivr.net/gh/googlefonts/roboto@main/src/hinted/Roboto-Medium.ttf';
+
+const FONT_BOLD = typeof window !== 'undefined' && window.location?.origin
+  ? `${window.location.origin}/fonts/Roboto-Bold.ttf`
+  : 'https://cdn.jsdelivr.net/gh/googlefonts/roboto@main/src/hinted/Roboto-Bold.ttf';
+
+try {
+  Font.register({
+    family: 'Roboto',
+    fonts: [
+      { 
+        src: FONT_REGULAR, 
+        fontWeight: 'normal' 
+      },
+      { 
+        src: FONT_MEDIUM, 
+        fontWeight: 500 
+      },
+      { 
+        src: FONT_BOLD, 
+        fontWeight: 'bold' 
+      }
+    ]
+  });
+} catch (e) {
+  console.warn("Font registration failed, fallback to default font:", e);
+}
 
 const styles = StyleSheet.create({
   page: { 
@@ -45,7 +61,8 @@ const styles = StyleSheet.create({
     marginBottom: 6 
   },
   brandFallback: { 
-    fontSize: 24, 
+    fontSize: 20, 
+    fontWeight: 'bold',
     color: '#007bff', 
     marginBottom: 4, 
     letterSpacing: 1 
@@ -133,11 +150,12 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
   const date = data.formattedDate || new Date().toLocaleDateString('ru-RU');
   const kpNumber = data.kpNumber || `КП-${Date.now().toString().slice(-6)}`;
 
+  // Формируем прямой URL к файлу logo.jpg из папки public
+  const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}/logo.jpg` : '/logo.jpg';
+
   const savings = Number(data.savingsAmount) || 0;
   const diff = Number(data.envelopeDiffAmount) || 0;
   const netSavings = savings - diff;
-
-  const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}/logo.jpg` : '';
 
   const visibleTypes = types;
   const labelCellWidth = '31%';
@@ -155,7 +173,11 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
         {/* ШАПКА ДОКУМЕНТА */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            {logoUrl ? <Image src={logoUrl} style={styles.logo} /> : <Text style={styles.brandFallback}>ЕВРОАНГАР</Text>}
+            {logoUrl ? (
+              <Image src={logoUrl} style={styles.logo} />
+            ) : (
+              <Text style={styles.brandFallback}>ЕВРОАНГАР</Text>
+            )}
             <Text style={styles.title}>
               Технико-коммерческое предложение сравнения вариантов конструктивных решений
             </Text>
@@ -219,6 +241,15 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
             {visibleTypes.map((t, index) => (
               <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 8, backgroundColor: t.isBase ? '#e8f4fd' : '#ffffff', paddingVertical: t.isBase ? 2.5 : 0 }}>
                 {t.name || '-'}{t.isBase ? ' (База)' : ''}
+              </Text>
+            ))}
+          </View>
+
+          <View style={styles.row}>
+            <Text style={{ width: labelCellWidth, fontSize: 8 }}>Масса металлокаркаса (т)</Text>
+            {visibleTypes.map((t, index) => (
+              <Text key={index} style={{ width: valueCellWidth, textAlign: 'center', fontSize: 8, fontWeight: 'bold', backgroundColor: t.isBase ? '#e8f4fd' : '#ffffff', paddingVertical: t.isBase ? 2.5 : 0 }}>
+                {t.totalWeightTons ? t.totalWeightTons.toFixed(2) : '-'} т
               </Text>
             ))}
           </View>

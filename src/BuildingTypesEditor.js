@@ -13,16 +13,22 @@ const defaultBuildingTypesConfig = {
   type2Gk: 0.7
 };
 
-const BuildingTypesEditor = ({ onClose }) => {
-  const [config, setConfig] = useState(defaultBuildingTypesConfig);
+const BuildingTypesEditor = ({ onClose, config: initialConfig, onSave }) => {
+  const [config, setConfig] = useState(() => {
+    if (initialConfig) return initialConfig;
+    const savedConfig = localStorage.getItem('euroangar_building_types_config');
+    if (savedConfig) {
+      try { return JSON.parse(savedConfig); } catch (e) {}
+    }
+    return defaultBuildingTypesConfig;
+  });
   const [isSaved, setIsSaved] = useState(false);
 
   useEffect(() => {
-    const savedConfig = localStorage.getItem('euroangar_building_types_config');
-    if (savedConfig) {
-      setConfig(JSON.parse(savedConfig));
+    if (initialConfig) {
+      setConfig(initialConfig);
     }
-  }, []);
+  }, [initialConfig]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -32,6 +38,7 @@ const BuildingTypesEditor = ({ onClose }) => {
 
   const handleSave = () => {
     localStorage.setItem('euroangar_building_types_config', JSON.stringify(config));
+    if (onSave) onSave(config);
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2000);
   };

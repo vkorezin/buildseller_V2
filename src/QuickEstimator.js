@@ -7,6 +7,8 @@ import SnowCoefficientsEditor from "./SnowCoefficientsEditor";
 import RoofPurlinsEditor from "./RoofPurlinsEditor";
 import WindCoefficientsEditor from "./WindCoefficientsEditor";
 import BuildingTypesEditor from "./BuildingTypesEditor";
+import SpecificationTZModal from "./SpecificationTZModal";
+import { exportTo1CExcel } from "./export1CUtils";
 import QuickEstimatorForm from "./QuickEstimatorForm";
 import QuickEstimatorSectionView from "./QuickEstimatorSectionView";
 import QuickEstimatorAnalytics from "./QuickEstimatorAnalytics";
@@ -329,6 +331,14 @@ export default function QuickEstimator({
   const [isTrussEditorOpen, setIsTrussEditorOpen] = useState(false);
   const [isWindCoeffsOpen, setIsWindCoeffsOpen] = useState(false);
   const [isBuildingTypesOpen, setIsBuildingTypesOpen] = useState(false);
+  const [buildingTypesConfig, setBuildingTypesConfig] = useState(() => {
+    try {
+      const savedConf = localStorage.getItem("euroangar_building_types_config");
+      if (savedConf) return JSON.parse(savedConf);
+    } catch (e) {}
+    return null;
+  });
+  const [isTZModalOpen, setIsTZModalOpen] = useState(false);
 
   const [aperturesList, setAperturesList] = useState(() => {
     return initialBlock?.data?.cladding?.aperturesList || [];
@@ -651,6 +661,39 @@ export default function QuickEstimator({
     let lMult = 1;
     if (L < 30) lMult += 0.05;
 
+    // 1. Габариты здания более 100х100 м:
+    const isBigBuilding = (W * N > 100) && (L > 100);
+    const kSnowBig = isBigBuilding ? 1.10 : 1.00;
+
+    // 2. Уклон кровли более 15 градусов:
+    const slopeAngleDeg = Math.atan(S / 100) * (180 / Math.PI);
+    const kSnowSlope = slopeAngleDeg > 15 ? 1.25 : 1.00;
+
+    // 3. Эквивалентная высота стоек каркаса H_eff для односкатных схем:
+    const spanRiseSingle = W * (S / 100);
+    let H_eff = H;
+    if (roofShape === "single") {
+      let colHeightsSum = 0;
+      for (let c = 0; c <= N; c++) {
+        const leftSpan = c > 0 ? c - 1 : null;
+        const rightSpan = c < N ? c : null;
+        let hAxis = H;
+        if (rightSpan !== null) {
+          const ori = spanOrientations[rightSpan] || "right";
+          hAxis = Math.max(hAxis, ori === "left" ? H + spanRiseSingle : H);
+        }
+        if (leftSpan !== null) {
+          const ori = spanOrientations[leftSpan] || "right";
+          hAxis = Math.max(hAxis, ori === "right" ? H + spanRiseSingle : H);
+        }
+        colHeightsSum += hAxis;
+      }
+      H_eff = colHeightsSum / (N + 1);
+    }
+
+    // 4. Редукция колонн многопролетного здания (N > 1):
+    const k_multi = N > 1 ? (0.60 + 0.40 * ((2 + 1.45 * (N - 1)) / (2 * N))) : 1.0;
+
     // Физическая модель расчета металлоемкости антресоли (СП 20 / балочная клетка)
     const mezzCalc = calculateMezzanineMetal({
       floorStructure,
@@ -669,20 +712,32 @@ export default function QuickEstimator({
     let totalTiesKg = 0;
     let totalSavingsKg = 0;
 
-    cranes.forEach((crane) => {
+    cranes.forEach((crane, i) => {
       const capVal = Number(crane.cap);
       const hasThisCrane = capVal > 0;
-      let spanSnow = baseSnow;
+
+      // Проверка снегового кармана шеда
+      let hasShedPocket = false;
+      if (roofShape === "single" && N > 1) {
+        const myOri = spanOrientations[i] || "right";
+        const leftOri = i > 0 ? (spanOrientations[i - 1] || "right") : null;
+        const rightOri = i < N - 1 ? (spanOrientations[i + 1] || "right") : null;
+        if (leftOri && ((myOri === "right" && leftOri === "right") || (myOri === "right" && leftOri === "left"))) hasShedPocket = true;
+        if (rightOri && ((myOri === "left" && rightOri === "left") || (myOri === "left" && rightOri === "right"))) hasShedPocket = true;
+      }
+      const kSnowShed = hasShedPocket ? 1.10 : 1.00;
+
+      let spanSnow = baseSnow * kSnowBig * kSnowSlope * kSnowShed;
 
       if (hasThisCrane && crane.type === "suspension") spanSnow += 140;
 
-      const baseWeight210_Truss = interpolate2D(baseMatrix210, H, W);
+      const baseWeight210_Truss = interpolate2D(baseMatrix210, H_eff, W);
       const basePurlins210 = getRoofPurlinWeight(roofPurlins, 210);
       const currentPurlinsRate = getRoofPurlinWeight(roofPurlins, spanSnow);
       const snowCoeff = getSnowCoefficient(snowCoefficients, spanSnow);
       const windCoeff = getWindCoefficient(windCoefficients, currentWind);
 
-      const baseTrussDiscountPercent = getTrussDiscount(W, H);
+      const baseTrussDiscountPercent = getTrussDiscount(W, H_eff);
       const columnStep = 6;
       const totalFrames = Math.ceil(L / columnStep) + 1;
       const framesWithTruss = Math.max(0, totalFrames - 2);
@@ -691,18 +746,14 @@ export default function QuickEstimator({
 
       const baseBeamTotal210 = baseWeight210_Truss / dynamicTrussCoeff;
 
-      const savedConf = localStorage.getItem("euroangar_building_types_config");
-      let pType4 = 0.47;
-      if (savedConf) {
-        try { pType4 = JSON.parse(savedConf).purlinType4 || 0.47; } catch (e) {}
-      }
+      const pType4 = buildingTypesConfig?.purlinType4 || 0.47;
 
       const basePurlinsGK210 = basePurlins210 / pType4;
 
       let pureBeamFramesAndTies210 = baseBeamTotal210 - basePurlinsGK210;
       if (pureBeamFramesAndTies210 < 0) pureBeamFramesAndTies210 = 0;
 
-      pureBeamFramesAndTies210 *= lMult * kBldg;
+      pureBeamFramesAndTies210 *= lMult * kBldg * k_multi;
 
       if (hasThisCrane && crane.type === "support") {
         if (capVal <= 5) pureBeamFramesAndTies210 *= 1.15;
@@ -748,7 +799,6 @@ export default function QuickEstimator({
     const totalWidth = W * N;
     const floorAreaTotal = totalWidth * L;
 
-    const spanRiseSingle = W * (S / 100);
     const getSpanHeights = (baseH) => {
       return Array.from({ length: N }).map((_, i) => {
         if (roofShape === "gable") {
@@ -1094,7 +1144,7 @@ export default function QuickEstimator({
     useSandwich, layoutMode, panelModule, panelStockLength, wallPrice,
     roofPrice, trimPrice, frameType, baseMatrix210, snowCoefficients,
     roofPurlins, trussTable, windCoefficients, aperturesList, activeWalls,
-    concretePrice, rebarPrice, validationMetrics.isOverloaded
+    concretePrice, rebarPrice, validationMetrics.isOverloaded, buildingTypesConfig
   ]);
 
   const handleCloseWithData = () => {
@@ -1146,6 +1196,51 @@ export default function QuickEstimator({
           <button style={styles.settingsBtn} onClick={() => setIsFloorModalOpen(true)} title="🏢 Межэтажные перекрытия">🏢 Перекрытия</button>
           <button style={styles.settingsBtn} onClick={() => setIsMezzanineCoeffsOpen(true)} title="🔒 Коэффициенты антресоли (доступ по коду)">🔒 Коэф. антресоли</button>
           <button style={styles.settingsBtn} onClick={() => setIsBuildingTypesOpen(true)} title="⚙️ Типы зданий">⚙️ Типы</button>
+          <button
+            style={{
+              ...styles.settingsBtn,
+              backgroundColor: "#0284c7",
+              color: "#ffffff",
+              fontWeight: "600",
+              borderColor: "#0284c7"
+            }}
+            onClick={() => setIsTZModalOpen(true)}
+            title="📋 Техническое задание и выгрузка в 1С"
+          >
+            📋 ТЗ и выгрузка в 1С
+          </button>
+          <button
+            style={{
+              ...styles.settingsBtn,
+              backgroundColor: "#f0fdf4",
+              color: "#166534",
+              borderColor: "#86efac",
+              fontWeight: "600"
+            }}
+            onClick={() =>
+              exportTo1CExcel({
+                spanWidth,
+                spansCount,
+                length,
+                height,
+                roofShape,
+                slope,
+                stories,
+                floorStructure,
+                cranes,
+                snowLoad,
+                windLoad,
+                frameType,
+                useSandwich,
+                layoutMode,
+                aperturesList,
+                estimation
+              })
+            }
+            title="📥 Быстро скачать файл параметров для 1С (.xlsx)"
+          >
+            📥 1С (.xlsx)
+          </button>
         </div>
         <button style={styles.closeButton} onClick={handleCloseWithData} title="Закрыть и применить к проекту">
           Закрыть
@@ -1404,7 +1499,13 @@ export default function QuickEstimator({
       <WindCoefficientsEditor isOpen={isWindCoeffsOpen} onClose={() => setIsWindCoeffsOpen(false)} onSave={setWindCoefficients} />
       <RoofPurlinsEditor isOpen={isPurlinsOpen} onClose={() => setIsPurlinsOpen(false)} onSave={setRoofPurlins} />
       <TrussEfficiencyEditor isOpen={isTrussEditorOpen} onClose={() => setIsTrussEditorOpen(false)} onSave={setTrussTable} />
-      {isBuildingTypesOpen && <BuildingTypesEditor onClose={() => setIsBuildingTypesOpen(false)} />}
+      {isBuildingTypesOpen && (
+        <BuildingTypesEditor
+          config={buildingTypesConfig}
+          onClose={() => setIsBuildingTypesOpen(false)}
+          onSave={(newConf) => setBuildingTypesConfig(newConf)}
+        />
+      )}
       <FloorStructureModal
         isOpen={isFloorModalOpen}
         onClose={() => setIsFloorModalOpen(false)}
@@ -1431,6 +1532,26 @@ export default function QuickEstimator({
         spansCount={spansCount}
         buildingLength={length}
         height={height}
+      />
+      <SpecificationTZModal
+        isOpen={isTZModalOpen}
+        onClose={() => setIsTZModalOpen(false)}
+        spanWidth={spanWidth}
+        spansCount={spansCount}
+        length={length}
+        height={height}
+        roofShape={roofShape}
+        slope={slope}
+        stories={stories}
+        floorStructure={floorStructure}
+        cranes={cranes}
+        snowLoad={snowLoad}
+        windLoad={windLoad}
+        frameType={frameType}
+        useSandwich={useSandwich}
+        layoutMode={layoutMode}
+        aperturesList={aperturesList}
+        estimation={estimation}
       />
     </div>
   );

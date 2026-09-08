@@ -146,69 +146,84 @@ export default function QuickEstimatorResults({
   const baseMezzanineKg = parseFloat(estimation.mezzanineWeight || 0) * 1000;
   const mezzanineCost = (baseMezzanineKg / 1000) * pGk;
 
-  const types = [
-    {
-      id: 1,
-      name: "Тип 1: ЛСТК",
-      desc: "Оцинкованные рамы",
-      blocked: blockType1,
-      calc: () => {
-        const purlinsCost = (roofPurlinsKg / 1000 * pLstk) + (wpLstk / 1000 * pLstk) + (wpFas / 1000 * pFas);
-        const metalCost = ((framesKg1 * (1 - config.type1Fastener)) / 1000 * pLstk) + ((framesKg1 * config.type1Fastener) / 1000 * pFas) + (baseTiesKg / 1000 * pFas) + purlinsCost + mezzanineCost;
-        return { frames: framesKg1, purlins: roofPurlinsKg + wpLstk + wpFas, metalCost };
+  const types = useMemo(() => {
+    return [
+      {
+        id: 1,
+        name: "Тип 1: ЛСТК",
+        desc: "Оцинкованные рамы",
+        blocked: blockType1,
+        calc: () => {
+          const purlinsKg = roofPurlinsKg + wpLstk + wpFas;
+          const purlinsCost = (roofPurlinsKg / 1000 * pLstk) + (wpLstk / 1000 * pLstk) + (wpFas / 1000 * pFas);
+          const metalCost = ((framesKg1 * (1 - config.type1Fastener)) / 1000 * pLstk) + ((framesKg1 * config.type1Fastener) / 1000 * pFas) + (baseTiesKg / 1000 * pFas) + purlinsCost + mezzanineCost;
+          const totalWeightTons = (framesKg1 + purlinsKg + baseTiesKg + baseMezzanineKg) / 1000;
+          return { frames: framesKg1, purlins: purlinsKg, metalCost, totalWeightTons };
+        }
+      },
+      {
+        id: 2,
+        name: "Тип 2: Комби",
+        desc: "ГК колонны + ЛСТК кровля",
+        blocked: blockType2,
+        calc: () => {
+          const framesKg2 = hasAnyCrane ? (baseFramesKg / (config.craneType2 || 1)) : ((framesKg1 + baseFramesKg) / 2);
+          const purlinsKg = roofPurlinsKg + wpLstk + wpFas;
+          const purlinsCost = (roofPurlinsKg / 1000 * pLstk) + (wpLstk / 1000 * pLstk) + (wpFas / 1000 * pFas);
+          const metalCost = ((framesKg2 * config.type2Gk) / 1000 * pGk) + ((framesKg2 * (1 - config.type2Gk)) / 1000 * pLstk) + (baseTiesKg / 1000 * pGk) + (baseCraneKg / 1000 * pGk) + purlinsCost + mezzanineCost;
+          const totalWeightTons = (framesKg2 + purlinsKg + baseTiesKg + baseCraneKg + baseMezzanineKg) / 1000;
+          return { frames: framesKg2, purlins: purlinsKg, metalCost, totalWeightTons };
+        }
+      },
+      {
+        id: 3,
+        name: "Тип 3: ЕВРОАНГАР",
+        desc: "ГК каркас + ЛСТК прогоны",
+        blocked: null,
+        isBase: true,
+        calc: () => {
+          const purlinsKg = roofPurlinsKg + wpLstk + wpFas;
+          const purlinsCost = (roofPurlinsKg / 1000 * pLstk) + (wpLstk / 1000 * pLstk) + (wpFas / 1000 * pFas);
+          const metalCost = (baseFramesKg / 1000 * pGk) + (baseTiesKg / 1000 * pGk) + (baseCraneKg / 1000 * pGk) + purlinsCost + mezzanineCost;
+          const totalWeightTons = (baseFramesKg + purlinsKg + baseTiesKg + baseCraneKg + baseMezzanineKg) / 1000;
+          return { frames: baseFramesKg, purlins: purlinsKg, metalCost, totalWeightTons };
+        }
+      },
+      {
+        id: 4,
+        name: "Тип 4: Классика",
+        desc: "Полностью черный металл",
+        blocked: null,
+        calc: () => {
+          const roofPurlinsKg4 = roofPurlinsKg / (config.purlinType4 || 0.47);
+          const purlinsKg = roofPurlinsKg4 + wpGk;
+          const purlinsCost = (roofPurlinsKg4 / 1000 * pGk) + (wpGk / 1000 * pGk);
+          const metalCost = (baseFramesKg / 1000 * pGk) + (baseTiesKg / 1000 * pGk) + (baseCraneKg / 1000 * pGk) + purlinsCost + mezzanineCost;
+          const totalWeightTons = (baseFramesKg + purlinsKg + baseTiesKg + baseCraneKg + baseMezzanineKg) / 1000;
+          return { frames: baseFramesKg, purlins: purlinsKg, metalCost, totalWeightTons };
+        }
       }
-    },
-    {
-      id: 2,
-      name: "Тип 2: Комби",
-      desc: "ГК колонны + ЛСТК кровля",
-      blocked: blockType2,
-      calc: () => {
-        const framesKg2 = hasAnyCrane ? (baseFramesKg / (config.craneType2 || 1)) : ((framesKg1 + baseFramesKg) / 2);
-        const purlinsCost = (roofPurlinsKg / 1000 * pLstk) + (wpLstk / 1000 * pLstk) + (wpFas / 1000 * pFas);
-        const metalCost = ((framesKg2 * config.type2Gk) / 1000 * pGk) + ((framesKg2 * (1 - config.type2Gk)) / 1000 * pLstk) + (baseTiesKg / 1000 * pGk) + (baseCraneKg / 1000 * pGk) + purlinsCost + mezzanineCost;
-        return { frames: framesKg2, purlins: roofPurlinsKg + wpLstk + wpFas, metalCost };
-      }
-    },
-    {
-      id: 3,
-      name: "Тип 3: ЕВРОАНГАР",
-      desc: "ГК каркас + ЛСТК прогоны",
-      blocked: null,
-      isBase: true,
-      calc: () => {
-        const purlinsCost = (roofPurlinsKg / 1000 * pLstk) + (wpLstk / 1000 * pLstk) + (wpFas / 1000 * pFas);
-        const metalCost = (baseFramesKg / 1000 * pGk) + (baseTiesKg / 1000 * pGk) + (baseCraneKg / 1000 * pGk) + purlinsCost + mezzanineCost;
-        return { frames: baseFramesKg, purlins: roofPurlinsKg + wpLstk + wpFas, metalCost };
-      }
-    },
-    {
-      id: 4,
-      name: "Тип 4: Классика",
-      desc: "Полностью черный металл",
-      blocked: null,
-      calc: () => {
-        const roofPurlinsKg4 = roofPurlinsKg / (config.purlinType4 || 0.47);
-        const purlinsCost = (roofPurlinsKg4 / 1000 * pGk) + (wpGk / 1000 * pGk);
-        const metalCost = (baseFramesKg / 1000 * pGk) + (baseTiesKg / 1000 * pGk) + (baseCraneKg / 1000 * pGk) + purlinsCost + mezzanineCost;
-        return { frames: baseFramesKg, purlins: roofPurlinsKg4 + wpGk, metalCost };
-      }
-    }
-  ];
+    ];
+  }, [
+    estimation, pGk, pLstk, pFas, config, hasAnyCrane, hasSuspensionCrane,
+    roofPurlinsKg, wpLstk, wpFas, wpGk, framesKg1, baseFramesKg, baseTiesKg,
+    baseCraneKg, baseMezzanineKg, mezzanineCost, blockType1, blockType2
+  ]);
 
   const serializedTypesForPdf = useMemo(() => {
     return types
       .filter(t => !t.blocked)
       .map(t => {
-        const calculated = t.calc();
+        const res = t.calc();
         return {
           id: t.id,
           name: t.name,
           isBase: !!t.isBase,
-          metalCost: Number(calculated.metalCost) || 0
+          metalCost: Number(res.metalCost) || 0,
+          totalWeightTons: Number(res.totalWeightTons) || 0
         };
       });
-  }, [showPdf, types]);
+  }, [types]);
 
   const memoizedPdfDocument = useMemo(() => {
     if (!showPdf) return null;
@@ -329,6 +344,10 @@ export default function QuickEstimatorResults({
                     <div style={styles.divider}></div>
                     
                     <div style={styles.techDataTitle}>📐 Спецификация масс и площадей:</div>
+                    <div style={styles.dataRow}>
+                      <span style={{ fontWeight: "bold" }}>Общая масса металла:</span>
+                      <span style={{ ...styles.dataVal, color: "#007bff" }}>{data.totalWeightTons.toFixed(2)} т</span>
+                    </div>
                     <div style={styles.dataRow}><span>Рамы / Колонны:</span><span style={styles.dataVal}>{(data.frames / 1000).toFixed(2)} т</span></div>
                     {stories > 1 && parseFloat(estimation.mezzanineWeight || 0) > 0 && (
                       <div style={{ ...styles.dataRow, backgroundColor: "#f0fdf4", padding: "2px 4px", borderRadius: "3px" }}>

@@ -149,7 +149,7 @@ export function calculateMezzanineMetal({
   // L_span = шаг рам здания (эталон 6.0 м)
   const L_span = Number(c.base_grid_l) || 6.0;
 
-  // H_floor = средняя высота этажа
+  // H_floor = средняя высота этажа с учетом переменной высоты ярусов
   let H_floor = H / nStories;
   if (
     Array.isArray(floorStructure?.storyElevations) &&
@@ -159,10 +159,23 @@ export function calculateMezzanineMetal({
       .map(Number)
       .filter((v) => v > 0);
     if (validElevs.length > 0) {
-      H_floor = validElevs[0];
+      // 1. Вычисляем высоты всех ярусов: h1 = elevs[0], h2 = elevs[1] - elevs[0], ...
+      const sortedElevs = [...validElevs].sort((a, b) => a - b);
+      const tierHeights = [];
+      for (let i = 0; i < sortedElevs.length; i++) {
+        const h_i = i === 0 ? sortedElevs[0] : (sortedElevs[i] - sortedElevs[i - 1]);
+        if (h_i > 0) tierHeights.push(h_i);
+      }
+      if (tierHeights.length > 0) {
+        // 2. Средняя высота яруса: H_floor = сумма(h_i) / (nStories - 1)
+        const sumH = tierHeights.reduce((acc, val) => acc + val, 0);
+        const tiersCount = Math.max(1, nStories - 1);
+        H_floor = sumH / tiersCount;
+      }
     }
   }
-  if (H_floor <= 0) H_floor = 3.0;
+  // 3. Убедиться, что H_floor не меньше 2.4 м
+  H_floor = Math.max(2.4, H_floor);
 
   // 3. Коэффициенты интерполяции
   const baseL0 = Number(c.base_grid_l) || 6.0;
