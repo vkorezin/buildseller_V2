@@ -122,19 +122,38 @@ export function calculateMezzanineMetal({
   }
 
   // 1. Расчетная нагрузка q по СП 20: g_dead * 1.1 + p_partitions * 1.2 + p_live * safetyFactor
-  const g_dead = Number(floorStructure?.deadLoad ?? 246);
+  const g_dead =
+    floorStructure?.deadLoad !== "" &&
+    floorStructure?.deadLoad != null &&
+    !isNaN(Number(floorStructure.deadLoad))
+      ? Number(floorStructure.deadLoad)
+      : 246;
   const p_partitions =
     floorStructure?.partitionsLoad !== "" &&
     floorStructure?.partitionsLoad != null &&
     !isNaN(Number(floorStructure.partitionsLoad))
       ? Number(floorStructure.partitionsLoad)
       : 50;
-  const p_live = Number(floorStructure?.liveLoad ?? 400);
-  const safetyFactor = Number(floorStructure?.safetyFactor ?? 1.2);
-  const responsibilityFactor = Number(floorStructure?.responsibilityFactor ?? 1.0);
+  const p_live =
+    floorStructure?.liveLoad !== "" &&
+    floorStructure?.liveLoad != null &&
+    !isNaN(Number(floorStructure.liveLoad))
+      ? Number(floorStructure.liveLoad)
+      : 400;
+  const safetyFactor =
+    floorStructure?.safetyFactor !== "" &&
+    floorStructure?.safetyFactor != null &&
+    !isNaN(Number(floorStructure.safetyFactor))
+      ? Number(floorStructure.safetyFactor)
+      : 1.2;
   const q = Math.max(
     100,
-    calculateMezzanineQBase(g_dead, p_partitions, p_live, safetyFactor, responsibilityFactor)
+    calculateMezzanineQBase({
+      deadLoad: g_dead,
+      partitionsLoad: p_partitions,
+      liveLoad: p_live,
+      safetyFactor: safetyFactor,
+    })
   );
 
   // 2. Геометрия шага балочной клетки:

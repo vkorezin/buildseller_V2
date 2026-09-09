@@ -245,7 +245,12 @@ export default function FloorStructureModal({
     const gamma_n = Number(responsibilityFactor) || 1.0;
 
     // Полная расчетная нагрузка кг/м² с использованием единой формулы calculateMezzanineQBase
-    const q_design = calculateMezzanineQBase(g_dead, g_part, p_live, gamma_f, gamma_n);
+    const q_design = calculateMezzanineQBase({
+      deadLoad: g_dead,
+      partitionsLoad: g_part,
+      liveLoad: p_live,
+      safetyFactor: gamma_f,
+    });
 
     // В кН/м² (1 кПа = 100 кг/м²)
     const q_norm_kpa = (q_norm / 100).toFixed(2);
@@ -306,13 +311,12 @@ export default function FloorStructureModal({
     const safeLiveLoad = Number(liveLoad) || 400;
     const safeSafetyFactor = Number(safetyFactor) || 1.2;
     const safeResponsibilityFactor = Number(responsibilityFactor) || 1.0;
-    const unifiedDesignLoadKg = calculateMezzanineQBase(
-      calculatedDL,
-      safePartitionsLoad,
-      safeLiveLoad,
-      safeSafetyFactor,
-      safeResponsibilityFactor
-    );
+    const unifiedDesignLoadKg = calculateMezzanineQBase({
+      deadLoad: calculatedDL,
+      partitionsLoad: safePartitionsLoad,
+      liveLoad: safeLiveLoad,
+      safetyFactor: safeSafetyFactor,
+    });
 
     const result = {
       type: currentTypeInfo.id,

@@ -302,15 +302,39 @@ export const DEFAULT_FLOOR_STRUCTURE = {
 
 /**
  * Единая формула расчета расчетной эквивалентной нагрузки q на перекрытие (кг/м²) по СП 20.13330:
- * q = g_dead * 1.1 + p_part * 1.2 + p_live * safetyFactor
+ * qBase = deadLoad * 1.1 + partitionsLoad * 1.2 + liveLoad * safetyFactor
  * Разрешает partitionsLoad = 0 (ноль допустим).
+ * Принимает объект { deadLoad, partitionsLoad, liveLoad, safetyFactor }.
  */
-export function calculateMezzanineQBase({ deadLoad, partitionsLoad, liveLoad, safetyFactor }) {
-  const g_dead = (deadLoad !== undefined && deadLoad !== null && !isNaN(Number(deadLoad))) ? Number(deadLoad) : 246;
-  const p_part = (partitionsLoad !== undefined && partitionsLoad !== null && !isNaN(Number(partitionsLoad))) ? Number(partitionsLoad) : 0;
-  const p_live = (liveLoad !== undefined && liveLoad !== null && !isNaN(Number(liveLoad))) ? Number(liveLoad) : 400;
-  const sf = (safetyFactor !== undefined && safetyFactor !== null && !isNaN(Number(safetyFactor))) ? Number(safetyFactor) : 1.2;
-  return Math.max(100, Math.round((g_dead * 1.1 + p_part * 1.2 + p_live * sf) * 10) / 10);
+export function calculateMezzanineQBase(params = {}) {
+  let deadLoad, partitionsLoad, liveLoad, safetyFactor;
+  if (typeof params === "object" && params !== null) {
+    ({ deadLoad, partitionsLoad, liveLoad, safetyFactor } = params);
+  } else {
+    deadLoad = arguments[0];
+    partitionsLoad = arguments[1];
+    liveLoad = arguments[2];
+    safetyFactor = arguments[3];
+  }
+
+  const g_dead =
+    deadLoad !== undefined && deadLoad !== null && deadLoad !== "" && !isNaN(Number(deadLoad))
+      ? Number(deadLoad)
+      : 246;
+  const p_part =
+    partitionsLoad !== undefined && partitionsLoad !== null && partitionsLoad !== "" && !isNaN(Number(partitionsLoad))
+      ? Number(partitionsLoad)
+      : 0;
+  const p_live =
+    liveLoad !== undefined && liveLoad !== null && liveLoad !== "" && !isNaN(Number(liveLoad))
+      ? Number(liveLoad)
+      : 400;
+  const sf =
+    safetyFactor !== undefined && safetyFactor !== null && safetyFactor !== "" && !isNaN(Number(safetyFactor))
+      ? Number(safetyFactor)
+      : 1.2;
+
+  return Math.round((g_dead * 1.1 + p_part * 1.2 + p_live * sf) * 10) / 10;
 }
 
 /**
