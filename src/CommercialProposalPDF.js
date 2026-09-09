@@ -206,7 +206,7 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
               <Text style={styles.listText}>• Несущий каркас: {data.frameType === 'truss' ? 'Решетчатая ферма' : 'Рамная балка'}</Text>
             </View>
             <View style={{ width: '49%' }}>
-              <Text style={styles.listText}>• Форма кровли: {data.roofShape === 'single' ? 'Односкатная' : 'Двускатная'} (уклон {data.slope || 10}%)</Text>
+              <Text style={styles.listText}>• Форма кровли: {data.roofShape === 'single' ? 'Односкатная' : 'Двускатная'} (уклон {data.slope !== undefined && data.slope !== null && data.slope !== '' ? data.slope : 0}%)</Text>
               <Text style={styles.listText}>• Нагрузки: Снег {data.snowLoad || '-'} кг/м², Ветер {data.windLoad || '-'} кг/м²</Text>
               <Text style={styles.listText}>• Крановое оборудование: {data.craneInfo || 'Нет крана'}</Text>
             </View>

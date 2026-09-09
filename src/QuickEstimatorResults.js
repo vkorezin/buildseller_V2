@@ -49,28 +49,22 @@ export default function QuickEstimatorResults({
   length = "48",
   height = "6",
   snowLoad = "180",
-  windLoad = "38",
+  windLoad,
   cranes = [],
   spanOrientations = [],
   gkPrice = 140000,
   lstkPrice = 160000,
   fasonkaPrice = 150000,
   floorStructure = null,
+  buildingTypesConfig = null,
 }) {
-  const [config, setConfig] = useState(DEFAULT_CONFIG);
+  const config = buildingTypesConfig || DEFAULT_CONFIG;
   const [showPdf, setShowPdf] = useState(false);
   const [currentKpNumber, setCurrentKpNumber] = useState("");
 
   const [managerName, setManagerName] = useState(() => localStorage.getItem('euroangar_pdf_m_name') || "");
   const [managerPhone, setManagerPhone] = useState(() => localStorage.getItem('euroangar_pdf_m_phone') || "");
   const [managerEmail, setManagerEmail] = useState(() => localStorage.getItem('euroangar_pdf_m_email') || "");
-
-  useEffect(() => {
-    const saved = localStorage.getItem('euroangar_building_types_config');
-    if (saved) {
-      try { setConfig({ ...DEFAULT_CONFIG, ...JSON.parse(saved) }); } catch (e) {}
-    }
-  }, []);
 
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_name', managerName); }, [managerName]);
   useEffect(() => { localStorage.setItem('euroangar_pdf_m_phone', managerPhone); }, [managerPhone]);

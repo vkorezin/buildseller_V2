@@ -16,20 +16,20 @@ export const FLOOR_TYPES = [
     isConstantThickness: false,
     deckProfile: "Н75-750-0.8",
     corrugationHeight: 75,
-    corrugationVolumePerM2: 0.042, // м³/м² бетон в гофрах
-    deadLoad: 280, // кг/м² (бетон B25 над гофрами + бетон в гофрах Н75 + сетка + профлист Н75-750 + балки)
+    corrugationVolumePerM2: 0.0291, // м³/м² бетон в гофрах (точные геометрические характеристики Н75-750-0.8)
+    deadLoad: 246, // кг/м² при t=120мм (бетон hc=45мм + бетон в гофрах 0.0291м³ + профлист 11.2кг + сетка 8кг + топпинг 15кг + балки 30кг)
     beamSpacing: "2.5 – 3.2 м",
     fireRating: "REI 60 – REI 90",
     features:
-      "Сталебетонное перекрытие по оцинкованному профлисту Н75-750-0.8. Бетон полностью заполняет гофры листа (объем в ребрах ~0.042 м³/м² или 103 кг/м²), формируя надежную ребристую плиту со сплошным слоем бетона над полкой гофр.",
+      "Сталебетонное перекрытие по оцинкованному профлисту Н75-750-0.8 (масса 11.2 кг/м²). Бетон заполняет гофры листа (объем в ребрах 0.0291 м³/м² или ~71.3 кг/м²), формируя надежную ребристую плиту с полкой бетона hc = t - 75 мм (min hc >= 40 мм).",
     color: "#2563eb",
     layers: [
       { name: "Чистовое износостойкое полимерное покрытие / топпинг", thickness: 5, weight: 15 },
       { name: "Монолитный бетон B25 над гофрами профлиста (hc = 45 мм)", thickness: 45, weight: 110, isVariableConcrete: true },
-      { name: "Бетон B25 в гофрах профлиста Н75 (объем 0.042 м³/м²)", thickness: 75, weight: 103, isCorrugationConcrete: true },
-      { name: "Профилированный оцинкованный лист Н75-750-0.8 (ГОСТ 24045)", thickness: 75, weight: 13 },
+      { name: "Бетон B25 в гофрах профлиста Н75 (объем 0.0291 м³/м²)", thickness: 75, weight: 71, isCorrugationConcrete: true },
+      { name: "Профилированный оцинкованный лист Н75-750-0.8 (ГОСТ 24045)", thickness: 75, weight: 11.2 },
+      { name: "Арматурная сетка в полке и стержни в ребрах", thickness: 10, weight: 8 },
       { name: "Стальные второстепенные балки (шаг 2.5–3.0 м)", thickness: 200, weight: 30 },
-      { name: "Перегородки и подвесные инженерные сети", thickness: 0, weight: 50 },
     ],
   },
   {
@@ -50,11 +50,10 @@ export const FLOOR_TYPES = [
       "Заводские предварительно напряженные плиты ПБ-22 или ПК. Укладываются по верхним полкам стальных ригелей. Не требуют мокрых монолитных работ на стройплощадке.",
     color: "#0284c7",
     layers: [
-      { name: "Выравнивающая армированная стяжка М150", thickness: 40, weight: 75 },
+      { name: "Выравнивающая армированная стяжка М150 (30 мм)", thickness: 30, weight: 50 },
       { name: "Сборные преднапряженные многопустотные плиты ПБ-220", thickness: 220, weight: 230 },
       { name: "Замоноличивание швов бетоном B20", thickness: 0, weight: 15 },
-      { name: "Главные стальные балки перекрытия", thickness: 350, weight: 45 },
-      { name: "Перегородки и инженерные коммуникации", thickness: 0, weight: 50 },
+      { name: "Главные стальные балки перекрытия", thickness: 350, weight: 35 },
     ],
   },
   {
@@ -67,17 +66,16 @@ export const FLOOR_TYPES = [
     thicknessRange: [140, 250],
     thicknessPresets: [140, 160, 180, 200, 220, 250],
     isConstantThickness: false,
-    deadLoad: 460, // кг/м²
+    deadLoad: 525, // кг/м² (при t=180мм: 180*2.5 + 25 топпинг + 50 ригели = 525)
     beamSpacing: "4.0 – 6.0 м",
     fireRating: "REI 90 – REI 150",
     features:
       "Сплошная плита тяжелого бетона B25 с двухслойным армированием. Обладает максимальной несущей способностью и вибростойкостью под тяжелые станки и погрузчики.",
     color: "#475569",
     layers: [
-      { name: "Топпинг пола / обеспыливающая пропитка", thickness: 10, weight: 25 },
+      { name: "Топпинг пола / обеспыливающая пропитка (10 мм)", thickness: 10, weight: 25 },
       { name: "Монолитная железобетонная плита B25 (двойная арматура)", thickness: 180, weight: 450 },
       { name: "Главные стальные ригели каркаса", thickness: 400, weight: 50 },
-      { name: "Перегородки и подвесное оборудование", thickness: 0, weight: 50 },
     ],
   },
   {
@@ -112,14 +110,14 @@ export const FLOOR_TYPES = [
     thicknessRange: [25, 60],
     thicknessPresets: [25, 30, 35, 40, 50],
     isConstantThickness: false,
-    deadLoad: 55, // кг/м²
+    deadLoad: 57, // кг/м² (35 + 22)
     beamSpacing: "1.0 – 1.8 м",
     fireRating: "R 15 (требуется конструктивная огнезащита)",
     features:
       "Промышленное перекрытие для технологических площадок, насосных, котельных, цеховых антресолей и галерей обслуживания. Минимальный собственный вес.",
     color: "#059669",
     layers: [
-      { name: "Стальной рифленый лист t=6мм или сварная решетка SP", thickness: 6, weight: 48 },
+      { name: "Стальной рифленый лист t=6мм или сварная решетка SP", thickness: 35, weight: 35 },
       { name: "Второстепенные прогоны из швеллера / профильной трубы", thickness: 120, weight: 22 },
     ],
   },
@@ -141,9 +139,9 @@ export const FLOOR_TYPES = [
     color: "#b45309",
     layers: [
       { name: "Чистовое покрытие (ламинат / износостойкий линолеум)", thickness: 8, weight: 8 },
-      { name: "Двойной черновой настил из плит ЦСП 16мм + OSB-3 12мм", thickness: 28, weight: 28 },
-      { name: "Деревянные антисептированные лаги с базальтовой ватой", thickness: 100, weight: 18 },
-      { name: "Второстепенные стальные балки перекрытия", thickness: 180, weight: 24 },
+      { name: "Двойной черновой настил из плит ЦСП 16мм + OSB-3 12мм", thickness: 28, weight: 20 },
+      { name: "Деревянные антисептированные лаги с базальтовой ватой", thickness: 100, weight: 10 },
+      { name: "Второстепенные стальные балки перекрытия", thickness: 180, weight: 10 },
     ],
   },
   {
@@ -163,11 +161,9 @@ export const FLOOR_TYPES = [
       "Монтаж без бетонных работ: несущий профнастил, жесткие звукоизоляционные маты ФЛОР БАТТС, керамзитовая подсыпка и влагостойкие гипсоволокнистые элементы пола KNAUF.",
     color: "#7c3aed",
     layers: [
-      { name: "Элементы пола КНАУФ Суперпол (ГВЛВ 20 мм)", thickness: 20, weight: 24 },
-      { name: "Звукоизоляционные плиты Rockwool ФЛОР БАТТС", thickness: 25, weight: 8 },
-      { name: "Сухая керамзитовая засыпка Компэвит", thickness: 25, weight: 22 },
-      { name: "Несущий профилированный лист Н57/Н75", thickness: 75, weight: 11 },
-      { name: "Стальные балки перекрытия (шаг 1.5–2.5 м)", thickness: 200, weight: 30 },
+      { name: "Элементы пола КНАУФ Суперпол (ГВЛВ 20 мм)", thickness: 20, weight: 25 },
+      { name: "Сухая керамзитовая засыпка Компэвит (50 мм)", thickness: 50, weight: 52 },
+      { name: "Несущий профилированный лист Н57/Н75", thickness: 75, weight: 18 },
     ],
   },
 ];
@@ -289,7 +285,7 @@ export const DEFAULT_FLOOR_STRUCTURE = {
   typeName: "Монолитный ж/б по несъемной опалубке из профлиста Н75",
   shortName: "Ж/б по профлисту Н75",
   thickness: 120, // мм
-  deadLoad: 280, // кг/м²
+  deadLoad: 246, // кг/м²
   partitionsLoad: 50, // кг/м²
   liveLoad: 400, // кг/м²
   liveLoadCategory: "Торговые залы, выставочные павильоны",
@@ -303,6 +299,19 @@ export const DEFAULT_FLOOR_STRUCTURE = {
   mezzanineWidth: null, // null = во всю ширину здания, либо число в метрах (например, 6, 9, 12)
   mezzanineLength: null, // null = на всю длину здания, либо число в метрах (например, 12, 18, 24)
 };
+
+/**
+ * Единая формула расчета расчетной эквивалентной нагрузки q на перекрытие (кг/м²) по СП 20.13330:
+ * q = g_dead * 1.1 + p_part * 1.2 + p_live * safetyFactor
+ * Разрешает partitionsLoad = 0 (ноль допустим).
+ */
+export function calculateMezzanineQBase({ deadLoad, partitionsLoad, liveLoad, safetyFactor }) {
+  const g_dead = (deadLoad !== undefined && deadLoad !== null && !isNaN(Number(deadLoad))) ? Number(deadLoad) : 246;
+  const p_part = (partitionsLoad !== undefined && partitionsLoad !== null && !isNaN(Number(partitionsLoad))) ? Number(partitionsLoad) : 0;
+  const p_live = (liveLoad !== undefined && liveLoad !== null && !isNaN(Number(liveLoad))) ? Number(liveLoad) : 400;
+  const sf = (safetyFactor !== undefined && safetyFactor !== null && !isNaN(Number(safetyFactor))) ? Number(safetyFactor) : 1.2;
+  return Math.max(100, Math.round((g_dead * 1.1 + p_part * 1.2 + p_live * sf) * 10) / 10);
+}
 
 /**
  * Расчет эффективных размеров и площади антресоли
@@ -336,7 +345,8 @@ export function getEffectiveMezzanineDimensions(floorStructure, totalBuildingWid
 
 /**
  * Расчет собственного веса перекрытия (кг/м²) в зависимости от типа и толщины.
- * Учитывает бетон в гофрах профлиста Н75 согласно СП 266.1325800.2016.
+ * Учитывает геометрию Н75-750-0.8 (0.0291 м³/м² бетона в гофрах, масса листа 11.2 кг/м²),
+ * минимальную толщину полки hc >= 40 мм и общую толщину t >= 115 мм по СП 266.1325800.2016.
  */
 export function calculateDeadLoadForType(typeId, t) {
   const thick = Number(t) || 120;
@@ -347,23 +357,22 @@ export function calculateDeadLoadForType(typeId, t) {
     case "monolithic_deck": {
       // Профнастил Н75-750-0.8 (ГОСТ 24045-2016, СП 266.1325800.2016):
       // Высота гофры h_g = 75 мм.
-      // Объем бетона, заполняющего гофры (ребра): V_cor = 0.042 м³/м².
-      // При плотности тяжелого бетона 2450 кг/м³ масса бетона в гофрах = 0.042 * 2450 = 103 кг/м².
-      // Высота сплошной полки бетона над гофрами: hc = max(35, thick - 75) мм.
+      // Объем бетона в гофрах: V_cor = 0.0291 м³/м².
+      // При плотности тяжелого бетона 2450 кг/м³ масса бетона в гофрах = 0.0291 * 2450 = 71.3 кг/м².
+      // Высота сплошной полки бетона над гофрами: hc = max(40, thick - 75) мм (требование СП 266: hc >= 40 мм, t >= 115 мм).
       // Масса бетона над гофрами: (hc / 1000) * 2450 = hc * 2.45 кг/м².
-      // Профлист Н75-750-0.8: 13 кг/м².
+      // Профлист Н75-750-0.8: 11.2 кг/м² (ГОСТ 24045-2016).
       // Арматурная сетка в полке и стержни в ребрах: 8 кг/м².
       // Топпинг / чистовой слой (5 мм): 15 кг/м².
       // Второстепенные стальные балки: 30 кг/м².
-      // Постоянная составляющая (гофры + лист + арматура + топпинг + балки) = 103 + 13 + 8 + 15 + 30 = 169 кг/м².
+      // Постоянная конструктивная составляющая: 71.3 + 11.2 + 8 + 15 + 30 = 135.5 кг/м².
       // Переменная составляющая от слоя бетона над гофрами: hc * 2.45 кг/м².
-      // Итого собственный вес: 169 + hc * 2.45 (при t=120: 169 + 45*2.45 = 279.25 ≈ 280 кг/м²).
-      const hc = Math.max(35, thick - 75);
-      return Math.round(169 + hc * 2.45);
+      // При t=120 (hc=45): 135.5 + 45 * 2.45 = 245.75 ≈ 246 кг/м².
+      const hc = Math.max(40, thick - 75);
+      return Math.round(135.5 + hc * 2.45);
     }
     case "monolithic_slab":
-      // Монолитная плита тяжелого бетона B25 (при t=180мм -> 460 кг/м²)
-      // Плотность бетона 2500 кг/м³ -> thick * 2.5 + топпинг (25) + ригели (50)
+      // Монолитная плита тяжелого бетона B25 (при t=180мм -> 525 кг/м²: 180*2.5 + 25 топпинг + 50 ригели)
       return Math.max(250, Math.round(thick * 2.5 + 75));
     case "precast_block_composite":
       // Сборно-монолитное (при t=200мм -> 220 кг/м²)
@@ -378,55 +387,58 @@ export function calculateDeadLoadForType(typeId, t) {
       // Сухая стяжка KNAUF: ГВЛВ 20 мм (25 кг/м²) + керамзитовая засыпка
       return Math.max(50, Math.round(43 + Math.max(0, thick - 20) * 1.04));
     default:
-      return 280;
+      return 246;
   }
 }
 
 /**
  * Динамический расчет состава слоев пирога перекрытия при изменении толщины.
  * Обновляет толщину бетона над гофрами профлиста Н75, массу бетона и настилов.
+ * В слои входят исключительно элементы конструкции перекрытия (deadLoad).
+ * Нагрузка от перегородок вынесена в отдельную позицию.
  */
 export function getLayersForTypeAndThickness(typeInfo, t) {
   if (!typeInfo) return [];
   const thick = Number(t) || typeInfo.defaultThickness || 120;
 
   if (typeInfo.id === "monolithic_deck") {
-    const hc = Math.max(35, thick - 75);
+    const hc = Math.max(40, thick - 75);
     const weightAbove = Math.round(hc * 2.45);
-    const totalConcreteVol = (0.042 + hc / 1000).toFixed(3);
+    const corrugationVol = 0.0291;
+    const totalConcreteVol = (corrugationVol + hc / 1000).toFixed(4);
     return [
       {
-        name: "Чистовое износостойкое полимерное покрытие / топпинг",
+        name: "Чистовое износостойкое полимерное покрытие / топпинг (5 мм)",
         thickness: 5,
         weight: 15,
       },
       {
-        name: `Монолитный бетон B25 над гофрами (hc = t - 75 = ${hc} мм)`,
+        name: `Монолитный бетон B25 над гофрами (hc = t - 75 = ${hc} мм, min hc >= 40 мм)`,
         thickness: hc,
         weight: weightAbove,
         highlight: true,
       },
       {
-        name: "Бетон B25 в гофрах профлиста Н75 (объем 0.042 м³/м²)",
+        name: "Бетон B25 в гофрах профлиста Н75 (объем 0.0291 м³/м²)",
         thickness: 75,
-        weight: 103,
+        weight: 71,
         highlight: true,
-        note: `Общий объем бетона: ${totalConcreteVol} м³/м² (${103 + weightAbove} кг/м²)`,
+        note: `Суммарный объем бетона: ${totalConcreteVol} м³/м² (${71 + weightAbove} кг/м²)`,
       },
       {
         name: "Профилированный оцинкованный лист Н75-750-0.8 (ГОСТ 24045)",
         thickness: 75,
-        weight: 13,
+        weight: 11.2,
+      },
+      {
+        name: "Арматурная сетка в полке и стержни в ребрах",
+        thickness: 10,
+        weight: 8,
       },
       {
         name: "Стальные второстепенные балки (шаг 2.5–3.0 м)",
         thickness: 200,
         weight: 30,
-      },
-      {
-        name: "Перегородки и подвесные инженерные сети",
-        thickness: 0,
-        weight: 50,
       },
     ];
   }
@@ -435,7 +447,7 @@ export function getLayersForTypeAndThickness(typeInfo, t) {
     const slabWeight = Math.round(thick * 2.5);
     return [
       {
-        name: "Топпинг пола / обеспыливающая пропитка",
+        name: "Топпинг пола / обеспыливающая пропитка (10 мм)",
         thickness: 10,
         weight: 25,
       },
@@ -448,11 +460,6 @@ export function getLayersForTypeAndThickness(typeInfo, t) {
       {
         name: "Главные стальные ригели каркаса",
         thickness: 400,
-        weight: 50,
-      },
-      {
-        name: "Перегородки и подвесное оборудование",
-        thickness: 0,
         weight: 50,
       },
     ];
@@ -472,11 +479,6 @@ export function getLayersForTypeAndThickness(typeInfo, t) {
         thickness: 120,
         weight: 22,
       },
-      {
-        name: "Перегородки и подвесные сети",
-        thickness: 0,
-        weight: 50,
-      },
     ];
   }
 
@@ -484,20 +486,25 @@ export function getLayersForTypeAndThickness(typeInfo, t) {
     const timberWeight = Math.round(16 + thick * 0.4);
     return [
       {
-        name: `Настил из шпунтованной доски / бруса (${thick} мм)`,
+        name: "Чистовое покрытие (ламинат / износостойкий линолеум)",
+        thickness: 8,
+        weight: 8,
+      },
+      {
+        name: `Двойной настил из плит ЦСП / OSB (${thick} мм)`,
         thickness: thick,
         weight: timberWeight,
         highlight: true,
       },
       {
-        name: "Деревянные / стальные балки перекрытия",
-        thickness: 200,
-        weight: 25,
+        name: "Деревянные антисептированные лаги с базальтовой ватой",
+        thickness: 100,
+        weight: 10,
       },
       {
-        name: "Перегородки и подвесные сети",
-        thickness: 0,
-        weight: 40,
+        name: "Второстепенные стальные балки перекрытия",
+        thickness: 180,
+        weight: 10,
       },
     ];
   }
@@ -507,7 +514,7 @@ export function getLayersForTypeAndThickness(typeInfo, t) {
     const backfillWeight = Math.round(backfillH * 1.04);
     return [
       {
-        name: "Сборные гипсоволокнистые элементы пола KNAUF КНАУФ-суперпол",
+        name: "Сборные гипсоволокнистые элементы пола KNAUF КНАУФ-суперпол (20 мм)",
         thickness: 20,
         weight: 25,
       },
@@ -518,14 +525,9 @@ export function getLayersForTypeAndThickness(typeInfo, t) {
         highlight: true,
       },
       {
-        name: "Профлист или сплошное основание",
-        thickness: 60,
+        name: "Несущий профлист Н57/Н75",
+        thickness: 75,
         weight: 18,
-      },
-      {
-        name: "Стальные несущие балки",
-        thickness: 200,
-        weight: 30,
       },
     ];
   }

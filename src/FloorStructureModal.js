@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   FLOOR_TYPES,
   LIVE_LOAD_PRESETS,
@@ -6,6 +6,7 @@ import {
   RESPONSIBILITY_FACTORS,
   DEFAULT_FLOOR_STRUCTURE,
   calculateDeadLoadForType,
+  calculateMezzanineQBase,
   getAutoColumnSpans,
   getLayersForTypeAndThickness,
   getValidFloorElevations,
@@ -87,6 +88,51 @@ export default function FloorStructureModal({
     }
     return getAutoColumnSpans(spanWidth);
   });
+
+  // Синхронизация состояния при каждом открытии модального окна
+  useEffect(() => {
+    if (isOpen) {
+      const init = initialStructure || DEFAULT_FLOOR_STRUCTURE;
+      const typeId = init.type || DEFAULT_FLOOR_STRUCTURE.type;
+      const typeInfo = FLOOR_TYPES.find((t) => t.id === typeId) || FLOOR_TYPES[0];
+
+      setSelectedType(typeId);
+      const th = init.thickness ?? typeInfo.defaultThickness;
+      setThickness(th);
+      setDeadLoad(
+        init.deadLoad != null
+          ? init.deadLoad
+          : calculateDeadLoadForType(typeId, th)
+      );
+      setPartitionsLoad(
+        init.partitionsLoad !== undefined &&
+        init.partitionsLoad !== null &&
+        !isNaN(Number(init.partitionsLoad))
+          ? Number(init.partitionsLoad)
+          : DEFAULT_FLOOR_STRUCTURE.partitionsLoad
+      );
+      setLiveLoad(init.liveLoad ?? DEFAULT_FLOOR_STRUCTURE.liveLoad);
+      setSafetyFactor(init.safetyFactor ?? DEFAULT_FLOOR_STRUCTURE.safetyFactor);
+      setResponsibilityFactor(
+        init.responsibilityFactor ?? DEFAULT_FLOOR_STRUCTURE.responsibilityFactor
+      );
+      setStoryElevations(
+        getValidFloorElevations(storiesCount, height, init.storyElevations)
+      );
+      setColumnSpansMode(init.columnSpansMode || "auto");
+      setCustomSpans(
+        Array.isArray(init.columnSpans) && init.columnSpans.length > 0
+          ? init.columnSpans
+          : getAutoColumnSpans(spanWidth)
+      );
+      setMezzanineWidth(
+        init.mezzanineWidth != null ? init.mezzanineWidth : null
+      );
+      setMezzanineLength(
+        init.mezzanineLength != null ? init.mezzanineLength : null
+      );
+    }
+  }, [isOpen, initialStructure, storiesCount, height, spanWidth]);
 
   const currentTypeInfo = useMemo(() => {
     return (
@@ -186,7 +232,10 @@ export default function FloorStructureModal({
   // Инженерный расчет нагрузок (без расчета расхода стали на антресоль)
   const calcResults = useMemo(() => {
     const g_dead = Number(deadLoad) || 0;
-    const g_part = Number(partitionsLoad) || 0;
+    const g_part =
+      partitionsLoad !== "" && partitionsLoad != null && !isNaN(Number(partitionsLoad))
+        ? Number(partitionsLoad)
+        : 0;
     const g_tot = g_dead + g_part; // постоянная нормативная нагрузка
 
     const p_live = Number(liveLoad) || 0; // полезная нормативная нагрузка
@@ -194,10 +243,9 @@ export default function FloorStructureModal({
 
     const gamma_f = Number(safetyFactor) || 1.2;
     const gamma_n = Number(responsibilityFactor) || 1.0;
-    const gamma_g = 1.1; // усредненный по СП 20.13330 для собственного веса
 
-    // Полная расчетная нагрузка кг/м²
-    const q_design = Math.round((g_tot * gamma_g + p_live * gamma_f) * gamma_n);
+    // Полная расчетная нагрузка кг/м² с использованием единой формулы calculateMezzanineQBase
+    const q_design = calculateMezzanineQBase(g_dead, g_part, p_live, gamma_f, gamma_n);
 
     // В кН/м² (1 кПа = 100 кг/м²)
     const q_norm_kpa = (q_norm / 100).toFixed(2);
@@ -212,6 +260,8 @@ export default function FloorStructureModal({
 
     return {
       g_tot,
+      g_dead,
+      g_part,
       p_live,
       q_norm,
       q_norm_kpa,
@@ -233,24 +283,52 @@ export default function FloorStructureModal({
   ]);
 
   const handleSave = () => {
+    let finalThick = currentTypeInfo.isConstantThickness
+      ? 220
+      : Number(thickness) || currentTypeInfo.defaultThickness;
+
+    // Валидация толщины по диапазону thicknessRange
+    if (!currentTypeInfo.isConstantThickness && currentTypeInfo.thicknessRange) {
+      const [minT, maxT] = currentTypeInfo.thicknessRange;
+      if (finalThick < minT) finalThick = minT;
+      if (finalThick > maxT) finalThick = maxT;
+    }
+
+    const calculatedDL = currentTypeInfo.isConstantThickness
+      ? 330
+      : calculateDeadLoadForType(currentTypeInfo.id, finalThick);
+
+    const safePartitionsLoad =
+      partitionsLoad !== "" && partitionsLoad != null && !isNaN(Number(partitionsLoad))
+        ? Number(partitionsLoad)
+        : 50;
+
+    const safeLiveLoad = Number(liveLoad) || 400;
+    const safeSafetyFactor = Number(safetyFactor) || 1.2;
+    const safeResponsibilityFactor = Number(responsibilityFactor) || 1.0;
+    const unifiedDesignLoadKg = calculateMezzanineQBase(
+      calculatedDL,
+      safePartitionsLoad,
+      safeLiveLoad,
+      safeSafetyFactor,
+      safeResponsibilityFactor
+    );
+
     const result = {
       type: currentTypeInfo.id,
       typeName: currentTypeInfo.name,
       shortName: currentTypeInfo.shortName,
-      thickness: currentTypeInfo.isConstantThickness
-        ? 220
-        : Number(thickness) || currentTypeInfo.defaultThickness,
-      deadLoad: currentTypeInfo.isConstantThickness
-        ? 330
-        : Number(deadLoad) || currentTypeInfo.deadLoad,
-      partitionsLoad: Number(partitionsLoad) || 50,
-      liveLoad: Number(liveLoad) || 400,
-      safetyFactor: Number(safetyFactor) || 1.2,
-      responsibilityFactor: Number(responsibilityFactor) || 1.0,
+      name: currentTypeInfo.name,
+      thickness: finalThick,
+      deadLoad: calculatedDL,
+      partitionsLoad: safePartitionsLoad,
+      liveLoad: safeLiveLoad,
+      safetyFactor: safeSafetyFactor,
+      responsibilityFactor: safeResponsibilityFactor,
       standard: currentTypeInfo.standard,
       codeRef: "СП 20.13330.2016 (п. 8.2.2), ГОСТ 27751-2014",
-      designLoadKg: calcResults.q_design,
-      normLoadKg: calcResults.q_norm,
+      designLoadKg: unifiedDesignLoadKg,
+      normLoadKg: calculatedDL + safePartitionsLoad + safeLiveLoad,
       columnSpansMode,
       columnSpans: effectiveSpans,
       deckProfile: "Н75-750-0.8",
@@ -768,6 +846,14 @@ export default function FloorStructureModal({
                       value={thickness}
                       onChange={(e) => handleThicknessChange(e.target.value)}
                     />
+                    {!currentTypeInfo.isConstantThickness && currentTypeInfo.thicknessRange && (
+                      (Number(thickness) < currentTypeInfo.thicknessRange[0] ||
+                       Number(thickness) > currentTypeInfo.thicknessRange[1]) && (
+                        <div style={{ fontSize: "0.72em", color: "#dc2626", marginTop: "3px", fontWeight: 500 }}>
+                          ⚠️ Вне диапазона ({currentTypeInfo.thicknessRange[0]}–{currentTypeInfo.thicknessRange[1]} мм)
+                        </div>
+                      )
+                    )}
                   </div>
 
                   <div>

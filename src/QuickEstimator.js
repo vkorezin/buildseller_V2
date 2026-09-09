@@ -1475,6 +1475,7 @@ export default function QuickEstimator({
         lstkPrice={lstkPrice}
         fasonkaPrice={fasonkaPrice}
         floorStructure={floorStructure}
+        buildingTypesConfig={buildingTypesConfig}
       />
 
       <div

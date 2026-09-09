@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import PinProtectedSection from "./PinProtectedSection";
+import { calculateMezzanineQBase } from "./floorStructureConstants";
 
 export const DEFAULT_MEZZANINE_COEFFS = {
   // 1. Базовые константы (эталонная точка)
@@ -74,6 +75,7 @@ export function calculateMezzanineMetal({
   spansCount,
   buildingLength,
   height,
+  frameStep = 6.0,
   coeffs = DEFAULT_MEZZANINE_COEFFS,
 }) {
   const c = {
@@ -119,12 +121,21 @@ export function calculateMezzanineMetal({
     };
   }
 
-  // 1. Расчетная нагрузка q по СП 20: q = g_dead * 1.1 + p_partitions * 1.2 + p_live * safetyFactor
-  const g_dead = Number(floorStructure?.deadLoad ?? 280);
-  const p_partitions = Number(floorStructure?.partitionsLoad ?? 50);
+  // 1. Расчетная нагрузка q по СП 20: g_dead * 1.1 + p_partitions * 1.2 + p_live * safetyFactor
+  const g_dead = Number(floorStructure?.deadLoad ?? 246);
+  const p_partitions =
+    floorStructure?.partitionsLoad !== "" &&
+    floorStructure?.partitionsLoad != null &&
+    !isNaN(Number(floorStructure.partitionsLoad))
+      ? Number(floorStructure.partitionsLoad)
+      : 50;
   const p_live = Number(floorStructure?.liveLoad ?? 400);
   const safetyFactor = Number(floorStructure?.safetyFactor ?? 1.2);
-  const q = Math.max(100, g_dead * 1.1 + p_partitions * 1.2 + p_live * safetyFactor);
+  const responsibilityFactor = Number(floorStructure?.responsibilityFactor ?? 1.0);
+  const q = Math.max(
+    100,
+    calculateMezzanineQBase(g_dead, p_partitions, p_live, safetyFactor, responsibilityFactor)
+  );
 
   // 2. Геометрия шага балочной клетки:
   // Если задана ручная раскладка columnSpans — берем максимальный шаг, иначе W / kSubSpans (правило 9 м)
@@ -146,8 +157,8 @@ export function calculateMezzanineMetal({
   }
   if (B_span <= 0) B_span = 6.0;
 
-  // L_span = шаг рам здания (эталон 6.0 м)
-  const L_span = Number(c.base_grid_l) || 6.0;
+  // Фактический шаг рам здания L_frame (дефолт 6.0 м):
+  const L_frame = Number(frameStep) || 6.0;
 
   // H_floor = средняя высота этажа с учетом переменной высоты ярусов
   let H_floor = H / nStories;
@@ -178,23 +189,24 @@ export function calculateMezzanineMetal({
   H_floor = Math.max(2.4, H_floor);
 
   // 3. Коэффициенты интерполяции
+  // base_grid_l — эталонный калибровочный шаг сетки матрицы (6.0 м)
   const baseL0 = Number(c.base_grid_l) || 6.0;
   const baseB0 = Number(c.base_grid_b) || 6.0;
   const baseH0 = Number(c.base_height_h0) || 3.0;
   const baseQ0 = Number(c.base_load_q0) || 840.0;
 
   // Влияние пролета балок:
-  // k_beams = share_main * ((L_span / 6.0)^p_main_L * (B_span / 6.0)^p_main_B) + (1 - share_main) * ((B_span / 6.0)^p_sec_B)
+  // p_main_L — степень масштабирования главного ригеля по фактическому шагу рам L_frame относительно baseL0
   const termMain =
-    Math.pow(Math.max(0.2, L_span / baseL0), c.p_main_L) *
+    Math.pow(Math.max(0.2, L_frame / baseL0), c.p_main_L) *
     Math.pow(Math.max(0.2, B_span / baseB0), c.p_main_B);
   const termSec = Math.pow(Math.max(0.2, B_span / baseB0), c.p_sec_B);
   const k_beams = c.share_main * termMain + (1 - c.share_main) * termSec;
 
   // Влияние сетки на вес промежуточных стоек:
-  // k_col_grid = ((B0 * L0) / (B_span * L_span))^p_col_grid
+  // k_col_grid = ((B0 * L0) / (B_span * L_frame))^p_col_grid
   const k_col_grid = Math.pow(
-    Math.max(0.1, (baseB0 * baseL0) / (B_span * L_span)),
+    Math.max(0.1, (baseB0 * baseL0) / (B_span * L_frame)),
     c.p_col_grid
   );
 
@@ -258,7 +270,8 @@ export function calculateMezzanineMetal({
     mezzanineArea,
     q,
     B_span,
-    L_span,
+    L_span: L_frame,
+    L_frame,
     H_floor,
     k_beams,
     k_col_grid,

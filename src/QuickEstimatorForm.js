@@ -182,8 +182,21 @@ export default function QuickEstimatorForm({
             type="number"
             min="1"
             max="10"
+            step="1"
             value={spansCount}
-            onChange={(e) => setSpansCount(e.target.value)}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === "") {
+                setSpansCount("");
+                return;
+              }
+              const val = Number(raw);
+              if (Number.isInteger(val)) {
+                setSpansCount(Math.max(1, Math.min(10, val)));
+              } else {
+                setSpansCount(Math.max(1, Math.min(10, Math.round(val))));
+              }
+            }}
           />
         </div>
         <div style={styles.field}>
@@ -211,8 +224,21 @@ export default function QuickEstimatorForm({
             type="number"
             min="1"
             max="5"
+            step="1"
             value={stories}
-            onChange={(e) => setStories(Number(e.target.value))}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === "") {
+                setStories("");
+                return;
+              }
+              const val = Number(raw);
+              if (Number.isInteger(val)) {
+                setStories(Math.max(1, Math.min(5, val)));
+              } else {
+                setStories(Math.max(1, Math.min(5, Math.round(val))));
+              }
+            }}
           />
           {onOpenFloorModal && (
             stories > 1 ? (
