@@ -475,9 +475,21 @@ export default function QuickEstimator({
     setAperturesList(prev => prev.map(ap => {
       if (ap.id === id) {
         const updated = { ...ap, [field]: value };
+        const currentType = updated.type;
         const h = Number(updated.height) || 0;
 
-        if (ap.type === "window") {
+        if (field === 'type') {
+          if (value === 'window') {
+            const b = 1.2;
+            updated.eBot = String(b.toFixed(2));
+            updated.eTop = String((b + h).toFixed(2));
+            updated.profile = "СтОП";
+          } else {
+            updated.eBot = "0.00";
+            updated.eTop = String(h.toFixed(2));
+            updated.profile = "ГКП";
+          }
+        } else if (currentType === "window") {
           if (field === 'height' || field === 'eTop') {
             const t = Number(updated.eTop) || 0;
             updated.eBot = String(Math.max(0, t - h).toFixed(2));
@@ -490,8 +502,7 @@ export default function QuickEstimator({
           updated.eBot = "0.00";
           if (field === 'height') {
             updated.eTop = String(h.toFixed(2));
-          }
-          if (field === 'eTop') {
+          } else if (field === 'eTop') {
             updated.height = value;
           }
         }
@@ -1085,7 +1096,14 @@ export default function QuickEstimator({
       envelopeDiffAmount = trussEnv.wCost + trussEnv.tCost - (beamEnv.wCost + beamEnv.tCost);
     }
 
-    const cranesSummary = cranes.filter((c) => c.cap !== "0").map((c, i) => `№${i + 1}:${c.cap}т`).join(", ");
+    const cranesSummary = cranes
+      .map((c, originalIndex) => {
+        const spanNum = (c.id != null ? Number(c.id) : originalIndex) + 1;
+        return { ...c, spanNum };
+      })
+      .filter((c) => c.cap && c.cap !== "0" && Number(c.cap) > 0)
+      .map((c) => `№${c.spanNum}: ${c.cap}т (${c.type === "suspension" ? "подвесной" : "опорный"})`)
+      .join(", ");
 
     let currentDiscount = "0";
     if (frameType === "truss") {

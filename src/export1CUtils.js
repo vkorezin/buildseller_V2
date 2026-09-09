@@ -64,6 +64,32 @@ export function get1CParameters(data = {}) {
   });
   rows.push({
     category: "Общие параметры здания",
+    param: "КоличествоПролетов",
+    value: format1CValue(N),
+    name: "Количество пролетов"
+  });
+  rows.push({
+    category: "Общие параметры здания",
+    param: "ШиринаПролета",
+    value: format1CValue(W),
+    name: "Ширина пролета, м"
+  });
+  rows.push({
+    category: "Общие параметры здания",
+    param: "ТипКаркаса",
+    value: frameType === "truss" ? "Ферма" : "Балка",
+    name: "Тип несущего каркаса"
+  });
+  for (let s = 1; s <= N; s++) {
+    rows.push({
+      category: "Параметры пролетов",
+      param: `Пролеты.${s}.Ширина`,
+      value: format1CValue(W),
+      name: `Пролет ${s}: Ширина, м`
+    });
+  }
+  rows.push({
+    category: "Общие параметры здания",
     param: "Длина",
     value: format1CValue(L),
     name: "Длина, м"
@@ -252,7 +278,7 @@ export function get1CParameters(data = {}) {
         rows.push({
           category: "Инженерные проемы",
           param: `ЭлементыСтроения.${k}.Тип.Тип`,
-          value: "Окно ПВХ",
+          value: ap.construction || ap.profile || "Окно",
           name: `Элемент ${k}: Конструкция окна`
         });
         rows.push({
@@ -282,13 +308,13 @@ export function get1CParameters(data = {}) {
         rows.push({
           category: "Инженерные проемы",
           param: `ЭлементыСтроения.${k}.Разрабатывается`,
-          value: "Да",
+          value: ap.develop != null ? (ap.develop ? "Да" : "Нет") : "—",
           name: `Элемент ${k}: Разрабатывается`
         });
         rows.push({
           category: "Инженерные проемы",
           param: `ЭлементыСтроения.${k}.Поставляется`,
-          value: "Да",
+          value: ap.supply != null ? (ap.supply ? "Да" : "Нет") : "—",
           name: `Элемент ${k}: Поставляется`
         });
       } else if (apType === "gate" || apType === "ворота") {
@@ -301,7 +327,7 @@ export function get1CParameters(data = {}) {
         rows.push({
           category: "Инженерные проемы",
           param: `ЭлементыСтроения.${k}.Тип.Тип`,
-          value: "Ворота подъемно-секционные",
+          value: ap.construction || ap.profile || "Ворота",
           name: `Элемент ${k}: Конструкция ворот`
         });
         rows.push({
@@ -318,6 +344,12 @@ export function get1CParameters(data = {}) {
         });
         rows.push({
           category: "Инженерные проемы",
+          param: `ЭлементыСтроения.${k}.Тип.ОтметкаНиза`,
+          value: "0",
+          name: `Элемент ${k}: Отметка низа (м)`
+        });
+        rows.push({
+          category: "Инженерные проемы",
           param: `ЭлементыСтроения.${k}.Количество`,
           value: format1CValue(ap.count || "1"),
           name: `Элемент ${k}: Количество`
@@ -325,13 +357,13 @@ export function get1CParameters(data = {}) {
         rows.push({
           category: "Инженерные проемы",
           param: `ЭлементыСтроения.${k}.Разрабатывается`,
-          value: "Да",
+          value: ap.develop != null ? (ap.develop ? "Да" : "Нет") : "—",
           name: `Элемент ${k}: Разрабатывается`
         });
         rows.push({
           category: "Инженерные проемы",
           param: `ЭлементыСтроения.${k}.Поставляется`,
-          value: "Да",
+          value: ap.supply != null ? (ap.supply ? "Да" : "Нет") : "—",
           name: `Элемент ${k}: Поставляется`
         });
       } else if (apType === "door" || apType === "дверь") {
@@ -344,7 +376,7 @@ export function get1CParameters(data = {}) {
         rows.push({
           category: "Инженерные проемы",
           param: `ЭлементыСтроения.${k}.Тип.Тип`,
-          value: "Дверной блок металлический",
+          value: ap.construction || ap.profile || "Дверь",
           name: `Элемент ${k}: Конструкция двери`
         });
         rows.push({
@@ -361,6 +393,12 @@ export function get1CParameters(data = {}) {
         });
         rows.push({
           category: "Инженерные проемы",
+          param: `ЭлементыСтроения.${k}.Тип.ОтметкаНиза`,
+          value: "0",
+          name: `Элемент ${k}: Отметка низа (м)`
+        });
+        rows.push({
+          category: "Инженерные проемы",
           param: `ЭлементыСтроения.${k}.Количество`,
           value: format1CValue(ap.count || "1"),
           name: `Элемент ${k}: Количество`
@@ -368,13 +406,13 @@ export function get1CParameters(data = {}) {
         rows.push({
           category: "Инженерные проемы",
           param: `ЭлементыСтроения.${k}.Разрабатывается`,
-          value: "Да",
+          value: ap.develop != null ? (ap.develop ? "Да" : "Нет") : "—",
           name: `Элемент ${k}: Разрабатывается`
         });
         rows.push({
           category: "Инженерные проемы",
           param: `ЭлементыСтроения.${k}.Поставляется`,
-          value: "Да",
+          value: ap.supply != null ? (ap.supply ? "Да" : "Нет") : "—",
           name: `Элемент ${k}: Поставляется`
         });
       }
@@ -436,6 +474,10 @@ export function get1CParameters(data = {}) {
   // 7. Междуэтажное перекрытие / Антресоль — ТОЛЬКО если stories > 1
   if (Number(stories) > 1) {
     const k = elemIndex++;
+    const numStories = Number(stories) || 1;
+    const singleMezzArea = Number(estimation?.mezzanineArea) || 0;
+    const totalMezzArea = (numStories - 1) * singleMezzArea;
+
     rows.push({
       category: "Междуэтажные перекрытия",
       param: `ЭлементыСтроения.${k}.Тип`,
@@ -445,8 +487,14 @@ export function get1CParameters(data = {}) {
     rows.push({
       category: "Междуэтажные перекрытия",
       param: `ЭлементыСтроения.${k}.Тип.Площадь`,
-      value: format1CValue(estimation?.mezzanineArea),
-      name: `Элемент ${k}: Площадь антресоли (кв.м)`
+      value: format1CValue(totalMezzArea),
+      name: `Элемент ${k}: Общая площадь антресоли (кв.м)`
+    });
+    rows.push({
+      category: "Междуэтажные перекрытия",
+      param: `ЭлементыСтроения.${k}.Тип.ПлощадьОдногоЭтажа`,
+      value: format1CValue(singleMezzArea),
+      name: `Элемент ${k}: Площадь антресоли одного яруса (кв.м)`
     });
     rows.push({
       category: "Междуэтажные перекрытия",
@@ -464,7 +512,19 @@ export function get1CParameters(data = {}) {
       category: "Междуэтажные перекрытия",
       param: `ЭлементыСтроения.${k}.Тип.НормативнаяНагрузкаАнтресоль`,
       value: format1CValue(floorStructure?.liveLoad || "400"),
-      name: `Элемент ${k}: Нормативная нагрузка (кг/м²)`
+      name: `Элемент ${k}: Полезная нагрузка (кг/м²)`
+    });
+    rows.push({
+      category: "Междуэтажные перекрытия",
+      param: `ЭлементыСтроения.${k}.Тип.ПостояннаяНагрузка`,
+      value: format1CValue(floorStructure?.deadLoad || "120"),
+      name: `Элемент ${k}: Постоянная нагрузка (кг/м²)`
+    });
+    rows.push({
+      category: "Междуэтажные перекрытия",
+      param: `ЭлементыСтроения.${k}.Тип.НагрузкаПерегородок`,
+      value: format1CValue(floorStructure?.partitionsLoad !== undefined ? floorStructure.partitionsLoad : "50"),
+      name: `Элемент ${k}: Нагрузка перегородок (кг/м²)`
     });
     rows.push({
       category: "Междуэтажные перекрытия",
@@ -472,7 +532,6 @@ export function get1CParameters(data = {}) {
       value: format1CValue(estimation?.mezzanineWeight),
       name: `Элемент ${k}: Масса металлокаркаса антресоли (тн)`
     });
-    const numStories = Number(stories) || 1;
     const elevs = Array.isArray(floorStructure?.storyElevations)
       ? floorStructure.storyElevations.map(Number).filter((v) => v > 0)
       : [];
@@ -484,6 +543,12 @@ export function get1CParameters(data = {}) {
         param: `ЭтажностьЗдания.${tier}.НомерЭтажа`,
         value: String(floorNum),
         name: `Этаж ${floorNum}: Номер этажа`
+      });
+      rows.push({
+        category: "Междуэтажные перекрытия",
+        param: `ЭтажностьЗдания.${tier}.ПлощадьПерекрытия`,
+        value: format1CValue(singleMezzArea),
+        name: `Этаж ${floorNum}: Площадь перекрытия (кв.м)`
       });
       rows.push({
         category: "Междуэтажные перекрытия",

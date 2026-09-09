@@ -1,5 +1,9 @@
 import React from 'react';
 import { Svg, Line, Circle, Text, G, Rect, Polygon } from '@react-pdf/renderer';
+import {
+  getEffectiveMezzanineDimensions,
+  getValidFloorElevations,
+} from './floorStructureConstants';
 
 const AXIS_LABELS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'И', 'К', 'Л'];
 
@@ -14,9 +18,10 @@ export default function PDFBuildingSectionEskiz({
   cranes = [],
   spanOrientations = [],
   floorStructure = null,
+  length = 48,
 }) {
   const W_span = Number(spanWidth) > 0 ? Number(spanWidth) : 18;
-  const numStories = Math.max(1, Math.min(4, Number(stories) || 1));
+  const numStories = Math.max(1, Math.min(5, Number(stories) || 1));
   
   let N_spans = Number(spansCount) || 1;
   if (Array.isArray(cranes) && cranes.length > N_spans) {
@@ -96,10 +101,23 @@ export default function PDFBuildingSectionEskiz({
     colXList.push(offsetX + i * (W_span * scale));
   }
 
-  const floorLevels = [];
+  const bL = Number(length) || 36;
+  const mezzDims = getEffectiveMezzanineDimensions(
+    floorStructure,
+    totalBuildingWidth,
+    bL
+  );
+  const effectiveMezzWidth = mezzDims.width;
+  const isPartialWidth = mezzDims.isCustomWidth;
+  const mezzStartX = colXList[0];
+  const mezzEndX = mezzStartX + effectiveMezzWidth * scale;
+  const hitsMainCol = colXList.some((cx) => Math.abs(cx - mezzEndX) < 3);
+
   const floorHeight = H_clear / numStories;
+  const floorLevels = [];
+  const validElevs = getValidFloorElevations(numStories, H_clear, floorStructure?.storyElevations);
   for (let f = 1; f < numStories; f++) {
-    const hLevel = f * floorHeight;
+    const hLevel = validElevs[f - 1] !== undefined ? validElevs[f - 1] : ((f * H_clear) / numStories);
     const yLevel = baseGroundY - hLevel * scale;
     floorLevels.push({ index: f, hLevel, yLevel });
   }
@@ -301,17 +319,17 @@ export default function PDFBuildingSectionEskiz({
           {floorLevels.map((fl) => (
             <G key={`floor-level-beam-${fl.index}`}>
               <Line
-                x1={colXList[0]}
+                x1={mezzStartX}
                 y1={fl.yLevel}
-                x2={colXList[N_spans]}
+                x2={mezzEndX}
                 y2={fl.yLevel}
                 stroke="#0056b3"
                 strokeWidth={2.2}
               />
               <Rect
-                x={colXList[0]}
+                x={mezzStartX}
                 y={fl.yLevel - 3}
-                width={colXList[N_spans] - colXList[0]}
+                width={mezzEndX - mezzStartX}
                 height={3}
                 fill="#d0e2ff"
                 stroke="#0056b3"
@@ -320,11 +338,34 @@ export default function PDFBuildingSectionEskiz({
             </G>
           ))}
 
+          {/* Крайняя стойка антресоли при неполной ширине */}
+          {isPartialWidth && !hitsMainCol && (
+            <G key="mezzanine-edge-col">
+              <Line
+                x1={mezzEndX}
+                y1={baseGroundY}
+                x2={mezzEndX}
+                y2={topMezzanineY}
+                stroke="#d97706"
+                strokeWidth={1.8}
+              />
+              <Rect
+                x={mezzEndX - 2}
+                y={baseGroundY - 2.5}
+                width={4}
+                height={2.5}
+                fill="#333333"
+              />
+            </G>
+          )}
+
           {Array.from({ length: N_spans }).map((_, i) => {
             const x1 = colXList[i];
             const x2 = colXList[i + 1];
+            if (x1 >= mezzEndX - 0.5) return null;
             return intermediateColsPerSpan.map((ratio, cIdx) => {
               const cx = x1 + ratio * (x2 - x1);
+              if (cx > mezzEndX + 0.5) return null;
               return (
                 <G key={`inter-col-${i}-${cIdx}`}>
                   <Line

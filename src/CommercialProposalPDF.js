@@ -225,6 +225,7 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
               cranes={data.cranes}
               spanOrientations={data.spanOrientations}
               floorStructure={data.floorStructure}
+              length={data.length}
             />
           </View>
         </View>

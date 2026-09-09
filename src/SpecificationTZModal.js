@@ -60,7 +60,12 @@ export default function SpecificationTZModal({
   const columnStep = 6;
   const totalFrames = Math.ceil(L / columnStep) + 1;
 
-  const activeCranes = (cranes || []).filter((c) => parseFloat(c.cap || 0) > 0);
+  const activeCranes = (cranes || [])
+    .map((c, originalIndex) => ({
+      ...c,
+      spanNum: (c.id != null ? Number(c.id) : originalIndex) + 1,
+    }))
+    .filter((c) => parseFloat(c.cap || 0) > 0);
   const hasApertures = Array.isArray(aperturesList) && aperturesList.length > 0;
   const hasMezzanine = Number(stories) > 1;
 
@@ -483,15 +488,15 @@ export default function SpecificationTZModal({
                       <tbody>
                         {aperturesList.map((ap, idx) => {
                           const apType = (ap.type || "").toLowerCase();
-                          let typeLabel = "Окно";
-                          let structLabel = "Окно ПВХ";
-                          if (apType === "gate" || apType === "ворота") {
-                            typeLabel = "Ворота";
-                            structLabel = "Ворота подъемно-секционные";
-                          } else if (apType === "door" || apType === "дверь") {
-                            typeLabel = "Дверь";
-                            structLabel = "Дверной блок металлический";
-                          }
+                          const isGateOrDoor = apType === "gate" || apType === "ворота" || apType === "door" || apType === "дверь";
+                          const typeLabel = (apType === "gate" || apType === "ворота")
+                            ? "Ворота"
+                            : (apType === "door" || apType === "дверь")
+                            ? "Дверь"
+                            : "Окно";
+                          const structLabel = ap.construction || ap.profile || "—";
+                          const eBotVal = isGateOrDoor ? "0.00" : (ap.eBot || "0.00");
+                          const supplyVal = ap.supply != null ? (ap.supply ? "Да" : "Нет") : "—";
                           return (
                             <tr key={idx} style={idx % 2 === 1 ? { backgroundColor: "#f9fafb" } : {}}>
                               <td style={styles.td}>{idx + 1}</td>
@@ -499,9 +504,9 @@ export default function SpecificationTZModal({
                               <td style={styles.td}>{structLabel}</td>
                               <td style={styles.td}>{ap.width}</td>
                               <td style={styles.td}>{ap.height}</td>
-                              <td style={styles.td}>{ap.eBot || "0.00"}</td>
+                              <td style={styles.td}>{eBotVal}</td>
                               <td style={styles.td}>{ap.count || 1} шт.</td>
-                              <td style={styles.td}>Да</td>
+                              <td style={styles.td}>{supplyVal}</td>
                             </tr>
                           );
                         })}
@@ -533,14 +538,14 @@ export default function SpecificationTZModal({
                       <tbody>
                         {activeCranes.map((crane, idx) => (
                           <tr key={idx} style={idx % 2 === 1 ? { backgroundColor: "#f9fafb" } : {}}>
-                            <td style={styles.td}>Пролёт #{crane.id != null ? crane.id + 1 : idx + 1}</td>
+                            <td style={styles.td}>Пролёт #{crane.spanNum}</td>
                             <td style={styles.td}>
                               <b>{crane.type === "suspension" ? "Кран подвесной" : "Кран мостовой опорный"}</b>
                             </td>
                             <td style={styles.td}>{crane.cap} т</td>
                             <td style={styles.td}>{W} м</td>
                             <td style={styles.td}>1 шт.</td>
-                            <td style={styles.td}>Разрабатываются и поставляются</td>
+                            <td style={styles.td}>{crane.runways || "Разрабатываются и поставляются"}</td>
                           </tr>
                         ))}
                       </tbody>

@@ -757,6 +757,28 @@ export default function QuickEstimatorForm({
           ))}
         </div>
 
+        {cranes.some(
+          (c) =>
+            c.type === "suspension" &&
+            Number(c.cap) > 0 &&
+            (Number(c.cap) > 5 || Number(spanWidth) > 15)
+        ) && (
+          <div
+            style={{
+              marginTop: "8px",
+              padding: "8px 12px",
+              backgroundColor: "#fffbeb",
+              border: "1px solid #fde68a",
+              borderRadius: "6px",
+              fontSize: "0.82rem",
+              color: "#92400e",
+              lineHeight: 1.4,
+            }}
+          >
+            ⚠️ Подвесной кран грузоподъемностью более 5 т или с пролетом здания более 15 м требует подтверждения конструктора.
+          </div>
+        )}
+
         <div
           style={{
             gridColumn: "1 / -1",

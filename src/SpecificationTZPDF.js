@@ -214,7 +214,12 @@ export default function SpecificationTZPDF({ data = {} }) {
   const columnStep = 6;
   const totalFrames = Math.ceil(L / columnStep) + 1;
 
-  const activeCranes = (cranes || []).filter((c) => parseFloat(c.cap || 0) > 0);
+  const activeCranes = (cranes || [])
+    .map((c, originalIndex) => ({
+      ...c,
+      spanNum: (c.id != null ? Number(c.id) : originalIndex) + 1,
+    }))
+    .filter((c) => parseFloat(c.cap || 0) > 0);
   const hasApertures = Array.isArray(aperturesList) && aperturesList.length > 0;
   const hasMezzanine = Number(stories) > 1;
 
@@ -390,15 +395,14 @@ export default function SpecificationTZPDF({ data = {} }) {
               </View>
               {aperturesList.map((ap, idx) => {
                 const apType = (ap.type || "").toLowerCase();
-                let typeLabel = "Окно";
-                let structLabel = "Окно ПВХ";
-                if (apType === "gate" || apType === "ворота") {
-                  typeLabel = "Ворота";
-                  structLabel = "Подъемно-секционные";
-                } else if (apType === "door" || apType === "дверь") {
-                  typeLabel = "Дверь";
-                  structLabel = "Дверной блок металл.";
-                }
+                const isGateOrDoor = apType === "gate" || apType === "ворота" || apType === "door" || apType === "дверь";
+                const typeLabel = (apType === "gate" || apType === "ворота")
+                  ? "Ворота"
+                  : (apType === "door" || apType === "дверь")
+                  ? "Дверь"
+                  : "Окно";
+                const structLabel = ap.construction || ap.profile || "—";
+                const eBotVal = isGateOrDoor ? "0.00" : (ap.eBot || "0.00");
                 return (
                   <View key={idx} style={styles.gridRow}>
                     <Text style={[styles.td, { width: "8%" }]}>{idx + 1}</Text>
@@ -407,7 +411,7 @@ export default function SpecificationTZPDF({ data = {} }) {
                     <Text style={[styles.td, { width: "15%", textAlign: "right" }]}>
                       {ap.width} × {ap.height}
                     </Text>
-                    <Text style={[styles.td, { width: "13%", textAlign: "right" }]}>{ap.eBot || "0.00"}</Text>
+                    <Text style={[styles.td, { width: "13%", textAlign: "right" }]}>{eBotVal}</Text>
                     <Text style={[styles.td, { width: "12%", textAlign: "right" }]}>{ap.count || 1} шт.</Text>
                   </View>
                 );
@@ -432,7 +436,7 @@ export default function SpecificationTZPDF({ data = {} }) {
               {activeCranes.map((crane, idx) => (
                 <View key={idx} style={styles.gridRow}>
                   <Text style={[styles.td, { width: "20%" }]}>
-                    Пролёт #{crane.id != null ? crane.id + 1 : idx + 1}
+                    Пролёт #{crane.spanNum}
                   </Text>
                   <Text style={[styles.td, { width: "35%", fontWeight: "bold" }]}>
                     {crane.type === "suspension" ? "Подвесной" : "Мостовой опорный"}

@@ -97,7 +97,7 @@ export default function QuickEstimatorSectionView({
   };
 
   const W_span = Number(spanWidth) > 0 ? Number(spanWidth) : 18;
-  const numStories = Math.max(1, Math.min(4, Number(stories) || 1));
+  const numStories = Math.max(1, Math.min(5, Number(stories) || 1));
 
   let N_spans = Number(spansCount) || 1;
   if (Array.isArray(cranes) && cranes.length > N_spans) {
