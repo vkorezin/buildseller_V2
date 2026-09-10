@@ -863,14 +863,32 @@ export default function App() {
             mezzanines: generatedMezzanines,
             floorStructure: floorStruct,
             loads: {
-              snow: estimatorData.snowLoad
-                ? Number(estimatorData.snowLoad) / 100
-                : currentLoadData.snow,
-              wind: estimatorData.windLoad
-                ? Number(estimatorData.windLoad) / 100
-                : currentLoadData.wind,
+              snow:
+                estimatorData.snowLoad !== null &&
+                estimatorData.snowLoad !== undefined &&
+                estimatorData.snowLoad !== ""
+                  ? Number(estimatorData.snowLoad) / 100
+                  : currentLoadData.snow,
+              wind:
+                estimatorData.windLoad !== null &&
+                estimatorData.windLoad !== undefined &&
+                estimatorData.windLoad !== ""
+                  ? Number(estimatorData.windLoad) / 100
+                  : currentLoadData.wind,
               seismic: currentLoadData.seismic || 0,
             },
+            windLoad:
+              estimatorData.windLoad !== null &&
+              estimatorData.windLoad !== undefined &&
+              estimatorData.windLoad !== ""
+                ? String(estimatorData.windLoad)
+                : undefined,
+            snowLoad:
+              estimatorData.snowLoad !== null &&
+              estimatorData.snowLoad !== undefined &&
+              estimatorData.snowLoad !== ""
+                ? String(estimatorData.snowLoad)
+                : undefined,
             gridMatrix: null,
             frameType: estimatorData.frameType,
             activeWalls: estimatorData.activeWalls,

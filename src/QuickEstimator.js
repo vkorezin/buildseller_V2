@@ -328,11 +328,17 @@ export default function QuickEstimator({
   });
 
   const [windLoad, setWindLoad] = useState(() => {
-    if (projectLoads?.wind != null) {
-      return String(Math.round(projectLoads.wind * 100));
+    if (initialBlock?.data?.windLoad !== undefined && initialBlock?.data?.windLoad !== null && initialBlock?.data?.windLoad !== "") {
+      return String(initialBlock.data.windLoad);
     }
-    if (initialBlock?.data?.loads?.wind != null) {
-      return String(Math.round(initialBlock.data.loads.wind * 100));
+    if (initialBlock?.windLoad !== undefined && initialBlock?.windLoad !== null && initialBlock?.windLoad !== "") {
+      return String(initialBlock.windLoad);
+    }
+    if (initialBlock?.data?.loads?.wind !== undefined && initialBlock?.data?.loads?.wind !== null && initialBlock?.data?.loads?.wind !== "") {
+      return String(Math.round(Number(initialBlock.data.loads.wind) * 100));
+    }
+    if (projectLoads?.wind !== undefined && projectLoads?.wind !== null && projectLoads?.wind !== "") {
+      return String(Math.round(Number(projectLoads.wind) * 100));
     }
     return "38";
   });
@@ -682,7 +688,10 @@ export default function QuickEstimator({
     const H = Number(height) || 0;
     const S = Number(slope) || 0;
     const baseSnow = Number(snowLoad) || 0;
-    const currentWind = Number(windLoad) || 38;
+    const currentWind =
+      windLoad === null || windLoad === undefined || windLoad === ""
+        ? 38
+        : Number(windLoad);
 
     const activeMetalPrice = Number(gkPrice) || 0;
 
