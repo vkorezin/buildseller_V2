@@ -217,13 +217,13 @@ export function get1CParameters(data = {}) {
     rows.push({
       category: "Ограждающие конструкции",
       param: "ОК.1.Тип.Утеплитель",
-      value: floorStructure?.wallInsulation || "мин.ватн.волокно, 105 кг/куб.м.",
+      value: floorStructure?.wallInsulation ?? "",
       name: "Утеплитель стеновых панелей"
     });
     rows.push({
       category: "Ограждающие конструкции",
       param: "ОК.1.Тип.ТолщинаУтеплителя",
-      value: format1CValue(floorStructure?.wallThickness || "100"),
+      value: format1CValue(floorStructure?.wallThickness),
       name: "Толщина утеплителя стен (мм)"
     });
     rows.push({
@@ -253,13 +253,13 @@ export function get1CParameters(data = {}) {
     rows.push({
       category: "Ограждающие конструкции",
       param: "ОК.2.Тип.Утеплитель",
-      value: floorStructure?.roofInsulation || "мин.ватн.волокно, 105 кг/куб.м.",
+      value: floorStructure?.roofInsulation ?? "",
       name: "Утеплитель кровельных панелей"
     });
     rows.push({
       category: "Ограждающие конструкции",
       param: "ОК.2.Тип.ТолщинаУтеплителя",
-      value: format1CValue(floorStructure?.roofThickness || "120"),
+      value: format1CValue(floorStructure?.roofThickness),
       name: "Толщина утеплителя кровли (мм)"
     });
     rows.push({
