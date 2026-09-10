@@ -222,6 +222,11 @@ export default function SpecificationTZPDF({ data = {} }) {
     .filter((c) => parseFloat(c.cap || 0) > 0);
   const hasApertures = Array.isArray(aperturesList) && aperturesList.length > 0;
   const hasMezzanine = Number(stories) > 1;
+  const floorTypeLabel =
+    floorStructure?.typeName ||
+    floorStructure?.name ||
+    floorStructure?.shortName ||
+    "Монолитный ЖБ по профлисту";
 
   const wallArea = parseFloat(estimation?.wallAreaBox || 0);
   const roofArea = parseFloat(estimation?.roofArea || 0);
@@ -464,7 +469,7 @@ export default function SpecificationTZPDF({ data = {} }) {
               </View>
               <View style={styles.row}>
                 <Text style={styles.colLabel}>Тип конструкции перекрытия:</Text>
-                <Text style={styles.colValue}>{floorStructure?.name || "Монолитный ЖБ по профлисту"}</Text>
+                <Text style={styles.colValue}>{floorTypeLabel}</Text>
               </View>
               <View style={styles.row}>
                 <Text style={styles.colLabel}>Толщина плиты / Масса металлокаркаса:</Text>

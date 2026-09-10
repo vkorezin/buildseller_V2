@@ -69,6 +69,11 @@ export default function SpecificationTZModal({
   const hasApertures = Array.isArray(aperturesList) && aperturesList.length > 0;
   const showSupplyColumn = hasApertures && aperturesList.some((ap) => ap.supply != null);
   const hasMezzanine = Number(stories) > 1;
+  const floorTypeLabel =
+    floorStructure?.typeName ||
+    floorStructure?.name ||
+    floorStructure?.shortName ||
+    "Монолитный ЖБ по профлисту";
 
   const handleDownload1C = () => {
     const ok = exportTo1CExcel(dataPayload);
@@ -570,7 +575,7 @@ export default function SpecificationTZModal({
                     <div style={styles.fieldItem}>
                       <span style={styles.fieldLabel}>Конструктив перекрытия:</span>
                       <span style={styles.fieldValue}>
-                        {floorStructure?.name || "Монолитный ЖБ по профлисту"}
+                        {floorTypeLabel}
                       </span>
                     </div>
                     <div style={styles.fieldItem}>

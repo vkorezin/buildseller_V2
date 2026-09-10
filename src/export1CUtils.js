@@ -513,6 +513,11 @@ export function get1CParameters(data = {}) {
     const numStories = Number(stories) || 1;
     const singleMezzArea = Number(estimation?.mezzanineArea) || 0;
     const totalMezzArea = (numStories - 1) * singleMezzArea;
+    const floorTypeLabel =
+      floorStructure?.typeName ||
+      floorStructure?.name ||
+      floorStructure?.shortName ||
+      "Монолитный ЖБ по профлисту";
 
     rows.push({
       category: "Междуэтажные перекрытия",
@@ -535,7 +540,7 @@ export function get1CParameters(data = {}) {
     rows.push({
       category: "Междуэтажные перекрытия",
       param: `ЭлементыСтроения.${k}.Тип.ТипПерекрытия`,
-      value: floorStructure?.name || "Монолитный ЖБ по профлисту",
+      value: floorTypeLabel,
       name: `Элемент ${k}: Тип перекрытия`
     });
     rows.push({
@@ -589,7 +594,7 @@ export function get1CParameters(data = {}) {
       rows.push({
         category: "Междуэтажные перекрытия",
         param: `ЭтажностьЗдания.${tier}.ТипПерекрытия`,
-        value: floorStructure?.name || "Монолитный ЖБ по профлисту",
+        value: floorTypeLabel,
         name: `Этаж ${floorNum}: Тип перекрытия`
       });
       rows.push({
