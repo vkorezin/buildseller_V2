@@ -388,7 +388,7 @@ export default function SpecificationTZPDF({ data = {} }) {
               <View style={styles.gridHeader}>
                 <Text style={[styles.th, { width: "8%" }]}>№</Text>
                 <Text style={[styles.th, { width: "20%" }]}>Тип</Text>
-                <Text style={[styles.th, { width: "32%" }]}>Конструкция</Text>
+                <Text style={[styles.th, { width: "32%" }]}>Профиль обрамления</Text>
                 <Text style={[styles.th, { width: "15%", textAlign: "right" }]}>Ш×В (м)</Text>
                 <Text style={[styles.th, { width: "13%", textAlign: "right" }]}>Низ (м)</Text>
                 <Text style={[styles.th, { width: "12%", textAlign: "right" }]}>Кол-во</Text>
@@ -401,13 +401,13 @@ export default function SpecificationTZPDF({ data = {} }) {
                   : (apType === "door" || apType === "дверь")
                   ? "Дверь"
                   : "Окно";
-                const structLabel = ap.construction || ap.profile || "—";
+                const profileLabel = ap.profile || "—";
                 const eBotVal = isGateOrDoor ? "0.00" : (ap.eBot || "0.00");
                 return (
                   <View key={idx} style={styles.gridRow}>
                     <Text style={[styles.td, { width: "8%" }]}>{idx + 1}</Text>
                     <Text style={[styles.td, { width: "20%", fontWeight: "bold" }]}>{typeLabel}</Text>
-                    <Text style={[styles.td, { width: "32%" }]}>{structLabel}</Text>
+                    <Text style={[styles.td, { width: "32%" }]}>{profileLabel}</Text>
                     <Text style={[styles.td, { width: "15%", textAlign: "right" }]}>
                       {ap.width} × {ap.height}
                     </Text>

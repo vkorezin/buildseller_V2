@@ -477,12 +477,12 @@ export default function SpecificationTZModal({
                         <tr>
                           <th style={styles.th}>№</th>
                           <th style={styles.th}>Тип</th>
-                          <th style={styles.th}>Конструкция</th>
+                          <th style={styles.th}>Профиль обрамления</th>
                           <th style={styles.th}>Ширина, м</th>
                           <th style={styles.th}>Высота, м</th>
                           <th style={styles.th}>Отметка низа, м</th>
                           <th style={styles.th}>Кол-во</th>
-                          <th style={styles.th}>Поставка</th>
+                          {aperturesList.some((ap) => ap.supply != null) && <th style={styles.th}>Поставка</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -494,19 +494,19 @@ export default function SpecificationTZModal({
                             : (apType === "door" || apType === "дверь")
                             ? "Дверь"
                             : "Окно";
-                          const structLabel = ap.construction || ap.profile || "—";
+                          const profileLabel = ap.profile || "—";
                           const eBotVal = isGateOrDoor ? "0.00" : (ap.eBot || "0.00");
-                          const supplyVal = ap.supply != null ? (ap.supply ? "Да" : "Нет") : "—";
+                          const supplyVal = ap.supply != null ? (ap.supply ? "Да" : "Нет") : null;
                           return (
                             <tr key={idx} style={idx % 2 === 1 ? { backgroundColor: "#f9fafb" } : {}}>
                               <td style={styles.td}>{idx + 1}</td>
                               <td style={styles.td}><b>{typeLabel}</b></td>
-                              <td style={styles.td}>{structLabel}</td>
+                              <td style={styles.td}>{profileLabel}</td>
                               <td style={styles.td}>{ap.width}</td>
                               <td style={styles.td}>{ap.height}</td>
                               <td style={styles.td}>{eBotVal}</td>
                               <td style={styles.td}>{ap.count || 1} шт.</td>
-                              <td style={styles.td}>{supplyVal}</td>
+                              {supplyVal !== null && <td style={styles.td}>{supplyVal}</td>}
                             </tr>
                           );
                         })}

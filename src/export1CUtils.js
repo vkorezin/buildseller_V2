@@ -277,10 +277,18 @@ export function get1CParameters(data = {}) {
         });
         rows.push({
           category: "Инженерные проемы",
-          param: `ЭлементыСтроения.${k}.Тип.Тип`,
-          value: ap.construction || ap.profile || "Окно",
-          name: `Элемент ${k}: Конструкция окна`
+          param: `ЭлементыСтроения.${k}.Тип.ПрофильОбрамления`,
+          value: ap.profile || "—",
+          name: `Элемент ${k}: Профиль обрамления`
         });
+        if (ap.construction) {
+          rows.push({
+            category: "Инженерные проемы",
+            param: `ЭлементыСтроения.${k}.Тип.Тип`,
+            value: ap.construction,
+            name: `Элемент ${k}: Конструкция окна`
+          });
+        }
         rows.push({
           category: "Инженерные проемы",
           param: `ЭлементыСтроения.${k}.Тип.ШиринаПроема`,
@@ -305,18 +313,22 @@ export function get1CParameters(data = {}) {
           value: format1CValue(ap.count || "1"),
           name: `Элемент ${k}: Количество`
         });
-        rows.push({
-          category: "Инженерные проемы",
-          param: `ЭлементыСтроения.${k}.Разрабатывается`,
-          value: ap.develop != null ? (ap.develop ? "Да" : "Нет") : "—",
-          name: `Элемент ${k}: Разрабатывается`
-        });
-        rows.push({
-          category: "Инженерные проемы",
-          param: `ЭлементыСтроения.${k}.Поставляется`,
-          value: ap.supply != null ? (ap.supply ? "Да" : "Нет") : "—",
-          name: `Элемент ${k}: Поставляется`
-        });
+        if (ap.develop != null) {
+          rows.push({
+            category: "Инженерные проемы",
+            param: `ЭлементыСтроения.${k}.Разрабатывается`,
+            value: ap.develop ? "Да" : "Нет",
+            name: `Элемент ${k}: Разрабатывается`
+          });
+        }
+        if (ap.supply != null) {
+          rows.push({
+            category: "Инженерные проемы",
+            param: `ЭлементыСтроения.${k}.Поставляется`,
+            value: ap.supply ? "Да" : "Нет",
+            name: `Элемент ${k}: Поставляется`
+          });
+        }
       } else if (apType === "gate" || apType === "ворота") {
         rows.push({
           category: "Инженерные проемы",
@@ -326,10 +338,18 @@ export function get1CParameters(data = {}) {
         });
         rows.push({
           category: "Инженерные проемы",
-          param: `ЭлементыСтроения.${k}.Тип.Тип`,
-          value: ap.construction || ap.profile || "Ворота",
-          name: `Элемент ${k}: Конструкция ворот`
+          param: `ЭлементыСтроения.${k}.Тип.ПрофильОбрамления`,
+          value: ap.profile || "—",
+          name: `Элемент ${k}: Профиль обрамления`
         });
+        if (ap.construction) {
+          rows.push({
+            category: "Инженерные проемы",
+            param: `ЭлементыСтроения.${k}.Тип.Тип`,
+            value: ap.construction,
+            name: `Элемент ${k}: Конструкция ворот`
+          });
+        }
         rows.push({
           category: "Инженерные проемы",
           param: `ЭлементыСтроения.${k}.Тип.ШиринаПроема`,
@@ -354,18 +374,22 @@ export function get1CParameters(data = {}) {
           value: format1CValue(ap.count || "1"),
           name: `Элемент ${k}: Количество`
         });
-        rows.push({
-          category: "Инженерные проемы",
-          param: `ЭлементыСтроения.${k}.Разрабатывается`,
-          value: ap.develop != null ? (ap.develop ? "Да" : "Нет") : "—",
-          name: `Элемент ${k}: Разрабатывается`
-        });
-        rows.push({
-          category: "Инженерные проемы",
-          param: `ЭлементыСтроения.${k}.Поставляется`,
-          value: ap.supply != null ? (ap.supply ? "Да" : "Нет") : "—",
-          name: `Элемент ${k}: Поставляется`
-        });
+        if (ap.develop != null) {
+          rows.push({
+            category: "Инженерные проемы",
+            param: `ЭлементыСтроения.${k}.Разрабатывается`,
+            value: ap.develop ? "Да" : "Нет",
+            name: `Элемент ${k}: Разрабатывается`
+          });
+        }
+        if (ap.supply != null) {
+          rows.push({
+            category: "Инженерные проемы",
+            param: `ЭлементыСтроения.${k}.Поставляется`,
+            value: ap.supply ? "Да" : "Нет",
+            name: `Элемент ${k}: Поставляется`
+          });
+        }
       } else if (apType === "door" || apType === "дверь") {
         rows.push({
           category: "Инженерные проемы",
@@ -375,10 +399,18 @@ export function get1CParameters(data = {}) {
         });
         rows.push({
           category: "Инженерные проемы",
-          param: `ЭлементыСтроения.${k}.Тип.Тип`,
-          value: ap.construction || ap.profile || "Дверь",
-          name: `Элемент ${k}: Конструкция двери`
+          param: `ЭлементыСтроения.${k}.Тип.ПрофильОбрамления`,
+          value: ap.profile || "—",
+          name: `Элемент ${k}: Профиль обрамления`
         });
+        if (ap.construction) {
+          rows.push({
+            category: "Инженерные проемы",
+            param: `ЭлементыСтроения.${k}.Тип.Тип`,
+            value: ap.construction,
+            name: `Элемент ${k}: Конструкция двери`
+          });
+        }
         rows.push({
           category: "Инженерные проемы",
           param: `ЭлементыСтроения.${k}.Тип.ШиринаПроема`,
@@ -403,18 +435,22 @@ export function get1CParameters(data = {}) {
           value: format1CValue(ap.count || "1"),
           name: `Элемент ${k}: Количество`
         });
-        rows.push({
-          category: "Инженерные проемы",
-          param: `ЭлементыСтроения.${k}.Разрабатывается`,
-          value: ap.develop != null ? (ap.develop ? "Да" : "Нет") : "—",
-          name: `Элемент ${k}: Разрабатывается`
-        });
-        rows.push({
-          category: "Инженерные проемы",
-          param: `ЭлементыСтроения.${k}.Поставляется`,
-          value: ap.supply != null ? (ap.supply ? "Да" : "Нет") : "—",
-          name: `Элемент ${k}: Поставляется`
-        });
+        if (ap.develop != null) {
+          rows.push({
+            category: "Инженерные проемы",
+            param: `ЭлементыСтроения.${k}.Разрабатывается`,
+            value: ap.develop ? "Да" : "Нет",
+            name: `Элемент ${k}: Разрабатывается`
+          });
+        }
+        if (ap.supply != null) {
+          rows.push({
+            category: "Инженерные проемы",
+            param: `ЭлементыСтроения.${k}.Поставляется`,
+            value: ap.supply ? "Да" : "Нет",
+            name: `Элемент ${k}: Поставляется`
+          });
+        }
       }
     });
   }
