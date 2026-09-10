@@ -99,9 +99,12 @@ export const FLOOR_TYPES = [
       "Облегченное перекрытие: сборные балки с заполнением блоками из газобетона или полистиролбетона и тонким распределительным бетонным слоем 50 мм.",
     color: "#d97706",
     layers: [
-      { name: "Армированная бетонная стяжка B20", thickness: 50, weight: 115 },
-      { name: "Легкие блоки-вкладыши (газобетон D500)", thickness: 150, weight: 65 },
-      { name: "Несущие стальные/ж/б балочные ребра", thickness: 200, weight: 40 },
+      {
+        name: "Расчетный собственный вес сборно-монолитного перекрытия",
+        thickness: 200,
+        weight: 220,
+        highlight: true,
+      },
     ],
   },
   {
@@ -142,10 +145,12 @@ export const FLOOR_TYPES = [
       "Облегченная конструкция для административно-бытовых зон, офисов и сухих складов: лаги 50×100 мм, негорючая минплита и черновой настил из ЦСП 16-20 мм или OSB-3 22 мм.",
     color: "#b45309",
     layers: [
-      { name: "Чистовое покрытие (ламинат / износостойкий линолеум)", thickness: 8, weight: 8 },
-      { name: "Двойной черновой настил из плит ЦСП 16мм + OSB-3 12мм", thickness: 28, weight: 20 },
-      { name: "Деревянные антисептированные лаги с базальтовой ватой", thickness: 100, weight: 10 },
-      { name: "Второстепенные стальные балки перекрытия", thickness: 180, weight: 10 },
+      {
+        name: "Расчетный собственный вес деревянного перекрытия",
+        thickness: 80,
+        weight: 48,
+        highlight: true,
+      },
     ],
   },
   {
@@ -570,29 +575,26 @@ export function getLayersForTypeAndThickness(typeInfo, t) {
     ];
   }
 
-  if (typeInfo.id === "timber_deck") {
-    const timberWeight = Math.round(16 + thick * 0.4);
+  if (typeInfo.id === "precast_block_composite") {
+    const compositeWeight = calculateDeadLoadForType("precast_block_composite", thick);
     return [
       {
-        name: "Чистовое покрытие (ламинат / износостойкий линолеум)",
-        thickness: 8,
-        weight: 8,
+        name: "Расчетный собственный вес сборно-монолитного перекрытия",
+        thickness: thick,
+        weight: compositeWeight,
+        highlight: true,
       },
+    ];
+  }
+
+  if (typeInfo.id === "timber_deck") {
+    const timberWeight = calculateDeadLoadForType("timber_deck", thick);
+    return [
       {
-        name: `Двойной настил из плит ЦСП / OSB (${thick} мм)`,
+        name: "Расчетный собственный вес деревянного перекрытия",
         thickness: thick,
         weight: timberWeight,
         highlight: true,
-      },
-      {
-        name: "Деревянные антисептированные лаги с базальтовой ватой",
-        thickness: 100,
-        weight: 10,
-      },
-      {
-        name: "Второстепенные стальные балки перекрытия",
-        thickness: 180,
-        weight: 10,
       },
     ];
   }

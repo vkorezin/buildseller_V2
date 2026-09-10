@@ -1265,7 +1265,7 @@ export default function FloorStructureModal({
                           fontWeight: layer.highlight ? 600 : 400,
                         }}
                       >
-                        {idx + 1}. {layer.name}
+                        {dynamicLayers.length > 1 ? `${idx + 1}. ` : ""}{layer.name}
                       </span>
                       <span
                         style={{
@@ -1279,6 +1279,29 @@ export default function FloorStructureModal({
                       </span>
                     </div>
                   ))}
+                  {dynamicLayers.length > 1 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        fontSize: "0.8em",
+                        padding: "6px 8px",
+                        backgroundColor: "#f8fafc",
+                        borderRadius: "4px",
+                        borderTop: "1px solid #cbd5e1",
+                        fontWeight: 700,
+                        marginTop: "2px",
+                      }}
+                    >
+                      <span style={{ color: "#334155" }}>
+                        Итого расчетный собственный вес слоев:
+                      </span>
+                      <span style={{ color: "#0969da" }}>
+                        {dynamicLayers.reduce((s, l) => s + (Number(l.weight) || 0), 0)} кг/м²
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
