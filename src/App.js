@@ -757,7 +757,13 @@ export default function App() {
       const W = Number(estimatorData.spanWidth) || 18;
       const L = Number(estimatorData.length) || 48;
       const H = Number(estimatorData.height) || 6;
-      const S = Number(estimatorData.slope) || 10;
+      const S =
+        estimatorData.slope !== undefined &&
+        estimatorData.slope !== null &&
+        estimatorData.slope !== "" &&
+        !isNaN(Number(estimatorData.slope))
+          ? Number(estimatorData.slope)
+          : 10;
       const isGable = (estimatorData.roofShape || "gable") === "gable";
       const totalWidth = N * W;
 
@@ -858,6 +864,7 @@ export default function App() {
               blockHeight: H,
             },
             spans: generatedSpans,
+            slope: S,
             columnStep: existingBlock1?.data?.columnStep || 6,
             orientation: existingBlock1?.data?.orientation || "horizontal",
             mezzanines: generatedMezzanines,

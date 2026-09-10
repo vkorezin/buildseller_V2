@@ -228,8 +228,26 @@ export default function QuickEstimator({
   });
 
   const [slope, setSlope] = useState(() => {
-    if (initialBlock?.data?.spans?.[0]?.slope != null) {
+    if (
+      initialBlock?.data?.spans?.[0]?.slope !== undefined &&
+      initialBlock?.data?.spans?.[0]?.slope !== null &&
+      initialBlock?.data?.spans?.[0]?.slope !== ""
+    ) {
       return String(initialBlock.data.spans[0].slope);
+    }
+    if (
+      initialBlock?.data?.slope !== undefined &&
+      initialBlock?.data?.slope !== null &&
+      initialBlock?.data?.slope !== ""
+    ) {
+      return String(initialBlock.data.slope);
+    }
+    if (
+      initialBlock?.slope !== undefined &&
+      initialBlock?.slope !== null &&
+      initialBlock?.slope !== ""
+    ) {
+      return String(initialBlock.slope);
     }
     return "10";
   });

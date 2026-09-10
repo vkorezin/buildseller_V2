@@ -61,7 +61,10 @@ export function getEffectiveSkateLength(span) {
  */
 export function getRoofStructureDimensions(spanWidth, slopePct = 10, frameType = "beam") {
   const W = Number(spanWidth) || 18;
-  const S = Number(slopePct) > 0 ? Number(slopePct) : 10;
+  const S =
+    slopePct !== undefined && slopePct !== null && slopePct !== "" && !isNaN(Number(slopePct))
+      ? Number(slopePct)
+      : 10;
   const isTruss = String(frameType) === "truss";
 
   let hBeamEave = 0.35;

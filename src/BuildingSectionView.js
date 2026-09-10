@@ -54,7 +54,10 @@ export default function BuildingSectionView({
   const spanConfigs = spans.map((span, idx) => {
     const W = Number(span.spanWidth) || 18;
     const eaveH = Number(span.eaveHeight) > 0 ? Number(span.eaveHeight) : H_default;
-    const S = Number(span.slope) > 0 ? Number(span.slope) : 10;
+    const S =
+      span.slope !== undefined && span.slope !== null && span.slope !== "" && !isNaN(Number(span.slope))
+        ? Number(span.slope)
+        : 10;
     const isGable = span.skateCount === 2;
     const slopeDir = span.slopeDirection || "right";
     const baseElev = isNaN(Number(span.baseElevation)) ? 0 : Number(span.baseElevation);

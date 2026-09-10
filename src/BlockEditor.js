@@ -470,7 +470,10 @@ export default function BlockEditor({
     const h = ref
       ? Number(ref.eaveHeight) || generalData.blockHeight || 6
       : generalData.blockHeight || 6;
-    const s = ref ? Number(ref.slope) || 10 : 10;
+    const s =
+      ref && ref.slope !== undefined && ref.slope !== null && ref.slope !== "" && !isNaN(Number(ref.slope))
+        ? Number(ref.slope)
+        : 10;
     const isGable = ref ? Number(ref.skateCount) === 2 : false;
     const fType = ref ? ref.frameType || frameType || "beam" : frameType || "beam";
     const sDir = ref ? ref.slopeDirection || "right" : "right";

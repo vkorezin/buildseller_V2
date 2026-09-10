@@ -106,7 +106,10 @@ export default function QuickEstimatorSectionView({
   N_spans = Math.max(1, Math.min(N_spans, 10));
 
   const H_clear = Number(height) > 0 ? Number(height) : 6;
-  const S = Number(slope) > 0 ? Number(slope) : 10;
+  const S =
+    slope !== undefined && slope !== null && slope !== "" && !isNaN(Number(slope))
+      ? Number(slope)
+      : 10;
   const isGable = String(roofShape) !== "single";
   const isTruss = String(frameType) === "truss";
 
