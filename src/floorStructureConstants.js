@@ -818,5 +818,48 @@ export function validateStories(val) {
   return { isValid: true, value: num, error: null };
 }
 
+/**
+ * ЗАДАЧА 6.12 БЛОК A: Строгая валидация геометрических параметров здания в QuickEstimator.
+ * Требования:
+ * - spanWidth > 0
+ * - length > 0
+ * - height > 0
+ * - slope >= 0 (0% обязательно допустим)
+ * Все значения должны быть конечными числами.
+ * Пустая строка, NaN, Infinity, отрицательная ширина/длина/высота — невалидны.
+ */
+export function validateQuickEstimatorGeometry({ spanWidth, length, height, slope } = {}) {
+  const isFiniteNumber = (v) =>
+    v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
+
+  const errors = [];
+
+  const wNum = Number(spanWidth);
+  if (!isFiniteNumber(spanWidth) || wNum <= 0) {
+    errors.push("ширина пролёта должна быть больше 0.");
+  }
+
+  const lNum = Number(length);
+  if (!isFiniteNumber(length) || lNum <= 0) {
+    errors.push("длина здания должна быть больше 0.");
+  }
+
+  const hNum = Number(height);
+  if (!isFiniteNumber(height) || hNum <= 0) {
+    errors.push("высота здания должна быть больше 0.");
+  }
+
+  const sNum = Number(slope);
+  if (!isFiniteNumber(slope) || sNum < 0) {
+    errors.push("уклон кровли не может быть отрицательным.");
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    error: errors.length > 0 ? `Некорректная геометрия: ${errors[0]}` : null,
+  };
+}
+
 
 

@@ -307,103 +307,103 @@ export default function QuickEstimatorResults({
     <div style={styles.container}>
       <h3 style={styles.mainTitle}>📊 Сравнительная матрица типов зданий ЕВРОАНГАР</h3>
       
-      <div style={styles.matrixContainer}>
-        {types.map(t => {
-          const isBase = t.isBase;
-          const data = !t.blocked ? t.calc() : null;
-          let totalAll = 0;
-          if (data) { totalAll = data.metalCost + envelopeCost + foundationCost; }
-
-          return (
-            <div key={t.id} style={{...styles.card, ...(isBase ? styles.cardBase : {})}}>
-              {isBase && <div style={styles.baseBadge}>БАЗОВЫЙ</div>}
-              <div style={styles.cardHeader}>
-                <h4 style={styles.typeName}>{t.name}</h4>
-                <p style={styles.typeDesc}>{t.desc}</p>
-              </div>
-
-              {t.blocked ? (
-                <div style={styles.blockedOverlay}>
-                  <div style={styles.blockedIcon}>🚫</div>
-                  <div><b>Неприменимо:</b></div>
-                  <div style={{fontSize: "0.9em", marginTop: "5px"}}>{t.blocked}</div>
-                </div>
-              ) : (
-                <>
-                  <div style={styles.cardBody}>
-                    <div style={styles.dataRow}><span>Металлокаркас здания:</span><span style={styles.dataVal}>{Math.round(data.metalCost).toLocaleString("ru-RU")} ₽</span></div>
-                    {useSandwich && <div style={styles.dataRow}><span>Стеновое и кровельное ограждение:</span><span style={styles.dataVal}>{Math.round(envelopeCost).toLocaleString("ru-RU")} ₽</span></div>}
-                    <div style={styles.dataRow}><span>Опорные фундаменты:</span><span style={styles.dataVal}>{Math.round(foundationCost).toLocaleString("ru-RU")} ₽</span></div>
-                    
-                    <div style={styles.divider}></div>
-                    
-                    <div style={styles.techDataTitle}>📐 Спецификация масс и площадей:</div>
-                    <div style={styles.dataRow}>
-                      <span style={{ fontWeight: "bold" }}>Общая масса металла:</span>
-                      <span style={{ ...styles.dataVal, color: "#007bff" }}>{data.totalWeightTons.toFixed(2)} т</span>
-                    </div>
-                    <div style={styles.dataRow}><span>Рамы / Колонны:</span><span style={styles.dataVal}>{(data.frames / 1000).toFixed(2)} т</span></div>
-                    {stories > 1 && parseFloat(estimation.mezzanineWeight || 0) > 0 && (
-                      <div style={{ ...styles.dataRow, backgroundColor: "#f0fdf4", padding: "2px 4px", borderRadius: "3px" }}>
-                        <span style={{ color: "#166534", fontWeight: 600 }}>🏢 Металлокаркас антресоли:</span>
-                        <span style={{ ...styles.dataVal, color: "#166534", fontWeight: 700 }}>
-                          {estimation.mezzanineWeight} т ({estimation.mezzanineRate} кг/м²)
-                        </span>
-                      </div>
-                    )}
-                    <div style={styles.dataRow}><span>Прогоны системы:</span><span style={styles.dataVal}>{(data.purlins / 1000).toFixed(2)} т</span></div>
-                    <div style={styles.dataRow}><span>Связевые панели:</span><span style={styles.dataVal}>{(baseTiesKg / 1000).toFixed(2)} т</span></div>
-                    {baseCraneKg > 0 && <div style={styles.dataRow}><span>Крановые пути:</span><span style={styles.dataVal}>{(baseCraneKg / 1000).toFixed(2)} т</span></div>}
-                    
-                    {useSandwich && (
-                      <>
-                        <div style={styles.dataRow}><span>Площадь стен (факт):</span><span style={styles.dataVal}>{estimation.wallAreaBox} м²</span></div>
-                        <div style={styles.dataRow}><span>Площадь кровли (факт):</span><span style={styles.dataVal}>{estimation.roofArea} м²</span></div>
-                      </>
-                    )}
-                  </div>
-                  
-                  <div style={styles.totalPriceBox}>
-                    <div style={styles.totalPriceLabel}>ИТОГО ПО ЗДАНИЮ</div>
-                    <div style={styles.totalPriceVal}>{Math.round(totalAll).toLocaleString("ru-RU")} ₽</div>
-                  </div>
-                </>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {frameType === "truss" && estimation.envelopeDiffAmount > 0 && (
-        <div style={styles.envelopeWarning}>
-          * Внимание: Применена ферма. Удорожание сэндвич-панелей (из-за высоты фермы) составило +{estimation.envelopeDiffAmount.toLocaleString("ru-RU")} ₽. Эта сумма уже учтена в итогах выше.
-        </div>
-      )}
-
-      {frameType === "truss" && netSavings > 0 && (
-        <div style={styles.netSavingsCard}>
-          <div style={{ color: "#2e7d32", fontSize: "1.3em", fontWeight: "bold", marginBottom: "5px" }}>
-            💎 ВЫГОДА ОТ ЗАМЕНЫ БАЛКИ НА ФЕРМУ: {netSavings.toLocaleString("ru-RU")} ₽
-          </div>
-          <div style={{ color: "#555", fontSize: "0.95em" }}>Сравнение произведено по Базовому типу</div>
-        </div>
-      )}
-
-      <div style={styles.managerForm}>
-        <div style={styles.formTitle}>👤 Данные специалиста для выгрузки КП:</div>
-        <div style={styles.inputGroup}>
-          <input type="text" placeholder="ФИО специалиста" value={managerName} onChange={(e) => setManagerName(e.target.value)} style={styles.input} />
-          <input type="text" placeholder="Телефон" value={managerPhone} onChange={(e) => setManagerPhone(e.target.value)} style={styles.input} />
-          <input type="text" placeholder="Email" value={managerEmail} onChange={(e) => setManagerEmail(e.target.value)} style={styles.input} />
-        </div>
-      </div>
-
       {estimation.isBlockedByValidation ? (
         <div style={styles.blockedValidationMsg}>
-          ⚠️ {estimation.validationError || "Ошибка: Суммарная площадь проемов физически превышает общую геометрическую площадь стен здания (более 100%). Пожалуйста, проверьте корректность введенных размеров."}
+          ⚠️ {estimation.validationError || "Ошибка валидации параметров здания. Расчёт коммерческого предложения заблокирован."}
         </div>
       ) : (
         <>
+          <div style={styles.matrixContainer}>
+            {types.map(t => {
+              const isBase = t.isBase;
+              const data = !t.blocked ? t.calc() : null;
+              let totalAll = 0;
+              if (data) { totalAll = data.metalCost + envelopeCost + foundationCost; }
+
+              return (
+                <div key={t.id} style={{...styles.card, ...(isBase ? styles.cardBase : {})}}>
+                  {isBase && <div style={styles.baseBadge}>БАЗОВЫЙ</div>}
+                  <div style={styles.cardHeader}>
+                    <h4 style={styles.typeName}>{t.name}</h4>
+                    <p style={styles.typeDesc}>{t.desc}</p>
+                  </div>
+
+                  {t.blocked ? (
+                    <div style={styles.blockedOverlay}>
+                      <div style={styles.blockedIcon}>🚫</div>
+                      <div><b>Неприменимо:</b></div>
+                      <div style={{fontSize: "0.9em", marginTop: "5px"}}>{t.blocked}</div>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={styles.cardBody}>
+                        <div style={styles.dataRow}><span>Металлокаркас здания:</span><span style={styles.dataVal}>{Math.round(data.metalCost).toLocaleString("ru-RU")} ₽</span></div>
+                        {useSandwich && <div style={styles.dataRow}><span>Стеновое и кровельное ограждение:</span><span style={styles.dataVal}>{Math.round(envelopeCost).toLocaleString("ru-RU")} ₽</span></div>}
+                        <div style={styles.dataRow}><span>Опорные фундаменты:</span><span style={styles.dataVal}>{Math.round(foundationCost).toLocaleString("ru-RU")} ₽</span></div>
+                        
+                        <div style={styles.divider}></div>
+                        
+                        <div style={styles.techDataTitle}>📐 Спецификация масс и площадей:</div>
+                        <div style={styles.dataRow}>
+                          <span style={{ fontWeight: "bold" }}>Общая масса металла:</span>
+                          <span style={{ ...styles.dataVal, color: "#007bff" }}>{data.totalWeightTons.toFixed(2)} т</span>
+                        </div>
+                        <div style={styles.dataRow}><span>Рамы / Колонны:</span><span style={styles.dataVal}>{(data.frames / 1000).toFixed(2)} т</span></div>
+                        {stories > 1 && parseFloat(estimation.mezzanineWeight || 0) > 0 && (
+                          <div style={{ ...styles.dataRow, backgroundColor: "#f0fdf4", padding: "2px 4px", borderRadius: "3px" }}>
+                            <span style={{ color: "#166534", fontWeight: 600 }}>🏢 Металлокаркас антресоли:</span>
+                            <span style={{ ...styles.dataVal, color: "#166534", fontWeight: 700 }}>
+                              {estimation.mezzanineWeight} т ({estimation.mezzanineRate} кг/м²)
+                            </span>
+                          </div>
+                        )}
+                        <div style={styles.dataRow}><span>Прогоны системы:</span><span style={styles.dataVal}>{(data.purlins / 1000).toFixed(2)} т</span></div>
+                        <div style={styles.dataRow}><span>Связевые панели:</span><span style={styles.dataVal}>{(baseTiesKg / 1000).toFixed(2)} т</span></div>
+                        {baseCraneKg > 0 && <div style={styles.dataRow}><span>Крановые пути:</span><span style={styles.dataVal}>{(baseCraneKg / 1000).toFixed(2)} т</span></div>}
+                        
+                        {useSandwich && (
+                          <>
+                            <div style={styles.dataRow}><span>Площадь стен (факт):</span><span style={styles.dataVal}>{estimation.wallAreaBox} м²</span></div>
+                            <div style={styles.dataRow}><span>Площадь кровли (факт):</span><span style={styles.dataVal}>{estimation.roofArea} м²</span></div>
+                          </>
+                        )}
+                      </div>
+                      
+                      <div style={styles.totalPriceBox}>
+                        <div style={styles.totalPriceLabel}>ИТОГО ПО ЗДАНИЮ</div>
+                        <div style={styles.totalPriceVal}>{Math.round(totalAll).toLocaleString("ru-RU")} ₽</div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {frameType === "truss" && estimation.envelopeDiffAmount > 0 && (
+            <div style={styles.envelopeWarning}>
+              * Внимание: Применена ферма. Удорожание сэндвич-панелей (из-за высоты фермы) составило +{estimation.envelopeDiffAmount.toLocaleString("ru-RU")} ₽. Эта сумма уже учтена в итогах выше.
+            </div>
+          )}
+
+          {frameType === "truss" && netSavings > 0 && (
+            <div style={styles.netSavingsCard}>
+              <div style={{ color: "#2e7d32", fontSize: "1.3em", fontWeight: "bold", marginBottom: "5px" }}>
+                💎 ВЫГОДА ОТ ЗАМЕНЫ БАЛКИ НА ФЕРМУ: {netSavings.toLocaleString("ru-RU")} ₽
+              </div>
+              <div style={{ color: "#555", fontSize: "0.95em" }}>Сравнение произведено по Базовому типу</div>
+            </div>
+          )}
+
+          <div style={styles.managerForm}>
+            <div style={styles.formTitle}>👤 Данные специалиста для выгрузки КП:</div>
+            <div style={styles.inputGroup}>
+              <input type="text" placeholder="ФИО специалиста" value={managerName} onChange={(e) => setManagerName(e.target.value)} style={styles.input} />
+              <input type="text" placeholder="Телефон" value={managerPhone} onChange={(e) => setManagerPhone(e.target.value)} style={styles.input} />
+              <input type="text" placeholder="Email" value={managerEmail} onChange={(e) => setManagerEmail(e.target.value)} style={styles.input} />
+            </div>
+          </div>
+
           {!showPdf ? (
             <button style={styles.pdfBtn} onClick={handlePreparePdf}>📄 Подготовить КП в PDF</button>
           ) : (

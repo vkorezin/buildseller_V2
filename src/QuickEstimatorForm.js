@@ -110,8 +110,16 @@ export default function QuickEstimatorForm({
   const W_span = Number(spanWidth) || 18;
   const totalW = numSpans * W_span;
   const bL = Number(length) || 36;
-  const currentElevations = storiesVal.isValid
-    ? getValidFloorElevations(storiesVal.value, height, floorStructure?.storyElevations)
+
+  const isFiniteNumber = (v) =>
+    v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
+  const isSpanWidthValid = isFiniteNumber(spanWidth) && Number(spanWidth) > 0;
+  const isLengthValid = isFiniteNumber(length) && Number(length) > 0;
+  const isHeightValid = isFiniteNumber(height) && Number(height) > 0;
+  const isSlopeValid = isFiniteNumber(slope) && Number(slope) >= 0;
+
+  const currentElevations = storiesVal.isValid && isHeightValid
+    ? getValidFloorElevations(storiesVal.value, Number(height), floorStructure?.storyElevations)
     : floorStructure?.storyElevations || [];
   const mezzDims = getEffectiveMezzanineDimensions(floorStructure, totalW, bL);
 
@@ -132,29 +140,56 @@ export default function QuickEstimatorForm({
         <div style={styles.field}>
           <label style={styles.label}>Пролёт 1 шт (м)</label>
           <input
-            style={styles.input}
+            style={{
+              ...styles.input,
+              borderColor: !isSpanWidthValid ? "#ef4444" : "#ccc",
+              backgroundColor: !isSpanWidthValid ? "#fef2f2" : "#fff",
+            }}
             type="number"
             value={spanWidth}
             onChange={(e) => setSpanWidth(e.target.value)}
           />
+          {!isSpanWidthValid && (
+            <div style={{ color: "#dc2626", fontSize: "0.78em", marginTop: "4px", lineHeight: "1.2" }}>
+              ⚠️ Ширина пролёта должна быть больше 0
+            </div>
+          )}
         </div>
         <div style={styles.field}>
           <label style={styles.label}>Длина (м)</label>
           <input
-            style={styles.input}
+            style={{
+              ...styles.input,
+              borderColor: !isLengthValid ? "#ef4444" : "#ccc",
+              backgroundColor: !isLengthValid ? "#fef2f2" : "#fff",
+            }}
             type="number"
             value={length}
             onChange={(e) => setLength(e.target.value)}
           />
+          {!isLengthValid && (
+            <div style={{ color: "#dc2626", fontSize: "0.78em", marginTop: "4px", lineHeight: "1.2" }}>
+              ⚠️ Длина здания должна быть больше 0
+            </div>
+          )}
         </div>
         <div style={styles.field}>
           <label style={styles.label}>Высота (м)</label>
           <input
-            style={styles.input}
+            style={{
+              ...styles.input,
+              borderColor: !isHeightValid ? "#ef4444" : "#ccc",
+              backgroundColor: !isHeightValid ? "#fef2f2" : "#fff",
+            }}
             type="number"
             value={height}
             onChange={(e) => setHeight(e.target.value)}
           />
+          {!isHeightValid && (
+            <div style={{ color: "#dc2626", fontSize: "0.78em", marginTop: "4px", lineHeight: "1.2" }}>
+              ⚠️ Высота здания должна быть больше 0
+            </div>
+          )}
         </div>
         <div
           style={{
@@ -834,11 +869,20 @@ export default function QuickEstimatorForm({
             <div style={styles.field}>
               <label style={styles.label}>Уклон (%)</label>
               <input
-                style={styles.input}
+                style={{
+                  ...styles.input,
+                  borderColor: !isSlopeValid ? "#ef4444" : "#ccc",
+                  backgroundColor: !isSlopeValid ? "#fef2f2" : "#fff",
+                }}
                 type="number"
                 value={slope}
                 onChange={(e) => setSlope(e.target.value)}
               />
+              {!isSlopeValid && (
+                <div style={{ color: "#dc2626", fontSize: "0.78em", marginTop: "4px", lineHeight: "1.2" }}>
+                  ⚠️ Уклон кровли не может быть отрицательным
+                </div>
+              )}
             </div>
           </div>
 

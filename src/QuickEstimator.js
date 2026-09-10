@@ -19,6 +19,7 @@ import {
   getValidFloorElevations,
   validateSpansCount,
   validateStories,
+  validateQuickEstimatorGeometry,
 } from "./floorStructureConstants";
 import MezzanineCoefficientsEditor, {
   DEFAULT_MEZZANINE_COEFFS,
@@ -279,7 +280,13 @@ export default function QuickEstimator({
               ? Number(mz0.loadLive)
               : 400,
           deadLoad: mz0.loadDead || 280,
-          partitionsLoad: mz0.loadPartitions || 50,
+          partitionsLoad:
+            mz0.loadPartitions !== undefined &&
+            mz0.loadPartitions !== null &&
+            mz0.loadPartitions !== "" &&
+            !isNaN(Number(mz0.loadPartitions))
+              ? Number(mz0.loadPartitions)
+              : 50,
           thickness: mz0.thickness || 120,
           safetyFactor: mz0.safetyFactor || 1.2,
         };
@@ -308,14 +315,25 @@ export default function QuickEstimator({
     };
   });
 
-  // ЗАДАЧА 4 & 6.1: Синхронизация этажности и отметок перекрытий (storyElevations)
+  // ЗАДАЧА 4, 6.1 & 6.12 (БЛОК A): Синхронизация этажности и отметок перекрытий (storyElevations)
   // Для здания с stories = N строго существует N - 1 отметок межэтажных перекрытий.
-  // Для невалидного stories массивы НЕ менять!
+  // При невалидном stories или невалидной высоте (<= 0, "", NaN) существующие отметки НЕ менять!
   useEffect(() => {
     const valResult = validateStories(stories);
     if (!valResult.isValid) return;
     const numStories = valResult.value;
-    const H = Math.max(2.0, parseFloat(height) || 6.0);
+
+    const hNum = Number(height);
+    if (
+      height === "" ||
+      height === null ||
+      height === undefined ||
+      !Number.isFinite(hNum) ||
+      hNum <= 0
+    ) {
+      return;
+    }
+    const H = hNum;
     const currentElevs = floorStructure?.storyElevations;
     const syncedElevs = getValidFloorElevations(numStories, H, currentElevs);
 
@@ -694,8 +712,10 @@ export default function QuickEstimator({
   const estimation = useMemo(() => {
     const spansVal = validateSpansCount(spansCount);
     const storiesVal = validateStories(stories);
+    const geomVal = validateQuickEstimatorGeometry({ spanWidth, length, height, slope });
 
     if (
+      !geomVal.isValid ||
       !spansVal.isValid ||
       !storiesVal.isValid ||
       !baseMatrix210 ||
@@ -704,7 +724,9 @@ export default function QuickEstimator({
       !trussTable ||
       !windCoefficients
     ) {
-      const errorMsg = !spansVal.isValid
+      const errorMsg = !geomVal.isValid
+        ? geomVal.error
+        : !spansVal.isValid
         ? spansVal.error
         : !storiesVal.isValid
         ? storiesVal.error
@@ -717,7 +739,7 @@ export default function QuickEstimator({
         craneSystemWeight: null, craneSystemCost: 0, craneInfo: "", foundationCount: 0, concreteCubic: "0.0", rebarWeight: "0.00",
         foundationCost: 0, wallAreaBox: "0.0", gableAreaTotal: "0.0", roofArea: "0.0", openingsArea: "0.0",
         wallCost: 0, roofCost: 0, trimCost: 0, totalCost: "0",
-        isBlockedByValidation: !spansVal.isValid || !storiesVal.isValid,
+        isBlockedByValidation: !geomVal.isValid || !spansVal.isValid || !storiesVal.isValid,
         validationError: errorMsg,
       };
     }
@@ -1303,11 +1325,14 @@ export default function QuickEstimator({
       mezzanineWeightKg,
       totalCost: Math.round(totalCostNum).toLocaleString("ru-RU"),
       isBlockedByValidation:
+        !geomVal.isValid ||
         !spansVal.isValid ||
         !storiesVal.isValid ||
         validationMetrics.isOverloaded ||
         hasSpecialSuspensionCrane,
-      validationError: !spansVal.isValid
+      validationError: !geomVal.isValid
+        ? geomVal.error
+        : !spansVal.isValid
         ? spansVal.error
         : !storiesVal.isValid
         ? storiesVal.error
@@ -1329,9 +1354,14 @@ export default function QuickEstimator({
 
   const spansValidation = validateSpansCount(spansCount);
   const storiesValidation = validateStories(stories);
-  const isFormValid = spansValidation.isValid && storiesValidation.isValid;
+  const geomValidation = validateQuickEstimatorGeometry({ spanWidth, length, height, slope });
+  const isFormValid = spansValidation.isValid && storiesValidation.isValid && geomValidation.isValid;
 
   const handleCloseWithData = () => {
+    if (!geomValidation.isValid) {
+      alert(`Невозможно сохранить: ${geomValidation.error}`);
+      return;
+    }
     if (!spansValidation.isValid) {
       alert(`Невозможно сохранить: ${spansValidation.error}`);
       return;
@@ -1341,7 +1371,7 @@ export default function QuickEstimator({
       return;
     }
     const numStories = storiesValidation.value;
-    const H = Math.max(2.0, parseFloat(height) || 6.0);
+    const H = Number(height);
     const syncedElevs = getValidFloorElevations(numStories, H, floorStructure?.storyElevations);
     const config = {
       spanWidth,
@@ -1397,25 +1427,41 @@ export default function QuickEstimator({
           <button
             style={{
               ...styles.settingsBtn,
-              backgroundColor: "#0284c7",
+              backgroundColor: isFormValid ? "#0284c7" : "#94a3b8",
               color: "#ffffff",
               fontWeight: "600",
-              borderColor: "#0284c7"
+              borderColor: isFormValid ? "#0284c7" : "#94a3b8",
+              cursor: isFormValid ? "pointer" : "not-allowed",
+              opacity: isFormValid ? 1 : 0.6,
             }}
-            onClick={() => setIsTZModalOpen(true)}
-            title="📋 Техническое задание и выгрузка в 1С"
+            disabled={!isFormValid}
+            onClick={() => {
+              if (!isFormValid) {
+                alert(geomValidation.error || spansValidation.error || storiesValidation.error || "Невозможно открыть ТЗ: исправьте ошибки ввода.");
+                return;
+              }
+              setIsTZModalOpen(true);
+            }}
+            title={isFormValid ? "📋 Техническое задание и выгрузка в 1С" : "Невозможно сформировать ТЗ при невалидной геометрии или параметрах"}
           >
             📋 ТЗ и выгрузка в 1С
           </button>
           <button
             style={{
               ...styles.settingsBtn,
-              backgroundColor: "#f0fdf4",
-              color: "#166534",
-              borderColor: "#86efac",
-              fontWeight: "600"
+              backgroundColor: isFormValid ? "#f0fdf4" : "#f1f5f9",
+              color: isFormValid ? "#166534" : "#94a3b8",
+              borderColor: isFormValid ? "#86efac" : "#cbd5e1",
+              fontWeight: "600",
+              cursor: isFormValid ? "pointer" : "not-allowed",
+              opacity: isFormValid ? 1 : 0.6,
             }}
-            onClick={() =>
+            disabled={!isFormValid}
+            onClick={() => {
+              if (!isFormValid) {
+                alert(geomValidation.error || spansValidation.error || storiesValidation.error || "Невозможно выгрузить 1С: исправьте ошибки ввода.");
+                return;
+              }
               exportTo1CExcel({
                 spanWidth,
                 spansCount,
@@ -1434,9 +1480,9 @@ export default function QuickEstimator({
                 layoutMode,
                 aperturesList,
                 estimation
-              })
-            }
-            title="📥 Быстро скачать файл параметров для 1С (.xlsx)"
+              });
+            }}
+            title={isFormValid ? "📥 Быстро скачать файл параметров для 1С (.xlsx)" : "Невозможно выгрузить в 1С при невалидной геометрии или параметрах"}
           >
             📥 1С (.xlsx)
           </button>
@@ -1447,6 +1493,7 @@ export default function QuickEstimator({
             opacity: isFormValid ? 1 : 0.5,
             cursor: isFormValid ? "pointer" : "not-allowed",
           }}
+          disabled={!isFormValid}
           onClick={handleCloseWithData}
           title={isFormValid ? "Закрыть и применить к проекту" : "Исправьте ошибки ввода перед сохранением"}
         >
