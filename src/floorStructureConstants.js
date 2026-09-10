@@ -17,16 +17,20 @@ export const FLOOR_TYPES = [
     deckProfile: "Н75-750-0.8",
     corrugationHeight: 75,
     corrugationVolumePerM2: 0.0291, // м³/м² бетон в гофрах (точные геометрические характеристики Н75-750-0.8)
-    deadLoad: 246, // кг/м² при t=120мм (бетон hc=45мм + бетон в гофрах 0.0291м³ + профлист 11.2кг + сетка 8кг + топпинг 15кг + балки 30кг)
+    structuralDeadLoad: 230.745, // кг/м² собственный вес несущей конструкции при t=120мм (СП 266, ГОСТ 24045)
+    defaultFloorFinishLayers: [
+      { name: "Топпинг / покрытие пола", load: 15 },
+    ],
+    floorFinishLoad: 15, // кг/м² состав пола
+    deadLoad: 245.745, // кг/м² при t=120мм (structuralDeadLoad 230.745 + floorFinishLoad 15)
     beamSpacing: "2.5 – 3.2 м",
     fireRating: "REI 60 – REI 90",
     features:
       "Сталебетонное перекрытие по оцинкованному профлисту Н75-750-0.8 (масса 11.2 кг/м²). Бетон заполняет гофры листа (объем в ребрах 0.0291 м³/м² или ~71.3 кг/м²), формируя надежную ребристую плиту с полкой бетона hc = t - 75 мм (min hc >= 40 мм).",
     color: "#2563eb",
     layers: [
-      { name: "Чистовое износостойкое полимерное покрытие / топпинг", thickness: 5, weight: 15 },
-      { name: "Монолитный бетон B25 над гофрами профлиста (hc = 45 мм)", thickness: 45, weight: 110, isVariableConcrete: true },
-      { name: "Бетон B25 в гофрах профлиста Н75 (объем 0.0291 м³/м²)", thickness: 75, weight: 71, isCorrugationConcrete: true },
+      { name: "Монолитный бетон B25 над гофрами профлиста (hc = 45 мм)", thickness: 45, weight: 110.25, isVariableConcrete: true },
+      { name: "Бетон B25 в гофрах профлиста Н75 (объем 0.0291 м³/м²)", thickness: 75, weight: 71.3, isCorrugationConcrete: true },
       { name: "Профилированный оцинкованный лист Н75-750-0.8 (ГОСТ 24045)", thickness: 75, weight: 11.2 },
       { name: "Арматурная сетка в полке и стержни в ребрах", thickness: 10, weight: 8 },
       { name: "Стальные второстепенные балки (шаг 2.5–3.0 м)", thickness: 200, weight: 30 },
@@ -285,7 +289,15 @@ export const DEFAULT_FLOOR_STRUCTURE = {
   typeName: "Монолитный ж/б по несъемной опалубке из профлиста Н75",
   shortName: "Ж/б по профлисту Н75",
   thickness: 120, // мм
-  deadLoad: 246, // кг/м²
+  structuralDeadLoad: 230.745, // кг/м² несущая конструкция (бетон 181.545 + лист 11.2 + арматура 8 + балки 30)
+  floorFinishLayers: [
+    {
+      name: "Топпинг / покрытие пола",
+      load: 15,
+    },
+  ],
+  floorFinishLoad: 15, // кг/м² состав пола
+  deadLoad: 245.745, // кг/м² (structuralDeadLoad 230.745 + floorFinishLoad 15)
   partitionsLoad: 50, // кг/м²
   liveLoad: 400, // кг/м²
   liveLoadCategory: "Торговые залы, выставочные павильоны",
@@ -368,32 +380,92 @@ export function getEffectiveMezzanineDimensions(floorStructure, totalBuildingWid
 }
 
 /**
- * Расчет собственного веса перекрытия (кг/м²) в зависимости от типа и толщины.
- * Учитывает геометрию Н75-750-0.8 (0.0291 м³/м² бетона в гофрах, масса листа 11.2 кг/м²),
- * минимальную толщину полки hc >= 40 мм и общую толщину t >= 115 мм по СП 266.1325800.2016.
+ * Детальный расчет компонентов несущей конструкции перекрытия по профлисту Н75-750-0.8.
+ * СП 266.1325800.2016, ГОСТ 24045-2016:
+ * - объем бетона в гофрах: 0.0291 м³/м²
+ * - плотность тяжелого бетона: 2450 кг/м³
+ * - масса профлиста: 11.2 кг/м²
+ * - арматура: 8 кг/м²
+ * - второстепенные стальные балки: 30 кг/м²
+ * - hc = max(40, thick - 75) мм
+ * - Vconcrete = 0.0291 + hc / 1000
+ * - concreteLoad = Vconcrete * 2450
+ * - structuralDeadLoad = concreteLoad + 11.2 + 8 + 30
  */
-export function calculateDeadLoadForType(typeId, t) {
+export function getMonolithicDeckStructuralComponents(t) {
+  const thick = Number(t) || 120;
+  const hc = Math.max(40, thick - 75);
+  const corrugationVolume = 0.0291; // м³/м²
+  const aboveVolume = hc / 1000; // м³/м²
+  const totalVolume = Math.round((corrugationVolume + aboveVolume) * 10000) / 10000;
+  const corrugationConcreteLoad = Math.round(corrugationVolume * 2450 * 1000) / 1000; // 71.295 кг/м² (~71.3)
+  const aboveConcreteLoad = Math.round(aboveVolume * 2450 * 1000) / 1000; // 45 * 2.45 = 110.25 кг/м²
+  const concreteLoad = Math.round(totalVolume * 2450 * 1000) / 1000; // 181.545 кг/м² при t=120
+  const profileSheetLoad = 11.2; // кг/м²
+  const reinforcementLoad = 8; // кг/м²
+  const secondaryBeamsLoad = 30; // кг/м²
+  const structuralDeadLoad =
+    Math.round(
+      (concreteLoad + profileSheetLoad + reinforcementLoad + secondaryBeamsLoad) *
+        1000
+    ) / 1000; // 230.745 кг/м² при t=120
+
+  return {
+    thickness: thick,
+    hc,
+    corrugationVolume,
+    aboveVolume,
+    totalVolume,
+    corrugationConcreteLoad,
+    aboveConcreteLoad,
+    concreteLoad,
+    profileSheetLoad,
+    reinforcementLoad,
+    secondaryBeamsLoad,
+    structuralDeadLoad,
+  };
+}
+
+/**
+ * Расчет собственного веса несущей конструкции перекрытия structuralDeadLoad (кг/м²).
+ * Без состава пола и без перегородок.
+ */
+export function calculateStructuralDeadLoadForType(typeId, t) {
+  const thick = Number(t) || 120;
+  if (typeId === "monolithic_deck") {
+    return getMonolithicDeckStructuralComponents(thick).structuralDeadLoad;
+  }
+  return calculateDeadLoadForType(typeId, thick, 0);
+}
+
+/**
+ * Суммирование слоев состава пола.
+ */
+export function calculateFloorFinishLoad(layers) {
+  if (!Array.isArray(layers) || layers.length === 0) return 0;
+  return layers.reduce((sum, layer) => {
+    const val = Number(layer?.load);
+    return sum + (!isNaN(val) ? val : 0);
+  }, 0);
+}
+
+/**
+ * Расчет собственного веса перекрытия (кг/м²) в зависимости от типа и толщины.
+ * Для Н75: deadLoad = structuralDeadLoad + floorFinishLoad.
+ */
+export function calculateDeadLoadForType(typeId, t, floorFinishLoad) {
   const thick = Number(t) || 120;
   switch (typeId) {
     case "precast_hollow_core":
       // Сборные многопустотные плиты ПК/ПБ - постоянная заводская толщина 220 мм и масса 330 кг/м²
       return 330;
     case "monolithic_deck": {
-      // Профнастил Н75-750-0.8 (ГОСТ 24045-2016, СП 266.1325800.2016):
-      // Высота гофры h_g = 75 мм.
-      // Объем бетона в гофрах: V_cor = 0.0291 м³/м².
-      // При плотности тяжелого бетона 2450 кг/м³ масса бетона в гофрах = 0.0291 * 2450 = 71.3 кг/м².
-      // Высота сплошной полки бетона над гофрами: hc = max(40, thick - 75) мм (требование СП 266: hc >= 40 мм, t >= 115 мм).
-      // Масса бетона над гофрами: (hc / 1000) * 2450 = hc * 2.45 кг/м².
-      // Профлист Н75-750-0.8: 11.2 кг/м² (ГОСТ 24045-2016).
-      // Арматурная сетка в полке и стержни в ребрах: 8 кг/м².
-      // Топпинг / чистовой слой (5 мм): 15 кг/м².
-      // Второстепенные стальные балки: 30 кг/м².
-      // Постоянная конструктивная составляющая: 71.3 + 11.2 + 8 + 15 + 30 = 135.5 кг/м².
-      // Переменная составляющая от слоя бетона над гофрами: hc * 2.45 кг/м².
-      // При t=120 (hc=45): 135.5 + 45 * 2.45 = 245.75 ≈ 246 кг/м².
-      const hc = Math.max(40, thick - 75);
-      return Math.round(135.5 + hc * 2.45);
+      const structural = getMonolithicDeckStructuralComponents(thick).structuralDeadLoad;
+      const finish =
+        floorFinishLoad !== undefined && floorFinishLoad !== null && !isNaN(Number(floorFinishLoad))
+          ? Number(floorFinishLoad)
+          : 15;
+      return Math.round((structural + finish) * 1000) / 1000;
     }
     case "monolithic_slab":
       // Монолитная плита тяжелого бетона B25 (при t=180мм -> 525 кг/м²: 180*2.5 + 25 топпинг + 50 ригели)
@@ -411,7 +483,7 @@ export function calculateDeadLoadForType(typeId, t) {
       // Сухая стяжка KNAUF: ГВЛВ 20 мм (25 кг/м²) + керамзитовая засыпка
       return Math.max(50, Math.round(43 + Math.max(0, thick - 20) * 1.04));
     default:
-      return 246;
+      return 245.745;
   }
 }
 
@@ -426,43 +498,35 @@ export function getLayersForTypeAndThickness(typeInfo, t) {
   const thick = Number(t) || typeInfo.defaultThickness || 120;
 
   if (typeInfo.id === "monolithic_deck") {
-    const hc = Math.max(40, thick - 75);
-    const weightAbove = Math.round(hc * 2.45);
-    const corrugationVol = 0.0291;
-    const totalConcreteVol = (corrugationVol + hc / 1000).toFixed(4);
+    const comp = getMonolithicDeckStructuralComponents(thick);
     return [
       {
-        name: "Чистовое износостойкое полимерное покрытие / топпинг (5 мм)",
-        thickness: 5,
-        weight: 15,
-      },
-      {
-        name: `Монолитный бетон B25 над гофрами (hc = t - 75 = ${hc} мм, min hc >= 40 мм)`,
-        thickness: hc,
-        weight: weightAbove,
+        name: `Монолитный бетон B25 над гофрами (hc = t - 75 = ${comp.hc} мм, min hc >= 40 мм)`,
+        thickness: comp.hc,
+        weight: comp.aboveConcreteLoad,
         highlight: true,
       },
       {
         name: "Бетон B25 в гофрах профлиста Н75 (объем 0.0291 м³/м²)",
         thickness: 75,
-        weight: 71,
+        weight: 71.3,
         highlight: true,
-        note: `Суммарный объем бетона: ${totalConcreteVol} м³/м² (${71 + weightAbove} кг/м²)`,
+        note: `Суммарный объем бетона: ${comp.totalVolume} м³/м² (${comp.concreteLoad} кг/м²)`,
       },
       {
         name: "Профилированный оцинкованный лист Н75-750-0.8 (ГОСТ 24045)",
         thickness: 75,
-        weight: 11.2,
+        weight: comp.profileSheetLoad,
       },
       {
         name: "Арматурная сетка в полке и стержни в ребрах",
         thickness: 10,
-        weight: 8,
+        weight: comp.reinforcementLoad,
       },
       {
         name: "Стальные второстепенные балки (шаг 2.5–3.0 м)",
         thickness: 200,
-        weight: 30,
+        weight: comp.secondaryBeamsLoad,
       },
     ];
   }

@@ -6,6 +6,9 @@ import {
   RESPONSIBILITY_FACTORS,
   DEFAULT_FLOOR_STRUCTURE,
   calculateDeadLoadForType,
+  calculateStructuralDeadLoadForType,
+  getMonolithicDeckStructuralComponents,
+  calculateFloorFinishLoad,
   calculateMezzanineQBase,
   getAutoColumnSpans,
   getLayersForTypeAndThickness,
@@ -40,6 +43,32 @@ export default function FloorStructureModal({
 
   const [thickness, setThickness] = useState(() => {
     return initialStructure?.thickness ?? DEFAULT_FLOOR_STRUCTURE.thickness;
+  });
+
+  const [floorFinishLayers, setFloorFinishLayers] = useState(() => {
+    if (
+      Array.isArray(initialStructure?.floorFinishLayers) &&
+      initialStructure.floorFinishLayers.length > 0
+    ) {
+      return initialStructure.floorFinishLayers;
+    }
+    if (
+      initialStructure?.floorFinishLoad !== undefined &&
+      initialStructure?.floorFinishLoad !== null
+    ) {
+      return [
+        {
+          name: "Топпинг / покрытие пола",
+          load: Number(initialStructure.floorFinishLoad) || 0,
+        },
+      ];
+    }
+    return [
+      {
+        name: "Топпинг / покрытие пола",
+        load: 15,
+      },
+    ];
   });
 
   const [deadLoad, setDeadLoad] = useState(() => {
@@ -99,11 +128,30 @@ export default function FloorStructureModal({
       setSelectedType(typeId);
       const th = init.thickness ?? typeInfo.defaultThickness;
       setThickness(th);
-      setDeadLoad(
-        init.deadLoad != null
-          ? init.deadLoad
-          : calculateDeadLoadForType(typeId, th)
-      );
+
+      const initFinishLayers =
+        Array.isArray(init.floorFinishLayers) && init.floorFinishLayers.length > 0
+          ? init.floorFinishLayers
+          : init.floorFinishLoad !== undefined && init.floorFinishLoad !== null
+          ? [{ name: "Топпинг / покрытие пола", load: Number(init.floorFinishLoad) || 0 }]
+          : [{ name: "Топпинг / покрытие пола", load: 15 }];
+      setFloorFinishLayers(initFinishLayers);
+
+      if (typeId === "monolithic_deck") {
+        const finishSum = initFinishLayers.reduce(
+          (sum, l) => sum + (Number(l?.load) || 0),
+          0
+        );
+        const sComp = getMonolithicDeckStructuralComponents(th);
+        setDeadLoad(Math.round((sComp.structuralDeadLoad + finishSum) * 1000) / 1000);
+      } else {
+        setDeadLoad(
+          init.deadLoad != null
+            ? init.deadLoad
+            : calculateDeadLoadForType(typeId, th)
+        );
+      }
+
       setPartitionsLoad(
         init.partitionsLoad !== undefined &&
         init.partitionsLoad !== null &&
@@ -140,6 +188,27 @@ export default function FloorStructureModal({
     );
   }, [selectedType]);
 
+  // Расчет слоев чистового пола (топпинг, стяжка и т.д.)
+  const floorFinishLoad = useMemo(() => {
+    if (!Array.isArray(floorFinishLayers) || floorFinishLayers.length === 0) {
+      return 0;
+    }
+    return calculateFloorFinishLoad(floorFinishLayers);
+  }, [floorFinishLayers]);
+
+  // Компоненты несущей конструкции для Н75
+  const monoDeckComponents = useMemo(() => {
+    return getMonolithicDeckStructuralComponents(thickness);
+  }, [thickness]);
+
+  // Собственный вес несущей конструкции перекрытия (без пола и перегородок)
+  const structuralDeadLoad = useMemo(() => {
+    if (selectedType === "monolithic_deck") {
+      return monoDeckComponents.structuralDeadLoad;
+    }
+    return Number(deadLoad) || 0;
+  }, [selectedType, monoDeckComponents.structuralDeadLoad, deadLoad]);
+
   // Динамический расчет слоев пирога с учетом толщины бетона
   const dynamicLayers = useMemo(() => {
     return getLayersForTypeAndThickness(currentTypeInfo, thickness);
@@ -149,6 +218,56 @@ export default function FloorStructureModal({
   const validElevations = useMemo(() => {
     return getValidFloorElevations(storiesCount, height, storyElevations);
   }, [storiesCount, height, storyElevations]);
+
+  // Изменение нагрузки отдельного слоя чистового пола
+  const handleFloorFinishLayerLoadChange = (idx, rawVal) => {
+    const nextLayers = floorFinishLayers.map((layer, i) => {
+      if (i === idx) {
+        return {
+          ...layer,
+          load: rawVal === "" ? "" : Number(rawVal),
+        };
+      }
+      return layer;
+    });
+    setFloorFinishLayers(nextLayers);
+    const nextFinishLoad = nextLayers.reduce((sum, l) => sum + (Number(l?.load) || 0), 0);
+    const sComp = getMonolithicDeckStructuralComponents(thickness);
+    setDeadLoad(Math.round((sComp.structuralDeadLoad + nextFinishLoad) * 1000) / 1000);
+  };
+
+  // Изменение названия слоя чистового пола
+  const handleFloorFinishLayerNameChange = (idx, newName) => {
+    const nextLayers = floorFinishLayers.map((layer, i) => {
+      if (i === idx) {
+        return { ...layer, name: newName };
+      }
+      return layer;
+    });
+    setFloorFinishLayers(nextLayers);
+  };
+
+  // Добавление слоя чистового пола
+  const handleAddFloorFinishLayer = () => {
+    const nextLayers = [
+      ...floorFinishLayers,
+      { name: "Стяжка / плитка / покрытие", load: 20 },
+    ];
+    setFloorFinishLayers(nextLayers);
+    const nextFinishLoad = nextLayers.reduce((sum, l) => sum + (Number(l?.load) || 0), 0);
+    const sComp = getMonolithicDeckStructuralComponents(thickness);
+    setDeadLoad(Math.round((sComp.structuralDeadLoad + nextFinishLoad) * 1000) / 1000);
+  };
+
+  // Удаление слоя чистового пола
+  const handleRemoveFloorFinishLayer = (idx) => {
+    if (floorFinishLayers.length <= 1) return;
+    const nextLayers = floorFinishLayers.filter((_, i) => i !== idx);
+    setFloorFinishLayers(nextLayers);
+    const nextFinishLoad = nextLayers.reduce((sum, l) => sum + (Number(l?.load) || 0), 0);
+    const sComp = getMonolithicDeckStructuralComponents(thickness);
+    setDeadLoad(Math.round((sComp.structuralDeadLoad + nextFinishLoad) * 1000) / 1000);
+  };
 
   // Изменение отметки пола конкретного этажа
   const handleFloorElevationChange = (idx, rawVal) => {
@@ -203,6 +322,10 @@ export default function FloorStructureModal({
       if (info.isConstantThickness) {
         setThickness(220);
         setDeadLoad(330);
+      } else if (typeId === "monolithic_deck") {
+        setThickness(info.defaultThickness);
+        const sComp = getMonolithicDeckStructuralComponents(info.defaultThickness);
+        setDeadLoad(Math.round((sComp.structuralDeadLoad + floorFinishLoad) * 1000) / 1000);
       } else {
         setThickness(info.defaultThickness);
         const computedWeight = calculateDeadLoadForType(typeId, info.defaultThickness);
@@ -211,11 +334,15 @@ export default function FloorStructureModal({
     }
   };
 
-  // При изменении толщины перекрытия (вес пересчитывается автоматически, кроме пустотных плит)
+  // При изменении толщины перекрытия:
+  // Для Н75 пересчитывается ТОЛЬКО несущая часть, состав пола НЕ сбрасывается!
   const handleThicknessChange = (newThickness) => {
     const val = Number(newThickness) || 0;
     setThickness(val);
-    if (!currentTypeInfo.isConstantThickness) {
+    if (selectedType === "monolithic_deck") {
+      const sComp = getMonolithicDeckStructuralComponents(val);
+      setDeadLoad(Math.round((sComp.structuralDeadLoad + floorFinishLoad) * 1000) / 1000);
+    } else if (!currentTypeInfo.isConstantThickness) {
       const computedWeight = calculateDeadLoadForType(selectedType, val);
       setDeadLoad(computedWeight);
     }
@@ -299,9 +426,24 @@ export default function FloorStructureModal({
       if (finalThick > maxT) finalThick = maxT;
     }
 
-    const calculatedDL = currentTypeInfo.isConstantThickness
-      ? 330
-      : calculateDeadLoadForType(currentTypeInfo.id, finalThick);
+    const calculatedStructuralDL =
+      currentTypeInfo.id === "monolithic_deck"
+        ? getMonolithicDeckStructuralComponents(finalThick).structuralDeadLoad
+        : currentTypeInfo.isConstantThickness
+        ? 330
+        : calculateDeadLoadForType(currentTypeInfo.id, finalThick);
+
+    const currentFloorFinishLoad =
+      currentTypeInfo.id === "monolithic_deck"
+        ? floorFinishLayers.reduce((sum, l) => sum + (Number(l?.load) || 0), 0)
+        : 0;
+
+    const calculatedDL =
+      currentTypeInfo.id === "monolithic_deck"
+        ? Math.round((calculatedStructuralDL + currentFloorFinishLoad) * 1000) / 1000
+        : currentTypeInfo.isConstantThickness
+        ? 330
+        : calculateDeadLoadForType(currentTypeInfo.id, finalThick);
 
     const safePartitionsLoad =
       partitionsLoad !== "" && partitionsLoad != null && !isNaN(Number(partitionsLoad))
@@ -324,6 +466,9 @@ export default function FloorStructureModal({
       shortName: currentTypeInfo.shortName,
       name: currentTypeInfo.name,
       thickness: finalThick,
+      structuralDeadLoad: calculatedStructuralDL,
+      floorFinishLayers: currentTypeInfo.id === "monolithic_deck" ? floorFinishLayers : [],
+      floorFinishLoad: currentFloorFinishLoad,
       deadLoad: calculatedDL,
       partitionsLoad: safePartitionsLoad,
       liveLoad: safeLiveLoad,
@@ -623,94 +768,425 @@ export default function FloorStructureModal({
                 {currentTypeInfo.features}
               </div>
 
-              {/* Слои перекрытия (динамический пересчет толщины и массы) */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "4px",
-                  marginBottom: "14px",
-                }}
-              >
-                {dynamicLayers.map((layer, idx) => (
+              {/* Слои перекрытия */}
+              {selectedType === "monolithic_deck" ? (
+                <div>
+                  {/* 1. Несущая конструкция перекрытия */}
                   <div
-                    key={idx}
+                    style={{
+                      backgroundColor: "#f8fafc",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "8px",
+                      padding: "12px",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "0.85em",
+                        fontWeight: 700,
+                        color: "#0f172a",
+                        marginBottom: "8px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span>🏗️</span>
+                        <span>Несущая конструкция перекрытия</span>
+                        <span style={{ fontSize: "0.8em", color: "#64748b", fontWeight: 400 }}>
+                          (СП 266.1325800.2016, ГОСТ 24045-2016)
+                        </span>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: "0.85em",
+                          fontWeight: 700,
+                          color: "#1d4ed8",
+                          backgroundColor: "#eff6ff",
+                          padding: "2px 8px",
+                          borderRadius: "4px",
+                        }}
+                      >
+                        Итого: {monoDeckComponents.structuralDeadLoad} кг/м²
+                      </span>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "0.78em" }}>
+                      {/* 1. Бетон */}
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "flex-start",
+                          padding: "6px 8px",
+                          backgroundColor: "#ffffff",
+                          borderRadius: "6px",
+                          border: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <div>
+                          <span style={{ fontWeight: 600, color: "#1e293b" }}>
+                            1. Монолитный тяжелый бетон B25 (ρ = 2450 кг/м³)
+                          </span>
+                          <div style={{ color: "#64748b", fontSize: "0.92em", marginTop: "2px", lineHeight: 1.35 }}>
+                            • В гофрах профлиста Н75: 0.0291 м³/м² (71.3 кг/м²)<br />
+                            • Над гофрами (hc = {monoDeckComponents.hc} мм, min ≥ 40 мм): {monoDeckComponents.aboveVolume.toFixed(4)} м³/м² ({monoDeckComponents.aboveConcreteLoad} кг/м²)<br />
+                            • Суммарный объем бетона: <strong>{monoDeckComponents.totalVolume} м³/м²</strong>
+                          </div>
+                        </div>
+                        <span style={{ fontWeight: 700, color: "#1e40af", whiteSpace: "nowrap", marginLeft: "8px" }}>
+                          {monoDeckComponents.concreteLoad} кг/м²
+                        </span>
+                      </div>
+
+                      {/* 2. Профлист */}
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "6px 8px",
+                          backgroundColor: "#ffffff",
+                          borderRadius: "6px",
+                          border: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <div>
+                          <span style={{ fontWeight: 600, color: "#1e293b" }}>
+                            2. Профилированный оцинкованный лист Н75-750-0.8 (ГОСТ 24045-2016)
+                          </span>
+                          <div style={{ color: "#64748b", fontSize: "0.92em" }}>
+                            Несъемная опалубка с высотой трапециевидной гофры 75 мм
+                          </div>
+                        </div>
+                        <span style={{ fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>
+                          {monoDeckComponents.profileSheetLoad} кг/м²
+                        </span>
+                      </div>
+
+                      {/* 3. Арматура */}
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "6px 8px",
+                          backgroundColor: "#ffffff",
+                          borderRadius: "6px",
+                          border: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <div>
+                          <span style={{ fontWeight: 600, color: "#1e293b" }}>
+                            3. Арматурная сетка в полке и стержни в ребрах
+                          </span>
+                          <div style={{ color: "#64748b", fontSize: "0.92em" }}>
+                            Расчетное и конструктивное армирование полки плиты и гофр
+                          </div>
+                        </div>
+                        <span style={{ fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>
+                          {monoDeckComponents.reinforcementLoad} кг/м²
+                        </span>
+                      </div>
+
+                      {/* 4. Балки */}
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "6px 8px",
+                          backgroundColor: "#ffffff",
+                          borderRadius: "6px",
+                          border: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <div>
+                          <span style={{ fontWeight: 600, color: "#1e293b" }}>
+                            4. Стальные второстепенные балки (шаг 2.5–3.0 м)
+                          </span>
+                          <div style={{ color: "#64748b", fontSize: "0.92em" }}>
+                            Опирание сталебетонной плиты на балочную клетку
+                          </div>
+                        </div>
+                        <span style={{ fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>
+                          {monoDeckComponents.secondaryBeamsLoad} кг/м²
+                        </span>
+                      </div>
+
+                      {/* Итого несущая */}
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "6px 10px",
+                          backgroundColor: "#eff6ff",
+                          borderRadius: "6px",
+                          border: "1px solid #bfdbfe",
+                          fontWeight: 700,
+                        }}
+                      >
+                        <span style={{ color: "#1e3a8a" }}>
+                          Итого несущая конструкция (structuralDeadLoad):
+                        </span>
+                        <span style={{ color: "#1d4ed8", fontSize: "1.05em" }}>
+                          {monoDeckComponents.structuralDeadLoad} кг/м²
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2. Состав пола */}
+                  <div
+                    style={{
+                      backgroundColor: "#f8fafc",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "8px",
+                      padding: "12px",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "0.85em",
+                        fontWeight: 700,
+                        color: "#0f172a",
+                        marginBottom: "8px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span>🪵</span>
+                        <span>Состав пола (чистовые покрытия и стяжки)</span>
+                        <span
+                          style={{
+                            fontSize: "0.8em",
+                            color: "#059669",
+                            backgroundColor: "#ecfdf5",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            fontWeight: 500,
+                          }}
+                        >
+                          Считается отдельно от несущей конструкции
+                        </span>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: "0.85em",
+                          fontWeight: 700,
+                          color: "#059669",
+                          backgroundColor: "#ecfdf5",
+                          padding: "2px 8px",
+                          borderRadius: "4px",
+                        }}
+                      >
+                        Итого: {floorFinishLoad} кг/м²
+                      </span>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "0.78em" }}>
+                      {floorFinishLayers.map((layer, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            padding: "6px 8px",
+                            backgroundColor: "#ffffff",
+                            borderRadius: "6px",
+                            border: "1px solid #e2e8f0",
+                          }}
+                        >
+                          <span style={{ color: "#64748b", fontWeight: 600, minWidth: "16px" }}>
+                            {idx + 1}.
+                          </span>
+                          <input
+                            type="text"
+                            value={layer.name}
+                            onChange={(e) => handleFloorFinishLayerNameChange(idx, e.target.value)}
+                            placeholder="Название слоя пола"
+                            style={{
+                              flex: 1,
+                              padding: "4px 8px",
+                              borderRadius: "4px",
+                              border: "1px solid #cbd5e1",
+                              fontSize: "0.95em",
+                              color: "#0f172a",
+                            }}
+                          />
+                          <div style={{ display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap" }}>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={layer.load}
+                              onChange={(e) => handleFloorFinishLayerLoadChange(idx, e.target.value)}
+                              style={{
+                                width: "65px",
+                                padding: "4px 8px",
+                                borderRadius: "4px",
+                                border: "1px solid #cbd5e1",
+                                fontSize: "0.95em",
+                                fontWeight: 700,
+                                textAlign: "right",
+                                color: "#0f172a",
+                              }}
+                            />
+                            <span style={{ color: "#64748b", fontWeight: 600 }}>кг/м²</span>
+                          </div>
+                          {floorFinishLayers.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveFloorFinishLayer(idx)}
+                              style={{
+                                padding: "3px 6px",
+                                borderRadius: "4px",
+                                border: "1px solid #fca5a5",
+                                backgroundColor: "#fef2f2",
+                                color: "#dc2626",
+                                cursor: "pointer",
+                                fontSize: "0.9em",
+                              }}
+                              title="Удалить слой пола"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      ))}
+
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginTop: "2px",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={handleAddFloorFinishLayer}
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: "4px",
+                            border: "1px dashed #0969da",
+                            backgroundColor: "#f0f7ff",
+                            color: "#0969da",
+                            fontSize: "0.82em",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          + Добавить слой пола
+                        </button>
+                        <span style={{ color: "#64748b", fontSize: "0.82em" }}>
+                          Стандартный топпинг/покрытие: <strong>15 кг/м²</strong>
+                        </span>
+                      </div>
+
+                      {/* Итого состав пола */}
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "6px 10px",
+                          backgroundColor: "#f0fdf4",
+                          borderRadius: "6px",
+                          border: "1px solid #bbf7d0",
+                          fontWeight: 700,
+                        }}
+                      >
+                        <span style={{ color: "#166534" }}>
+                          Итого состав пола (floorFinishLoad):
+                        </span>
+                        <span style={{ color: "#15803d", fontSize: "1.05em" }}>
+                          {floorFinishLoad} кг/м²
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. Итого постоянная нагрузка перекрытия */}
+                  <div
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
-                      fontSize: "0.78em",
-                      padding: "5px 8px",
-                      backgroundColor: layer.highlight
-                        ? "#eff6ff"
-                        : idx % 2 === 0
-                        ? "#ffffff"
-                        : "transparent",
-                      borderRadius: "4px",
-                      border: layer.highlight ? "1px solid #bfdbfe" : "none",
+                      padding: "8px 12px",
+                      backgroundColor: "#f8fafc",
+                      borderRadius: "8px",
+                      border: "1.5px solid #0969da",
+                      marginBottom: "12px",
                     }}
                   >
-                    <span
-                      style={{
-                        color: layer.highlight ? "#1d4ed8" : "#334155",
-                        fontWeight: layer.highlight ? 600 : 400,
-                      }}
-                    >
-                      {idx + 1}. {layer.name}
-                    </span>
-                    <span
-                      style={{
-                        color: layer.highlight ? "#1e40af" : "#64748b",
-                        fontWeight: 600,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {layer.thickness > 0 ? `${layer.thickness} мм • ` : ""}
-                      {layer.weight} кг/м²
-                    </span>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: "0.84em", color: "#0f172a" }}>
+                        Итого постоянная нагрузка (deadLoad):
+                      </div>
+                      <div style={{ fontSize: "0.74em", color: "#475569" }}>
+                        structuralDeadLoad ({monoDeckComponents.structuralDeadLoad}) + floorFinishLoad ({floorFinishLoad})
+                      </div>
+                    </div>
+                    <div style={{ fontSize: "1.15em", fontWeight: 800, color: "#0969da" }}>
+                      {deadLoad} кг/м²
+                    </div>
                   </div>
-                ))}
-              </div>
-
-              {/* Поясняющая плашка учета бетона в гофрах профлиста Н75 */}
-              {selectedType === "monolithic_deck" && (
+                </div>
+              ) : (
                 <div
                   style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
                     marginBottom: "14px",
-                    padding: "10px 12px",
-                    backgroundColor: "#eff6ff",
-                    border: "1px solid #93c5fd",
-                    borderRadius: "6px",
-                    fontSize: "0.78em",
-                    color: "#1e3a8a",
-                    lineHeight: 1.45,
                   }}
                 >
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      marginBottom: "4px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <span>ℹ️</span>
-                    <span>
-                      Учет бетона в гофрах профлиста Н75 (СП 266.1325800.2016, ГОСТ 24045-2016):
-                    </span>
-                  </div>
-                  <div style={{ marginLeft: "4px" }}>
-                    <div>
-                      • <strong>Бетон в гофрах:</strong> объем заполнения трапеций гофр Н75 составляет <strong>0.042 м³/м²</strong> (масса <strong>103 кг/м²</strong>).
+                  {dynamicLayers.map((layer, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        fontSize: "0.78em",
+                        padding: "5px 8px",
+                        backgroundColor: layer.highlight
+                          ? "#eff6ff"
+                          : idx % 2 === 0
+                          ? "#ffffff"
+                          : "transparent",
+                        borderRadius: "4px",
+                        border: layer.highlight ? "1px solid #bfdbfe" : "none",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: layer.highlight ? "#1d4ed8" : "#334155",
+                          fontWeight: layer.highlight ? 600 : 400,
+                        }}
+                      >
+                        {idx + 1}. {layer.name}
+                      </span>
+                      <span
+                        style={{
+                          color: layer.highlight ? "#1e40af" : "#64748b",
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {layer.thickness > 0 ? `${layer.thickness} мм • ` : ""}
+                        {layer.weight} кг/м²
+                      </span>
                     </div>
-                    <div>
-                      • <strong>Бетон над гофрами:</strong> сплошной слой над гребнем профлиста <strong>hc = {Math.max(35, thickness - 75)} мм</strong> ({Math.round(Math.max(35, thickness - 75) * 2.45)} кг/м²).
-                    </div>
-                    <div>
-                      • <strong>Полный объем бетона:</strong> {(0.042 + Math.max(35, thickness - 75) / 1000).toFixed(3)} м³/м² (общая масса бетона с арматурой: {103 + Math.round(Math.max(35, thickness - 75) * 2.45)} кг/м²).
-                    </div>
-                  </div>
+                  ))}
                 </div>
               )}
 
@@ -803,8 +1279,19 @@ export default function FloorStructureModal({
                           fontWeight: 500,
                         }}
                       >
-                        💡 При изменении толщины собственный вес перекрытия пересчитывается автоматически:{" "}
-                        <strong>{deadLoad} кг/м²</strong>.
+                        {selectedType === "monolithic_deck" ? (
+                          <span>
+                            💡 При изменении толщины пересчитывается несущая конструкция:{" "}
+                            <strong>{monoDeckComponents.structuralDeadLoad} кг/м²</strong>. Состав пола:{" "}
+                            <strong>{floorFinishLoad} кг/м²</strong>. Итого deadLoad:{" "}
+                            <strong>{deadLoad} кг/м²</strong>.
+                          </span>
+                        ) : (
+                          <span>
+                            💡 При изменении толщины собственный вес перекрытия пересчитывается автоматически:{" "}
+                            <strong>{deadLoad} кг/м²</strong>.
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}
@@ -870,11 +1357,13 @@ export default function FloorStructureModal({
                         marginBottom: "4px",
                       }}
                     >
-                      Собственный вес конструкции (кг/м²):
+                      {selectedType === "monolithic_deck"
+                        ? "Постоянная нагрузка deadLoad (кг/м²):"
+                        : "Собственный вес конструкции (кг/м²):"}
                     </label>
                     <input
                       type="number"
-                      disabled={currentTypeInfo.isConstantThickness}
+                      disabled={currentTypeInfo.isConstantThickness || selectedType === "monolithic_deck"}
                       style={{
                         width: "100%",
                         padding: "6px 10px",
@@ -882,16 +1371,24 @@ export default function FloorStructureModal({
                         border: "1px solid #cbd5e1",
                         fontSize: "0.85em",
                         boxSizing: "border-box",
-                        backgroundColor: currentTypeInfo.isConstantThickness
-                          ? "#f1f5f9"
-                          : "#ffffff",
-                        color: currentTypeInfo.isConstantThickness
-                          ? "#64748b"
-                          : "#0f172a",
+                        backgroundColor:
+                          currentTypeInfo.isConstantThickness || selectedType === "monolithic_deck"
+                            ? "#f1f5f9"
+                            : "#ffffff",
+                        color:
+                          currentTypeInfo.isConstantThickness || selectedType === "monolithic_deck"
+                            ? "#0f172a"
+                            : "#0f172a",
+                        fontWeight: selectedType === "monolithic_deck" ? 700 : 400,
                       }}
                       value={deadLoad}
                       onChange={(e) => setDeadLoad(Number(e.target.value))}
                     />
+                    {selectedType === "monolithic_deck" && (
+                      <div style={{ fontSize: "0.72em", color: "#64748b", marginTop: "3px" }}>
+                        Несущая ({monoDeckComponents.structuralDeadLoad}) + Пол ({floorFinishLoad})
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -920,6 +1417,9 @@ export default function FloorStructureModal({
                       value={partitionsLoad}
                       onChange={(e) => setPartitionsLoad(Number(e.target.value))}
                     />
+                    <div style={{ fontSize: "0.72em", color: "#64748b", marginTop: "3px" }}>
+                      СП 20.13330 (в deadLoad и состав пола не входит)
+                    </div>
                   </div>
                 </div>
               </div>
