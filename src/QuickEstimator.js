@@ -230,6 +230,9 @@ export default function QuickEstimator({
   });
 
   const [stories, setStories] = useState(() => {
+    if (initialBlock?.data?.stories != null) {
+      return Math.max(1, parseInt(initialBlock.data.stories, 10) || 1);
+    }
     if (initialBlock?.data?.mezzanines?.length) {
       return initialBlock.data.mezzanines.length + 1;
     }
@@ -253,13 +256,25 @@ export default function QuickEstimator({
         };
       }
     }
-    const initStories = initialBlock?.data?.mezzanines?.length
-      ? initialBlock.data.mezzanines.length + 1
-      : 1;
-    const initH = initialBlock?.data?.height || 6.0;
+    const initStories =
+      initialBlock?.data?.stories != null
+        ? Math.max(1, parseInt(initialBlock.data.stories, 10) || 1)
+        : initialBlock?.data?.mezzanines?.length
+        ? initialBlock.data.mezzanines.length + 1
+        : 1;
+    const rawBlockHeight =
+      initialBlock?.data?.generalData?.blockHeight != null
+        ? initialBlock.data.generalData.blockHeight
+        : initialBlock?.data?.height;
+    const initH =
+      rawBlockHeight != null && !isNaN(parseFloat(rawBlockHeight))
+        ? parseFloat(rawBlockHeight)
+        : 6.0;
+    const existingElevs =
+      baseStruct.storyElevations ?? initialBlock?.data?.storyElevations ?? null;
     return {
       ...baseStruct,
-      storyElevations: getValidFloorElevations(initStories, initH, baseStruct.storyElevations),
+      storyElevations: getValidFloorElevations(initStories, initH, existingElevs),
     };
   });
 
