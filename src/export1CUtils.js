@@ -31,6 +31,7 @@ export function get1CParameters(data = {}) {
   const {
     spanWidth = 18,
     spansCount = 1,
+    spanOrientations = [],
     length = 48,
     height = 6,
     roofShape = "gable",
@@ -87,6 +88,16 @@ export function get1CParameters(data = {}) {
       value: format1CValue(W),
       name: `Пролет ${s}: Ширина, м`
     });
+    if (roofShape === "single") {
+      const ori = (Array.isArray(spanOrientations) && spanOrientations[s - 1]) || "right";
+      const oriValue = ori === "left" ? "Влево" : "Вправо";
+      rows.push({
+        category: "Параметры пролетов",
+        param: `Пролеты.${s}.НаправлениеУклона`,
+        value: oriValue,
+        name: `Пролет ${s}: Направление уклона`
+      });
+    }
   }
   rows.push({
     category: "Общие параметры здания",

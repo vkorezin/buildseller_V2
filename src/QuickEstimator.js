@@ -1373,6 +1373,7 @@ export default function QuickEstimator({
               exportTo1CExcel({
                 spanWidth,
                 spansCount,
+                spanOrientations,
                 length,
                 height,
                 roofShape,
@@ -1713,6 +1714,7 @@ export default function QuickEstimator({
         onClose={() => setIsTZModalOpen(false)}
         spanWidth={spanWidth}
         spansCount={spansCount}
+        spanOrientations={spanOrientations}
         length={length}
         height={height}
         roofShape={roofShape}

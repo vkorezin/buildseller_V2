@@ -8,6 +8,7 @@ export default function SpecificationTZModal({
   onClose,
   spanWidth,
   spansCount,
+  spanOrientations = [],
   length,
   height,
   roofShape,
@@ -34,6 +35,7 @@ export default function SpecificationTZModal({
   const dataPayload = {
     spanWidth,
     spansCount,
+    spanOrientations,
     length,
     height,
     roofShape,
