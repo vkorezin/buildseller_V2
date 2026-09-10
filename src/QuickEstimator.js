@@ -1218,7 +1218,7 @@ export default function QuickEstimator({
 
     let currentDiscount = "0";
     if (frameType === "truss") {
-      const baseTrussDiscountPercent = getTrussDiscount(W, H);
+      const baseTrussDiscountPercent = getTrussDiscount(W, H_eff);
       const columnStep = 6;
       const totalFrames = Math.ceil(L / columnStep) + 1;
       const framesWithTruss = Math.max(0, totalFrames - 2);
