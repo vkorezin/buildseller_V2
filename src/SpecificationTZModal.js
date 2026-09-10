@@ -67,6 +67,7 @@ export default function SpecificationTZModal({
     }))
     .filter((c) => parseFloat(c.cap || 0) > 0);
   const hasApertures = Array.isArray(aperturesList) && aperturesList.length > 0;
+  const showSupplyColumn = hasApertures && aperturesList.some((ap) => ap.supply != null);
   const hasMezzanine = Number(stories) > 1;
 
   const handleDownload1C = () => {
@@ -482,7 +483,7 @@ export default function SpecificationTZModal({
                           <th style={styles.th}>Высота, м</th>
                           <th style={styles.th}>Отметка низа, м</th>
                           <th style={styles.th}>Кол-во</th>
-                          {aperturesList.some((ap) => ap.supply != null) && <th style={styles.th}>Поставка</th>}
+                          {showSupplyColumn && <th style={styles.th}>Поставка</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -496,7 +497,7 @@ export default function SpecificationTZModal({
                             : "Окно";
                           const profileLabel = ap.profile || "—";
                           const eBotVal = isGateOrDoor ? "0.00" : (ap.eBot || "0.00");
-                          const supplyVal = ap.supply != null ? (ap.supply ? "Да" : "Нет") : null;
+                          const supplyVal = ap.supply != null ? (ap.supply ? "Да" : "Нет") : "—";
                           return (
                             <tr key={idx} style={idx % 2 === 1 ? { backgroundColor: "#f9fafb" } : {}}>
                               <td style={styles.td}>{idx + 1}</td>
@@ -506,7 +507,7 @@ export default function SpecificationTZModal({
                               <td style={styles.td}>{ap.height}</td>
                               <td style={styles.td}>{eBotVal}</td>
                               <td style={styles.td}>{ap.count || 1} шт.</td>
-                              {supplyVal !== null && <td style={styles.td}>{supplyVal}</td>}
+                              {showSupplyColumn && <td style={styles.td}>{supplyVal}</td>}
                             </tr>
                           );
                         })}
