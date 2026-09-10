@@ -2,6 +2,8 @@ import React from "react";
 import {
   getValidFloorElevations,
   getEffectiveMezzanineDimensions,
+  validateSpansCount,
+  validateStories,
 } from "./floorStructureConstants";
 
 const styles = {
@@ -102,11 +104,15 @@ export default function QuickEstimatorForm({
 }) {
   const H = Number(height) || 0;
   const showHeightWarning = H > 20;
-  const numSpans = Math.max(1, Number(spansCount) || 1);
+  const spansVal = validateSpansCount(spansCount);
+  const storiesVal = validateStories(stories);
+  const numSpans = spansVal.isValid ? spansVal.value : 1;
   const W_span = Number(spanWidth) || 18;
   const totalW = numSpans * W_span;
   const bL = Number(length) || 36;
-  const currentElevations = getValidFloorElevations(stories, height, floorStructure?.storyElevations);
+  const currentElevations = storiesVal.isValid
+    ? getValidFloorElevations(storiesVal.value, height, floorStructure?.storyElevations)
+    : floorStructure?.storyElevations || [];
   const mezzDims = getEffectiveMezzanineDimensions(floorStructure, totalW, bL);
 
   return (
@@ -178,26 +184,23 @@ export default function QuickEstimatorForm({
         <div style={styles.field}>
           <label style={styles.label}>Кол-во пролётов</label>
           <input
-            style={styles.input}
+            style={{
+              ...styles.input,
+              borderColor: !spansVal.isValid ? "#ef4444" : "#dee2e6",
+              backgroundColor: !spansVal.isValid ? "#fef2f2" : "#ffffff",
+            }}
             type="number"
             min="1"
             max="10"
             step="1"
             value={spansCount}
-            onChange={(e) => {
-              const raw = e.target.value;
-              if (raw === "") {
-                setSpansCount("");
-                return;
-              }
-              const val = Number(raw);
-              if (Number.isInteger(val)) {
-                setSpansCount(Math.max(1, Math.min(10, val)));
-              } else {
-                setSpansCount(Math.max(1, Math.min(10, Math.round(val))));
-              }
-            }}
+            onChange={(e) => setSpansCount(e.target.value)}
           />
+          {!spansVal.isValid && (
+            <div style={{ color: "#dc2626", fontSize: "0.78em", marginTop: "4px", lineHeight: "1.2" }}>
+              ⚠️ {spansVal.error}
+            </div>
+          )}
         </div>
         <div style={styles.field}>
           <label style={styles.label}>Снег (кг/м²)</label>
@@ -220,28 +223,25 @@ export default function QuickEstimatorForm({
         <div style={styles.field}>
           <label style={styles.label}>Этажей</label>
           <input
-            style={styles.input}
+            style={{
+              ...styles.input,
+              borderColor: !storiesVal.isValid ? "#ef4444" : "#dee2e6",
+              backgroundColor: !storiesVal.isValid ? "#fef2f2" : "#ffffff",
+            }}
             type="number"
             min="1"
             max="5"
             step="1"
             value={stories}
-            onChange={(e) => {
-              const raw = e.target.value;
-              if (raw === "") {
-                setStories("");
-                return;
-              }
-              const val = Number(raw);
-              if (Number.isInteger(val)) {
-                setStories(Math.max(1, Math.min(5, val)));
-              } else {
-                setStories(Math.max(1, Math.min(5, Math.round(val))));
-              }
-            }}
+            onChange={(e) => setStories(e.target.value)}
           />
+          {!storiesVal.isValid && (
+            <div style={{ color: "#dc2626", fontSize: "0.78em", marginTop: "4px", lineHeight: "1.2" }}>
+              ⚠️ {storiesVal.error}
+            </div>
+          )}
           {onOpenFloorModal && (
-            stories > 1 ? (
+            storiesVal.isValid && storiesVal.value > 1 ? (
               <>
                 <button
                   type="button"
@@ -376,7 +376,7 @@ export default function QuickEstimatorForm({
         </div>
 
         {/* Панель настройки габаритов антресоли (ширина и длина) */}
-        {stories > 1 && (
+        {storiesVal.isValid && storiesVal.value > 1 && (
           <div
             style={{
               gridColumn: "1 / -1",
@@ -400,7 +400,7 @@ export default function QuickEstimatorForm({
               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                 <span style={{ fontSize: "1.1em" }}>📐</span>
                 <strong style={{ fontSize: "0.92em", color: "#1e3a8a" }}>
-                  Габариты и размещение антресоли ({stories - 1} {stories === 2 ? "ярус" : "яруса"})
+                  Габариты и размещение антресоли ({storiesVal.value - 1} {storiesVal.value === 2 ? "ярус" : "яруса"})
                 </strong>
                 {mezzDims.isPartial ? (
                   <span
@@ -435,9 +435,9 @@ export default function QuickEstimatorForm({
 
               <div style={{ fontSize: "0.8em", color: "#475569" }}>
                 Площадь этажа: <strong style={{ color: "#0f172a" }}>{mezzDims.width} × {mezzDims.length} м = {mezzDims.area} м²</strong>
-                {stories > 2 && (
+                {storiesVal.value > 2 && (
                   <span style={{ color: "#2563eb", marginLeft: "6px" }}>
-                    (всего: {Math.round(mezzDims.area * (stories - 1))} м²)
+                    (всего: {Math.round(mezzDims.area * (storiesVal.value - 1))} м²)
                   </span>
                 )}
                 <span style={{ color: "#64748b", marginLeft: "6px" }}>

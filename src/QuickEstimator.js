@@ -14,7 +14,12 @@ import QuickEstimatorSectionView from "./QuickEstimatorSectionView";
 import QuickEstimatorAnalytics from "./QuickEstimatorAnalytics";
 import QuickEstimatorResults from "./QuickEstimatorResults";
 import FloorStructureModal from "./FloorStructureModal";
-import { DEFAULT_FLOOR_STRUCTURE, getValidFloorElevations } from "./floorStructureConstants";
+import {
+  DEFAULT_FLOOR_STRUCTURE,
+  getValidFloorElevations,
+  validateSpansCount,
+  validateStories,
+} from "./floorStructureConstants";
 import MezzanineCoefficientsEditor, {
   DEFAULT_MEZZANINE_COEFFS,
   calculateMezzanineMetal,
@@ -231,12 +236,12 @@ export default function QuickEstimator({
 
   const [stories, setStories] = useState(() => {
     if (initialBlock?.data?.stories != null) {
-      return Math.max(1, parseInt(initialBlock.data.stories, 10) || 1);
+      return String(initialBlock.data.stories);
     }
     if (initialBlock?.data?.mezzanines?.length) {
-      return initialBlock.data.mezzanines.length + 1;
+      return String(initialBlock.data.mezzanines.length + 1);
     }
-    return 1;
+    return "1";
   });
 
   const [floorStructure, setFloorStructure] = useState(() => {
@@ -256,9 +261,10 @@ export default function QuickEstimator({
         };
       }
     }
+    const stVal = initialBlock?.data?.stories != null ? validateStories(initialBlock.data.stories) : null;
     const initStories =
-      initialBlock?.data?.stories != null
-        ? Math.max(1, parseInt(initialBlock.data.stories, 10) || 1)
+      stVal?.isValid
+        ? stVal.value
         : initialBlock?.data?.mezzanines?.length
         ? initialBlock.data.mezzanines.length + 1
         : 1;
@@ -278,11 +284,13 @@ export default function QuickEstimator({
     };
   });
 
-  // ЗАДАЧА 4: Синхронизация этажности и отметок перекрытий (storyElevations)
-  // Для здания с stories = N строго существует N - 1 отметок межэтажных перекрытий
+  // ЗАДАЧА 4 & 6.1: Синхронизация этажности и отметок перекрытий (storyElevations)
+  // Для здания с stories = N строго существует N - 1 отметок межэтажных перекрытий.
+  // Для невалидного stories массивы НЕ менять!
   useEffect(() => {
-    if (stories === "" || stories === null || stories === undefined) return;
-    const numStories = Math.max(1, parseInt(stories, 10) || 1);
+    const valResult = validateStories(stories);
+    if (!valResult.isValid) return;
+    const numStories = valResult.value;
     const H = Math.max(2.0, parseFloat(height) || 6.0);
     const currentElevs = floorStructure?.storyElevations;
     const syncedElevs = getValidFloorElevations(numStories, H, currentElevs);
@@ -427,8 +435,17 @@ export default function QuickEstimator({
     setWindCoefficients(savedWind ? JSON.parse(savedWind) : generateWindCoefficients());
   }, []);
 
+  // ЗАДАЧА 6.1: Синхронизация cranes и spanOrientations при изменении spansCount.
+  // Для валидного spansCount = N:
+  //   cranes.length === N
+  //   spanOrientations.length === N
+  // При уменьшении - лишние элементы удалить.
+  // При увеличении - добавить по существующей логике.
+  // Для невалидного spansCount массивы НЕ менять!
   useEffect(() => {
-    const count = Math.max(1, Number(spansCount) || 1);
+    const valResult = validateSpansCount(spansCount);
+    if (!valResult.isValid) return;
+    const count = valResult.value;
     setCranes((prev) => {
       if (prev.length === count) return prev;
       if (prev.length < count) {
@@ -629,25 +646,38 @@ export default function QuickEstimator({
   }, [spanWidth, projectsDb, strictFilter, cranes, stories]);
 
   const estimation = useMemo(() => {
+    const spansVal = validateSpansCount(spansCount);
+    const storiesVal = validateStories(stories);
+
     if (
+      !spansVal.isValid ||
+      !storiesVal.isValid ||
       !baseMatrix210 ||
       !snowCoefficients ||
       !roofPurlins ||
       !trussTable ||
       !windCoefficients
     ) {
+      const errorMsg = !spansVal.isValid
+        ? spansVal.error
+        : !storiesVal.isValid
+        ? storiesVal.error
+        : null;
+
       return {
         roofPurlinsKg: 0, wallPurlinsLength: 0, floorArea: 0, metalRate: "0.0", metalWeight: "0.00", metalCost: 0,
         framesWeight: "0.00", framesRate: "0.0", framesCost: 0, purlinsWeight: "0.00", purlinsRate: "0.0", purlinsCost: 0,
         tiesWeight: "0.00", tiesRate: "0.0", tiesCost: 0, currentDiscount: "0", savingsAmount: 0, envelopeDiffAmount: 0,
         craneSystemWeight: null, craneSystemCost: 0, craneInfo: "", foundationCount: 0, concreteCubic: "0.0", rebarWeight: "0.00",
         foundationCost: 0, wallAreaBox: "0.0", gableAreaTotal: "0.0", roofArea: "0.0", openingsArea: "0.0",
-        wallCost: 0, roofCost: 0, trimCost: 0, totalCost: "0", isBlockedByValidation: false
+        wallCost: 0, roofCost: 0, trimCost: 0, totalCost: "0",
+        isBlockedByValidation: !spansVal.isValid || !storiesVal.isValid,
+        validationError: errorMsg,
       };
     }
 
     const W = Number(spanWidth) || 0;
-    const N = cranes.length;
+    const N = spansVal.value;
     const L = Number(length) || 0;
     const H = Number(height) || 0;
     const S = Number(slope) || 0;
@@ -754,7 +784,7 @@ export default function QuickEstimator({
     // Физическая модель расчета металлоемкости антресоли (СП 20 / балочная клетка)
     const mezzCalc = calculateMezzanineMetal({
       floorStructure,
-      stories,
+      stories: storiesVal.value,
       spanWidth: W,
       spansCount: N,
       buildingLength: L,
@@ -1207,7 +1237,12 @@ export default function QuickEstimator({
       mezzanineArea: mezzCalc.mezzanineArea,
       mezzanineWeightKg,
       totalCost: Math.round(totalCostNum).toLocaleString("ru-RU"),
-      isBlockedByValidation: validationMetrics.isOverloaded 
+      isBlockedByValidation: validationMetrics.isOverloaded || !spansVal.isValid || !storiesVal.isValid,
+      validationError: !spansVal.isValid
+        ? spansVal.error
+        : !storiesVal.isValid
+        ? storiesVal.error
+        : (validationMetrics.isOverloaded ? "Суммарная площадь проемов физически превышает общую геометрическую площадь стен здания (более 100%)." : null),
     };
   }, [
     spanWidth, spansCount, length, height, slope, roofShape, snowLoad,
@@ -1219,18 +1254,30 @@ export default function QuickEstimator({
     concretePrice, rebarPrice, validationMetrics.isOverloaded, buildingTypesConfig
   ]);
 
+  const spansValidation = validateSpansCount(spansCount);
+  const storiesValidation = validateStories(stories);
+  const isFormValid = spansValidation.isValid && storiesValidation.isValid;
+
   const handleCloseWithData = () => {
-    const numStories = Math.max(1, parseInt(stories, 10) || 1);
+    if (!spansValidation.isValid) {
+      alert(`Невозможно сохранить: ${spansValidation.error}`);
+      return;
+    }
+    if (!storiesValidation.isValid) {
+      alert(`Невозможно сохранить: ${storiesValidation.error}`);
+      return;
+    }
+    const numStories = storiesValidation.value;
     const H = Math.max(2.0, parseFloat(height) || 6.0);
     const syncedElevs = getValidFloorElevations(numStories, H, floorStructure?.storyElevations);
     const config = {
       spanWidth,
-      spansCount,
+      spansCount: spansValidation.value,
       length,
       height,
       roofShape,
       slope,
-      stories,
+      stories: storiesValidation.value,
       floorStructure: {
         ...floorStructure,
         storyElevations: syncedElevs,
@@ -1320,7 +1367,15 @@ export default function QuickEstimator({
             📥 1С (.xlsx)
           </button>
         </div>
-        <button style={styles.closeButton} onClick={handleCloseWithData} title="Закрыть и применить к проекту">
+        <button
+          style={{
+            ...styles.closeButton,
+            opacity: isFormValid ? 1 : 0.5,
+            cursor: isFormValid ? "pointer" : "not-allowed",
+          }}
+          onClick={handleCloseWithData}
+          title={isFormValid ? "Закрыть и применить к проекту" : "Исправьте ошибки ввода перед сохранением"}
+        >
           Закрыть
         </button>
       </div>
@@ -1561,16 +1616,18 @@ export default function QuickEstimator({
         <button
           style={{
             padding: "12px 24px",
-            backgroundColor: "#28a745",
+            backgroundColor: isFormValid ? "#28a745" : "#94a3b8",
             color: "white",
             border: "none",
             borderRadius: "6px",
-            cursor: "pointer",
+            cursor: isFormValid ? "pointer" : "not-allowed",
             fontWeight: "bold",
             fontSize: "1em",
-            boxShadow: "0 2px 6px rgba(40,167,69,0.3)",
+            boxShadow: isFormValid ? "0 2px 6px rgba(40,167,69,0.3)" : "none",
           }}
           onClick={handleCloseWithData}
+          disabled={!isFormValid}
+          title={isFormValid ? "Сохранить и перейти в Менеджер блоков" : "Исправьте ошибки ввода перед сохранением"}
         >
           ✅ Сохранить и перейти в Менеджер блоков &rarr;
         </button>

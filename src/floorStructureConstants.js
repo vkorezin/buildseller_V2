@@ -770,4 +770,53 @@ export function validateFloorThickness(typeInfo, thickness) {
   return { isValid: true, error: null };
 }
 
+/**
+ * ЗАДАЧА 6.1: Строгая валидация количества пролётов (spansCount).
+ * Требования:
+ * - только целое число
+ * - минимум 1, максимум 10
+ * - без Math.round/Math.floor/Math.ceil для авто-исправления
+ */
+export function validateSpansCount(val) {
+  if (val === "" || val === null || val === undefined) {
+    return { isValid: false, error: "Количество пролётов: укажите целое число от 1 до 10" };
+  }
+  if (typeof val === "string" && val.trim() === "") {
+    return { isValid: false, error: "Количество пролётов: укажите целое число от 1 до 10" };
+  }
+  const num = Number(val);
+  if (!Number.isFinite(num) || !Number.isInteger(num)) {
+    return { isValid: false, error: "Количество пролётов должно быть целым числом (от 1 до 10)" };
+  }
+  if (num < 1 || num > 10) {
+    return { isValid: false, error: "Допустимое количество пролётов: от 1 до 10" };
+  }
+  return { isValid: true, value: num, error: null };
+}
+
+/**
+ * ЗАДАЧА 6.1: Строгая валидация этажности (stories).
+ * Требования:
+ * - только целое число
+ * - минимум 1, максимум 5
+ * - без Math.round/Math.floor/Math.ceil для авто-исправления
+ */
+export function validateStories(val) {
+  if (val === "" || val === null || val === undefined) {
+    return { isValid: false, error: "Количество этажей: укажите целое число от 1 до 5" };
+  }
+  if (typeof val === "string" && val.trim() === "") {
+    return { isValid: false, error: "Количество этажей: укажите целое число от 1 до 5" };
+  }
+  const num = Number(val);
+  if (!Number.isFinite(num) || !Number.isInteger(num)) {
+    return { isValid: false, error: "Количество этажей должно быть целым числом (от 1 до 5)" };
+  }
+  if (num < 1 || num > 5) {
+    return { isValid: false, error: "Допустимое количество этажей: от 1 до 5" };
+  }
+  return { isValid: true, value: num, error: null };
+}
+
+
 
