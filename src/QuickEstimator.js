@@ -14,7 +14,7 @@ import QuickEstimatorSectionView from "./QuickEstimatorSectionView";
 import QuickEstimatorAnalytics from "./QuickEstimatorAnalytics";
 import QuickEstimatorResults from "./QuickEstimatorResults";
 import FloorStructureModal from "./FloorStructureModal";
-import { DEFAULT_FLOOR_STRUCTURE } from "./floorStructureConstants";
+import { DEFAULT_FLOOR_STRUCTURE, getValidFloorElevations } from "./floorStructureConstants";
 import MezzanineCoefficientsEditor, {
   DEFAULT_MEZZANINE_COEFFS,
   calculateMezzanineMetal,
@@ -237,22 +237,53 @@ export default function QuickEstimator({
   });
 
   const [floorStructure, setFloorStructure] = useState(() => {
+    let baseStruct = DEFAULT_FLOOR_STRUCTURE;
     if (initialBlock?.data?.floorStructure) {
-      return initialBlock.data.floorStructure;
+      baseStruct = initialBlock.data.floorStructure;
+    } else {
+      const mz0 = initialBlock?.data?.mezzanines?.[0];
+      if (mz0) {
+        baseStruct = {
+          ...DEFAULT_FLOOR_STRUCTURE,
+          liveLoad: mz0.loadLive || 400,
+          deadLoad: mz0.loadDead || 280,
+          partitionsLoad: mz0.loadPartitions || 50,
+          thickness: mz0.thickness || 120,
+          safetyFactor: mz0.safetyFactor || 1.2,
+        };
+      }
     }
-    const mz0 = initialBlock?.data?.mezzanines?.[0];
-    if (mz0) {
-      return {
-        ...DEFAULT_FLOOR_STRUCTURE,
-        liveLoad: mz0.loadLive || 400,
-        deadLoad: mz0.loadDead || 280,
-        partitionsLoad: mz0.loadPartitions || 50,
-        thickness: mz0.thickness || 120,
-        safetyFactor: mz0.safetyFactor || 1.2,
-      };
-    }
-    return DEFAULT_FLOOR_STRUCTURE;
+    const initStories = initialBlock?.data?.mezzanines?.length
+      ? initialBlock.data.mezzanines.length + 1
+      : 1;
+    const initH = initialBlock?.data?.height || 6.0;
+    return {
+      ...baseStruct,
+      storyElevations: getValidFloorElevations(initStories, initH, baseStruct.storyElevations),
+    };
   });
+
+  // ЗАДАЧА 4: Синхронизация этажности и отметок перекрытий (storyElevations)
+  // Для здания с stories = N строго существует N - 1 отметок межэтажных перекрытий
+  useEffect(() => {
+    if (stories === "" || stories === null || stories === undefined) return;
+    const numStories = Math.max(1, parseInt(stories, 10) || 1);
+    const H = Math.max(2.0, parseFloat(height) || 6.0);
+    const currentElevs = floorStructure?.storyElevations;
+    const syncedElevs = getValidFloorElevations(numStories, H, currentElevs);
+
+    const isDifferent =
+      !Array.isArray(currentElevs) ||
+      currentElevs.length !== syncedElevs.length ||
+      currentElevs.some((v, idx) => Number(v) !== Number(syncedElevs[idx]));
+
+    if (isDifferent) {
+      setFloorStructure((prev) => ({
+        ...prev,
+        storyElevations: syncedElevs,
+      }));
+    }
+  }, [stories, height]);
   const [isFloorModalOpen, setIsFloorModalOpen] = useState(false);
   const [isMezzanineCoeffsOpen, setIsMezzanineCoeffsOpen] = useState(false);
   const [mezzanineCoeffs, setMezzanineCoeffs] = useState(() => {
@@ -1166,6 +1197,9 @@ export default function QuickEstimator({
   ]);
 
   const handleCloseWithData = () => {
+    const numStories = Math.max(1, parseInt(stories, 10) || 1);
+    const H = Math.max(2.0, parseFloat(height) || 6.0);
+    const syncedElevs = getValidFloorElevations(numStories, H, floorStructure?.storyElevations);
     const config = {
       spanWidth,
       spansCount,
@@ -1174,7 +1208,10 @@ export default function QuickEstimator({
       roofShape,
       slope,
       stories,
-      floorStructure,
+      floorStructure: {
+        ...floorStructure,
+        storyElevations: syncedElevs,
+      },
       snowLoad,
       windLoad,
       cranes,
@@ -1283,9 +1320,12 @@ export default function QuickEstimator({
         setAllSpanOrientations={setAllSpanOrientations}
         floorStructure={floorStructure}
         onOpenFloorModal={() => setIsFloorModalOpen(true)}
-        onUpdateFloorElevations={(elevs) =>
-          setFloorStructure((prev) => ({ ...prev, storyElevations: elevs }))
-        }
+        onUpdateFloorElevations={(elevs) => {
+          const numStories = Math.max(1, parseInt(stories, 10) || 1);
+          const H = Math.max(2.0, parseFloat(height) || 6.0);
+          const syncedElevs = getValidFloorElevations(numStories, H, elevs);
+          setFloorStructure((prev) => ({ ...prev, storyElevations: syncedElevs }));
+        }}
         onUpdateFloorStructure={(updater) =>
           setFloorStructure((prev) =>
             typeof updater === "function" ? updater(prev) : { ...prev, ...updater }
@@ -1530,7 +1570,14 @@ export default function QuickEstimator({
         onClose={() => setIsFloorModalOpen(false)}
         initialStructure={floorStructure}
         onSave={(newStruct) => {
-          setFloorStructure(newStruct);
+          const nextStories = stories === 1 ? 2 : stories;
+          const numStories = Math.max(1, parseInt(nextStories, 10) || 1);
+          const H = Math.max(2.0, parseFloat(height) || 6.0);
+          const syncedElevs = getValidFloorElevations(numStories, H, newStruct?.storyElevations);
+          setFloorStructure({
+            ...newStruct,
+            storyElevations: syncedElevs,
+          });
           if (stories === 1) {
             setStories(2);
           }

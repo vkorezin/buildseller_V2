@@ -630,9 +630,13 @@ export function getLayersForTypeAndThickness(typeInfo, t) {
  * - customElevations: массив отметок пола [h_2, h_3, ...] для этажей выше 1-го
  *
  * Требования ТЗ:
- * 1. Первый этаж всегда на отметке 0.000 м.
- * 2. Отметка каждого этажа не выше низа несущих конструкций (height) и отметки пола следующего этажа.
- * 3. Отметки строго возрастают: 0 < h_2 < h_3 < ... <= height.
+ * 1. Для здания с stories = N существует ровно N - 1 межэтажных перекрытий. При N = 1 -> [].
+ * 2. Первый этаж всегда на отметке 0.000 м.
+ * 3. Отметки строго возрастают: 0 < h_2 < h_3 < ... < height.
+ * 4. Ни одна отметка не должна быть >= height (height - отметка низа конструкций покрытия).
+ * 5. При уменьшении этажности лишние отметки удаляются.
+ * 6. При увеличении этажности существующие корректные отметки сохраняются,
+ *    а новые формируются по логике автоматических отметок.
  */
 export function getValidFloorElevations(storiesCount, height, customElevations = null) {
   const n = Math.max(1, parseInt(storiesCount, 10) || 1);
@@ -646,35 +650,69 @@ export function getValidFloorElevations(storiesCount, height, customElevations =
     defaultElevations.push(Math.round((f * H / n) * 100) / 100);
   }
 
-  if (!Array.isArray(customElevations) || customElevations.length !== n - 1) {
-    return defaultElevations;
-  }
-
   const validated = [];
   let prevElevation = 0;
+  const minStep = 0.5; // минимальный строительный шаг между перекрытиями 0.5 м
 
   for (let i = 0; i < n - 1; i++) {
-    let val = parseFloat(customElevations[i]);
     const remainingFloors = (n - 1) - i; // текущий этаж и этажи выше него
-    const minStep = 0.5; // минимальный строительный шаг между перекрытиями 0.5 м
 
-    // Максимально допустимая отметка для текущего этажа:
-    // оставляет место для вышележащих этажей до отметки низа конструкций H
-    const maxAllowedForThis = Math.round((H - (remainingFloors - 1) * minStep) * 100) / 100;
-    const minAllowedForThis = Math.round((prevElevation + minStep) * 100) / 100;
+    let val;
+    if (
+      Array.isArray(customElevations) &&
+      i < customElevations.length &&
+      customElevations[i] !== null &&
+      customElevations[i] !== undefined &&
+      !isNaN(parseFloat(customElevations[i]))
+    ) {
+      val = parseFloat(customElevations[i]);
+    } else {
+      // Новая отметка формируется на основе дефолтных отметок проекта
+      const rawDefault = defaultElevations[i];
+      if (rawDefault > prevElevation) {
+        val = rawDefault;
+      } else {
+        const remainingSteps = n - i;
+        val = Math.round((prevElevation + (H - prevElevation) / remainingSteps) * 100) / 100;
+      }
+    }
 
     if (isNaN(val)) {
       val = defaultElevations[i];
     }
 
-    if (val < minAllowedForThis) {
-      val = minAllowedForThis;
-    }
-    if (val > maxAllowedForThis) {
-      val = Math.max(minAllowedForThis, maxAllowedForThis);
+    // Максимально допустимая отметка для текущего этажа:
+    // оставляет место для вышележащих этажей и покрытия на отметке H (отметка строго < H)
+    let maxAllowedForThis = Math.round((H - remainingFloors * minStep) * 100) / 100;
+    let minAllowedForThis = Math.round((prevElevation + minStep) * 100) / 100;
+
+    // Защита от малой высоты H, когда minStep 0.5м не помещается
+    if (maxAllowedForThis < minAllowedForThis) {
+      val = defaultElevations[i];
+      if (val <= prevElevation) {
+        val = Math.round(((prevElevation + H) / 2) * 100) / 100;
+      }
+      if (val >= H) {
+        val = Math.round((H - 0.1) * 100) / 100;
+      }
+    } else {
+      if (val < minAllowedForThis) {
+        val = minAllowedForThis;
+      }
+      if (val > maxAllowedForThis) {
+        val = maxAllowedForThis;
+      }
     }
 
     val = Math.round(val * 100) / 100;
+    // Финальная гарантия: 0 < val < H и val > prevElevation
+    if (val >= H) {
+      val = Math.round((H - 0.05) * 100) / 100;
+    }
+    if (val <= prevElevation && prevElevation < H) {
+      val = Math.round(((prevElevation + H) / 2) * 100) / 100;
+    }
+
     validated.push(val);
     prevElevation = val;
   }
