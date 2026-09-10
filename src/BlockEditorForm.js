@@ -76,6 +76,31 @@ export default function FormColumn({
 
   return (
     <div style={{ width: "100%" }}>
+      {/* Ошибки валидации геометрии (БЛОК A) */}
+      {validation?.geometryValidation && !validation.geometryValidation.isValid && (
+        <div
+          style={{
+            padding: "10px 14px",
+            backgroundColor: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: "6px",
+            color: "#b91c1c",
+            marginBottom: "14px",
+            fontSize: "0.88em",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+          }}
+        >
+          <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+            ⚠️ Ошибки в геометрии:
+          </div>
+          <ul style={{ margin: 0, paddingLeft: "20px", lineHeight: "1.4" }}>
+            {validation.geometryValidation.errors.map((err, i) => (
+              <li key={i}>{err}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* --- БЛОК 1: ГЕОМЕТРИЯ --- */}
       <div
         style={{

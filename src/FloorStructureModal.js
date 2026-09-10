@@ -97,7 +97,12 @@ export default function FloorStructureModal({
   });
 
   const [liveLoad, setLiveLoad] = useState(() => {
-    return initialStructure?.liveLoad ?? DEFAULT_FLOOR_STRUCTURE.liveLoad;
+    return initialStructure?.liveLoad !== undefined &&
+      initialStructure?.liveLoad !== null &&
+      initialStructure?.liveLoad !== "" &&
+      !isNaN(Number(initialStructure.liveLoad))
+      ? Number(initialStructure.liveLoad)
+      : DEFAULT_FLOOR_STRUCTURE.liveLoad;
   });
 
   const [safetyFactor, setSafetyFactor] = useState(() => {
@@ -182,7 +187,14 @@ export default function FloorStructureModal({
           ? Number(init.partitionsLoad)
           : DEFAULT_FLOOR_STRUCTURE.partitionsLoad
       );
-      setLiveLoad(init.liveLoad ?? DEFAULT_FLOOR_STRUCTURE.liveLoad);
+      setLiveLoad(
+        init.liveLoad !== undefined &&
+        init.liveLoad !== null &&
+        init.liveLoad !== "" &&
+        !isNaN(Number(init.liveLoad))
+          ? Number(init.liveLoad)
+          : DEFAULT_FLOOR_STRUCTURE.liveLoad
+      );
       setSafetyFactor(init.safetyFactor ?? DEFAULT_FLOOR_STRUCTURE.safetyFactor);
       setResponsibilityFactor(
         init.responsibilityFactor ?? DEFAULT_FLOOR_STRUCTURE.responsibilityFactor
@@ -440,7 +452,10 @@ export default function FloorStructureModal({
         : 0;
     const g_tot = g_dead + g_part; // постоянная нормативная нагрузка
 
-    const p_live = Number(liveLoad) || 0; // полезная нормативная нагрузка
+    const p_live =
+      liveLoad !== undefined && liveLoad !== null && liveLoad !== "" && !isNaN(Number(liveLoad))
+        ? Number(liveLoad)
+        : 0; // полезная нормативная нагрузка
     const q_norm = g_tot + p_live; // полная нормативная кг/м²
 
     const gamma_f = Number(safetyFactor) || 1.2;
@@ -524,7 +539,10 @@ export default function FloorStructureModal({
         ? Number(partitionsLoad)
         : 50;
 
-    const safeLiveLoad = Number(liveLoad) || 400;
+    const safeLiveLoad =
+      liveLoad !== undefined && liveLoad !== null && liveLoad !== "" && !isNaN(Number(liveLoad))
+        ? Number(liveLoad)
+        : 400;
     const safeSafetyFactor = Number(safetyFactor) || 1.2;
     const safeResponsibilityFactor = Number(responsibilityFactor) || 1.0;
     const unifiedDesignLoadKg = calculateMezzanineQBase({
@@ -554,7 +572,7 @@ export default function FloorStructureModal({
       normLoadKg: calculatedDL + safePartitionsLoad + safeLiveLoad,
       columnSpansMode,
       columnSpans: effectiveSpans,
-      deckProfile: "Н75-750-0.8",
+      deckProfile: currentTypeInfo.id === "monolithic_deck" ? "Н75-750-0.8" : null,
       storyElevations: validElevations,
       mezzanineWidth:
         mezzanineWidth != null && !isNaN(Number(mezzanineWidth)) && Number(mezzanineWidth) > 0
@@ -1627,7 +1645,7 @@ export default function FloorStructureModal({
                     color: "#0f172a",
                   }}
                   value={liveLoad}
-                  onChange={(e) => setLiveLoad(Number(e.target.value))}
+                  onChange={(e) => setLiveLoad(e.target.value === "" ? "" : Number(e.target.value))}
                 />
                 <span style={{ fontSize: "0.8em", color: "#64748b" }}>
                   кг/м² ≈ {(Number(liveLoad) / 100).toFixed(1)} кПа (кН/м²)

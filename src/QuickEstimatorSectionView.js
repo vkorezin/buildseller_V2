@@ -1961,9 +1961,9 @@ export default function QuickEstimatorSectionView({
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "12px", color: isFullscreen ? "#475569" : "#1e40af" }}>
-            <span>Полезная нагрузка: <strong>{floorStructure?.liveLoad || 400} кг/м²</strong></span>
+            <span>Полезная нагрузка: <strong>{floorStructure?.liveLoad !== undefined && floorStructure?.liveLoad !== null && floorStructure?.liveLoad !== "" && !isNaN(Number(floorStructure.liveLoad)) ? Number(floorStructure.liveLoad) : 400} кг/м²</strong></span>
             <span>Коэф. запаса: <strong>γf={floorStructure?.safetyFactor || 1.2}</strong></span>
-            <span>Расчетная q: <strong>{floorStructure?.designLoadKg || Math.round(((floorStructure?.deadLoad || 280) * 1.1 + (floorStructure?.liveLoad || 400) * (floorStructure?.safetyFactor || 1.2)))} кг/м²</strong></span>
+            <span>Расчетная q: <strong>{floorStructure?.designLoadKg || Math.round(((floorStructure?.deadLoad || 280) * 1.1 + (floorStructure?.liveLoad !== undefined && floorStructure?.liveLoad !== null && floorStructure?.liveLoad !== "" && !isNaN(Number(floorStructure.liveLoad)) ? Number(floorStructure.liveLoad) : 400) * (floorStructure?.safetyFactor || 1.2)))} кг/м²</strong></span>
             {subBaysCount > 1 && (
               <span style={{ backgroundColor: "#dbeafe", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
                 {floorStructure?.columnSpansMode === "manual" && Array.isArray(floorStructure?.columnSpans)

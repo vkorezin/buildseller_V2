@@ -464,7 +464,14 @@ export default function SpecificationTZPDF({ data = {} }) {
               <View style={styles.row}>
                 <Text style={styles.colLabel}>Площадь антресоли / полезная нагрузка:</Text>
                 <Text style={styles.colValue}>
-                  {estimation?.mezzanineArea || "-"} м² / {floorStructure?.liveLoad || 400} кг/м²
+                  {estimation?.mezzanineArea || "-"} м² /{" "}
+                  {floorStructure?.liveLoad !== undefined &&
+                  floorStructure?.liveLoad !== null &&
+                  floorStructure?.liveLoad !== "" &&
+                  !isNaN(Number(floorStructure.liveLoad))
+                    ? Number(floorStructure.liveLoad)
+                    : 400}{" "}
+                  кг/м²
                 </Text>
               </View>
               <View style={styles.row}>

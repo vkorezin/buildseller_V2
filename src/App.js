@@ -832,7 +832,14 @@ export default function App() {
               offsetX: 0.0,
               offsetY: 0.0,
               thickness: floorStruct ? floorStruct.thickness : 120,
-              loadLive: floorStruct ? floorStruct.liveLoad : 400,
+              loadLive:
+                floorStruct &&
+                floorStruct.liveLoad !== undefined &&
+                floorStruct.liveLoad !== null &&
+                floorStruct.liveLoad !== "" &&
+                !isNaN(Number(floorStruct.liveLoad))
+                  ? Number(floorStruct.liveLoad)
+                  : 400,
               loadPartitions: floorStruct ? floorStruct.partitionsLoad : 50,
               loadDead: floorStruct ? floorStruct.deadLoad : 280,
               safetyFactor: floorStruct ? floorStruct.safetyFactor : 1.2,

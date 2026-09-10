@@ -267,7 +267,7 @@ export default function QuickEstimatorForm({
                 >
                   <span>⚙️</span>
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {floorStructure?.shortName || "Ж/б по профлисту Н75"}{floorStructure?.thickness ? ` ${floorStructure.thickness}мм` : ""} ({floorStructure?.liveLoad || 400} кг/м²)
+                    {floorStructure?.shortName || "Ж/б по профлисту Н75"}{floorStructure?.thickness ? ` ${floorStructure.thickness}мм` : ""} ({floorStructure?.liveLoad !== undefined && floorStructure?.liveLoad !== null && floorStructure?.liveLoad !== "" && !isNaN(Number(floorStructure.liveLoad)) ? Number(floorStructure.liveLoad) : 400} кг/м²)
                   </span>
                 </button>
 

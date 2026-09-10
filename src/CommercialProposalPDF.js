@@ -195,7 +195,7 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
                 • Габариты: {spansCountNum > 1 ? `${spansCountNum} прол. по ${spanWidthNum} м (общ. ${totalBuildingWidth} м)` : `Пролет ${spanWidthNum} м`} × Длина {data.length || '-'} м
               </Text>
               <Text style={styles.listText}>
-                • Этажность: {storiesNum > 1 ? `${storiesNum} эт. (${data.floorStructure?.shortName || 'Ж/б перекрытие'}, толщ. ${data.floorStructure?.thickness || 120} мм, полезная ${data.floorStructure?.liveLoad || 400} кг/м², γf=${data.floorStructure?.safetyFactor || 1.2})` : '1 этаж (однообъемное здание)'}
+                • Этажность: {storiesNum > 1 ? `${storiesNum} эт. (${data.floorStructure?.shortName || 'Ж/б перекрытие'}, толщ. ${data.floorStructure?.thickness || 120} мм, полезная ${data.floorStructure?.liveLoad !== undefined && data.floorStructure?.liveLoad !== null && data.floorStructure?.liveLoad !== "" && !isNaN(Number(data.floorStructure.liveLoad)) ? Number(data.floorStructure.liveLoad) : 400} кг/м², γf=${data.floorStructure?.safetyFactor || 1.2})` : '1 этаж (однообъемное здание)'}
               </Text>
               {storiesNum > 1 && parseFloat(data.mezzanineWeight || 0) > 0 && (
                 <Text style={styles.listText}>
@@ -322,7 +322,7 @@ const CommercialProposalPDF = ({ data = {}, types = [], managerName, managerPhon
                 <Text style={styles.breakdownTitle}>Металлоконструкции междуэтажного перекрытия (Антресоль):</Text>
                 <Text style={styles.listText}>• Несущий металлокаркас антресоли: {data.mezzanineWeight} т на сумму {Math.round(data.mezzanineCost || 0).toLocaleString('ru-RU')} ₽ (удельный расход {data.mezzanineRate || '-'} кг/м²)</Text>
                 <Text style={styles.breakdownNote}>
-                  * Включает главные балки (ригели), второстепенные балки балочной клетки и промежуточные опорные стойки. Расчет выполнен по физической модели СП 20.13330 / СП 16.13330 под нормативную полезную нагрузку {data.floorStructure?.liveLoad || 400} кг/м².
+                  * Включает главные балки (ригели), второстепенные балки балочной клетки и промежуточные опорные стойки. Расчет выполнен по физической модели СП 20.13330 / СП 16.13330 под нормативную полезную нагрузку {data.floorStructure?.liveLoad !== undefined && data.floorStructure?.liveLoad !== null && data.floorStructure?.liveLoad !== "" && !isNaN(Number(data.floorStructure.liveLoad)) ? Number(data.floorStructure.liveLoad) : 400} кг/м².
                 </Text>
               </View>
             )}

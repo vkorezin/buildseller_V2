@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, useCallback } from "react"
 import FormColumn from "./BlockEditorForm";
 import BuildingPlanView from "./BlockPlanView";
 import BuildingSectionView from "./BuildingSectionView";
-import { getAxisLabel, updateSpanRoofGeometry, computeSpanRoofHeights } from "./BlockEditorUtils";
+import { getAxisLabel, updateSpanRoofGeometry, computeSpanRoofHeights, validateBlockGeometry } from "./BlockEditorUtils";
 
 // --- СТИЛИ (Оптимизированы под full-width экраны) ---
 const styles = {
@@ -458,11 +458,14 @@ export default function BlockEditor({
     }
   }, [totalSpansWidth, generalData.blockWidth]);
 
-  const handleGeneralChange = (e) =>
-    setGeneralData({
-      ...generalData,
-      [e.target.name]: parseFloat(e.target.value) || 0,
-    });
+  const handleGeneralChange = (e) => {
+    const rawVal = e.target.value;
+    const num = rawVal === "" ? "" : parseFloat(rawVal);
+    setGeneralData((prev) => ({
+      ...prev,
+      [e.target.name]: isNaN(num) ? rawVal : num,
+    }));
+  };
 
   const createDefaultSpan = (referenceSpan = null, fallbackWidth = 18) => {
     const ref = referenceSpan || (spans.length > 0 ? spans[0] : null);
@@ -598,8 +601,11 @@ export default function BlockEditor({
     handleFrameTypeChange(nextType);
   };
 
-  const handleColumnStepChange = (e) =>
-    setColumnStep(parseFloat(e.target.value));
+  const handleColumnStepChange = (e) => {
+    const rawVal = e.target.value;
+    const num = rawVal === "" ? "" : parseFloat(rawVal);
+    setColumnStep(isNaN(num) ? rawVal : num);
+  };
 
   // --- ИММУТАБЕЛЬНЫЕ ХЭНДЛЕРЫ КРАНОВ ---
   const handleCraneAdd = (idx) => {
@@ -666,6 +672,11 @@ export default function BlockEditor({
     return craneDb.capacities;
   }, [craneDb]);
 
+  // --- ВАЛИДАЦИЯ ГЕОМЕТРИИ (БЛОК A) ---
+  const geometryValidation = useMemo(() => {
+    return validateBlockGeometry(generalData, spans, columnStep);
+  }, [generalData, spans, columnStep]);
+
   // --- ВАЛИДАЦИЯ ---
   const validation = useMemo(() => {
     // Ширина блока всегда равна сумме ширин пролётов (автоматический расчет)
@@ -689,8 +700,8 @@ export default function BlockEditor({
         };
       }
     }
-    return { isWidthValid, layoutInfo };
-  }, [generalData.blockLength, columnStep]);
+    return { isWidthValid, layoutInfo, geometryValidation };
+  }, [generalData.blockLength, columnStep, geometryValidation]);
 
   // --- РАСЧЕТ РАСКЛАДКИ КОЛОНН ---
   const derivedColumnLayout = useMemo(() => {
@@ -840,7 +851,18 @@ export default function BlockEditor({
     frameType,
   });
 
+  const handleSave = () => {
+    if (!geometryValidation.isValid) return;
+    onSaveAndBack(collectData());
+  };
+
+  const handleNext = () => {
+    if (!geometryValidation.isValid) return;
+    onNextStep(collectData());
+  };
+
   const handleManageMezzanines = () => {
+    if (!geometryValidation.isValid) return;
     onOpenMezzanineEditor(collectData());
   };
 
@@ -930,19 +952,66 @@ export default function BlockEditor({
 
         <div style={{ display: "flex", gap: "8px" }}>
           <button
-            onClick={() => onSaveAndBack(collectData())}
-            style={{ ...styles.backButton, backgroundColor: "#16a34a" }}
+            onClick={handleSave}
+            disabled={!geometryValidation.isValid}
+            style={{
+              ...styles.backButton,
+              backgroundColor: geometryValidation.isValid ? "#16a34a" : "#94a3b8",
+              cursor: geometryValidation.isValid ? "pointer" : "not-allowed",
+              opacity: geometryValidation.isValid ? 1 : 0.65,
+            }}
+            title={
+              geometryValidation.isValid
+                ? "Сохранить геометрию здания"
+                : "Нельзя сохранить: исправьте ошибки в геометрии здания"
+            }
           >
             💾 Сохранить
           </button>
           <button
-            onClick={() => onNextStep(collectData())}
-            style={{ ...styles.backButton, backgroundColor: "#0284c7" }}
+            onClick={handleNext}
+            disabled={!geometryValidation.isValid}
+            style={{
+              ...styles.backButton,
+              backgroundColor: geometryValidation.isValid ? "#0284c7" : "#94a3b8",
+              cursor: geometryValidation.isValid ? "pointer" : "not-allowed",
+              opacity: geometryValidation.isValid ? 1 : 0.65,
+            }}
+            title={
+              geometryValidation.isValid
+                ? "Перейти к следующему шагу"
+                : "Нельзя перейти: исправьте ошибки в геометрии здания"
+            }
           >
             Далее &rarr;
           </button>
         </div>
       </div>
+
+      {/* Предупреждение об ошибках валидации геометрии */}
+      {!geometryValidation.isValid && (
+        <div
+          style={{
+            padding: "10px 14px",
+            backgroundColor: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: "6px",
+            color: "#b91c1c",
+            marginBottom: "12px",
+            fontSize: "0.88em",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+          }}
+        >
+          <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+            ⚠️ Некорректная геометрия здания:
+          </div>
+          <ul style={{ margin: 0, paddingLeft: "20px", lineHeight: "1.4" }}>
+            {geometryValidation.errors.map((err, i) => (
+              <li key={i}>{err}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* 2. Панель пресетов раскладки и управления окнами */}
       <div

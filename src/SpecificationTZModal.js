@@ -586,7 +586,15 @@ export default function SpecificationTZModal({
                     </div>
                     <div style={styles.fieldItem}>
                       <span style={styles.fieldLabel}>Нормативная полезная нагрузка:</span>
-                      <span style={styles.fieldValue}>{floorStructure?.liveLoad || 400} кг/м²</span>
+                      <span style={styles.fieldValue}>
+                        {floorStructure?.liveLoad !== undefined &&
+                        floorStructure?.liveLoad !== null &&
+                        floorStructure?.liveLoad !== "" &&
+                        !isNaN(Number(floorStructure.liveLoad))
+                          ? Number(floorStructure.liveLoad)
+                          : 400}{" "}
+                        кг/м²
+                      </span>
                     </div>
                     <div style={styles.fieldItem}>
                       <span style={styles.fieldLabel}>Масса металлокаркаса антресоли:</span>

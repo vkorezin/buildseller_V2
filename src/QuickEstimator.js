@@ -271,7 +271,13 @@ export default function QuickEstimator({
       if (mz0) {
         baseStruct = {
           ...DEFAULT_FLOOR_STRUCTURE,
-          liveLoad: mz0.loadLive || 400,
+          liveLoad:
+            mz0.loadLive !== undefined &&
+            mz0.loadLive !== null &&
+            mz0.loadLive !== "" &&
+            !isNaN(Number(mz0.loadLive))
+              ? Number(mz0.loadLive)
+              : 400,
           deadLoad: mz0.loadDead || 280,
           partitionsLoad: mz0.loadPartitions || 50,
           thickness: mz0.thickness || 120,

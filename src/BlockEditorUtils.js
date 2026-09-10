@@ -176,19 +176,20 @@ export function updateSpanRoofGeometry(span, field, value, fallbackFrameType = "
 
   let skate1Len = Number(span.skate1Length);
   if (field === "skate1Length") {
-    skate1Len = Number(value) || 0;
-    if (skate1Len > W) skate1Len = W;
-    if (skate1Len < 0) skate1Len = 0;
+    const num = parseFloat(value);
+    skate1Len = isNaN(num) ? (value === "" ? "" : 0) : num;
   } else if (field === "spanWidth" || (field === "skateCount" && isGable)) {
     if (!skate1Len || skate1Len > W || skate1Len <= 0) {
       skate1Len = W / 2;
     }
   }
-  const Leff = isGable ? (skate1Len > 0 ? skate1Len : W / 2) : W;
+  const Leff = isGable ? (Number(skate1Len) > 0 ? Number(skate1Len) : W / 2) : W;
 
   const currentLock = span.lockParam || "none";
-  let eaveH = Number(span.eaveHeight) || 0;
-  let S = Number(span.slope) || 0;
+  let eaveH = Number(span.eaveHeight);
+  if (isNaN(eaveH)) eaveH = 0;
+  let S = Number(span.slope);
+  if (isNaN(S)) S = 0;
 
   const { roofStructureThick } = getRoofStructureDimensions(
     W,
@@ -206,11 +207,11 @@ export function updateSpanRoofGeometry(span, field, value, fallbackFrameType = "
 
   if (field === "eaveHeight") {
     const newEave = parseFloat(value);
-    const validNewEave = isNaN(newEave) ? 0 : Math.max(0, newEave);
+    const validNewEave = isNaN(newEave) ? (value === "" ? "" : 0) : newEave;
 
     if (currentLock === "ridge") {
       // Конёк зафиксирован -> уклон меняется
-      const deltaH = Math.max(0, peakH - validNewEave - roofStructureThick);
+      const deltaH = peakH - validNewEave - roofStructureThick;
       S = Leff > 0 ? (deltaH / Leff) * 100 : S;
       eaveH = validNewEave;
     } else {
@@ -221,23 +222,23 @@ export function updateSpanRoofGeometry(span, field, value, fallbackFrameType = "
     }
   } else if (field === "ridgeHeight" || field === "peakHeight") {
     const newPeak = parseFloat(value);
-    const validNewPeak = isNaN(newPeak) ? 0 : Math.max(0, newPeak);
+    const validNewPeak = isNaN(newPeak) ? (value === "" ? "" : 0) : newPeak;
 
     if (currentLock === "eave") {
       // Карниз зафиксирован -> уклон меняется
-      const deltaH = Math.max(0, validNewPeak - eaveH - roofStructureThick);
+      const deltaH = validNewPeak - eaveH - roofStructureThick;
       S = Leff > 0 ? (deltaH / Leff) * 100 : S;
       peakH = validNewPeak;
     } else {
       // По умолчанию (или если зафиксирован уклон/конёк/нет замка) уклон НЕ меняется,
       // карниз смещается
       const rise = Leff > 0 ? Leff * (S / 100) : 0;
-      eaveH = Math.max(0, validNewPeak - rise - roofStructureThick);
+      eaveH = validNewPeak - rise - roofStructureThick;
       peakH = validNewPeak;
     }
   } else if (field === "slope") {
     const newSlope = parseFloat(value);
-    const validNewSlope = isNaN(newSlope) ? 0 : Math.max(0, newSlope);
+    const validNewSlope = isNaN(newSlope) ? (value === "" ? "" : 0) : newSlope;
     S = validNewSlope;
     const newRise = Leff > 0 ? Leff * (S / 100) : 0;
     const newDims = getRoofStructureDimensions(W, S, spanFrameType);
@@ -247,7 +248,7 @@ export function updateSpanRoofGeometry(span, field, value, fallbackFrameType = "
       peakH = eaveH + newDims.roofStructureThick + newRise;
     } else if (currentLock === "ridge") {
       // Конёк зафиксирован -> меняется карниз
-      eaveH = Math.max(0, peakH - newDims.roofStructureThick - newRise);
+      eaveH = peakH - newDims.roofStructureThick - newRise;
     } else {
       // По умолчанию карниз зафиксирован (чистая высота здания)
       peakH = eaveH + newDims.roofStructureThick + newRise;
@@ -256,29 +257,123 @@ export function updateSpanRoofGeometry(span, field, value, fallbackFrameType = "
     const newDims = getRoofStructureDimensions(W, S, spanFrameType);
     const newRise = Leff > 0 ? Leff * (S / 100) : 0;
     if (currentLock === "ridge") {
-      eaveH = Math.max(0, peakH - newDims.roofStructureThick - newRise);
+      eaveH = peakH - newDims.roofStructureThick - newRise;
     } else {
       peakH = eaveH + newDims.roofStructureThick + newRise;
     }
   }
 
-  updated.eaveHeight = Math.round(eaveH * 1000) / 1000;
-  updated.slope = Math.round(S * 100) / 100;
+  updated.eaveHeight = field === "eaveHeight"
+    ? (value === "" ? "" : (isNaN(parseFloat(value)) ? value : parseFloat(value)))
+    : (typeof eaveH === "number" ? Math.round(eaveH * 1000) / 1000 : eaveH);
+
+  updated.slope = field === "slope"
+    ? (value === "" ? "" : (isNaN(parseFloat(value)) ? value : parseFloat(value)))
+    : (typeof S === "number" ? Math.round(S * 100) / 100 : S);
+
   if (isGable) {
-    updated.skate1Length = Math.round(skate1Len * 1000) / 1000;
+    updated.skate1Length = field === "skate1Length"
+      ? (value === "" ? "" : (isNaN(parseFloat(value)) ? value : parseFloat(value)))
+      : (typeof skate1Len === "number" ? Math.round(skate1Len * 1000) / 1000 : skate1Len);
   }
   if (field === "skateCount") updated.skateCount = parseInt(value, 10);
   if (field === "slopeDirection") updated.slopeDirection = value;
-  if (field === "spanWidth") updated.spanWidth = W;
+  if (field === "spanWidth") {
+    const numW = parseFloat(value);
+    updated.spanWidth = value === "" ? "" : (isNaN(numW) ? value : numW);
+  }
   if (field === "frameType") updated.frameType = value;
   if (field === "baseElevation") {
     if (value === "" || value === "-") {
       updated.baseElevation = value;
     } else {
       const num = parseFloat(value);
-      updated.baseElevation = isNaN(num) ? 0 : num;
+      updated.baseElevation = isNaN(num) ? value : num;
     }
   }
 
   return updated;
+}
+
+/**
+ * Валидация геометрии блока (Manager)
+ * Правило:
+ * - Все геометрические размеры должны быть конечными числами и строго > 0
+ * - slope >= 0 (0% допустим)
+ * - baseElevation — любое конечное число (отрицательное, 0, положительное)
+ */
+export function validateBlockGeometry(generalData, spans, columnStep) {
+  const errors = [];
+
+  const isFiniteNumber = (v) =>
+    v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
+
+  // 1. Длина здания: > 0
+  const lengthNum = Number(generalData?.blockLength);
+  if (!isFiniteNumber(generalData?.blockLength) || lengthNum <= 0) {
+    errors.push("Длина здания должна быть больше 0");
+  }
+
+  // 2. Высота здания: > 0
+  const heightNum = Number(generalData?.blockHeight);
+  if (!isFiniteNumber(generalData?.blockHeight) || heightNum <= 0) {
+    errors.push("Высота здания должна быть больше 0");
+  }
+
+  // 3. Шаг основных колонн: > 0
+  const stepNum = Number(columnStep);
+  if (!isFiniteNumber(columnStep) || stepNum <= 0) {
+    errors.push("Шаг основных колонн должен быть больше 0");
+  }
+
+  // 4. Пролёты
+  if (!Array.isArray(spans) || spans.length === 0) {
+    errors.push("Здание должно содержать хотя бы один пролёт");
+  } else {
+    spans.forEach((span, idx) => {
+      const pNum = idx + 1;
+
+      // Ширина пролёта: > 0
+      const wNum = Number(span.spanWidth);
+      if (!isFiniteNumber(span.spanWidth) || wNum <= 0) {
+        errors.push(`Пролет ${pNum}: ширина должна быть больше 0`);
+      }
+
+      // Высота карниза: > 0
+      const eaveNum = Number(span.eaveHeight);
+      if (!isFiniteNumber(span.eaveHeight) || eaveNum <= 0) {
+        errors.push(`Пролет ${pNum}: высота карниза должна быть больше 0`);
+      }
+
+      // Уклон кровли: >= 0 (0% допустим)
+      const slopeNum = Number(span.slope);
+      if (!isFiniteNumber(span.slope) || slopeNum < 0) {
+        errors.push(`Пролет ${pNum}: уклон кровли не может быть отрицательным`);
+      }
+
+      // Положение конька (skate1Length): > 0, если поле используется/присутствует
+      const isGable = Number(span.skateCount) === 2;
+      const hasSkate1 =
+        isGable ||
+        (span.skate1Length !== undefined &&
+          span.skate1Length !== null &&
+          span.skate1Length !== "");
+      if (hasSkate1) {
+        const skateNum = Number(span.skate1Length);
+        if (!isFiniteNumber(span.skate1Length) || skateNum <= 0) {
+          errors.push(`Пролет ${pNum}: положение конька должно быть больше 0`);
+        }
+      }
+
+      // Отметка базы колонн: любое конечное число
+      if (!isFiniteNumber(span.baseElevation)) {
+        errors.push(`Пролет ${pNum}: отметка базы колонн должна быть числом`);
+      }
+    });
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
 }

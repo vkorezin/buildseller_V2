@@ -563,7 +563,14 @@ export function get1CParameters(data = {}) {
     rows.push({
       category: "Междуэтажные перекрытия",
       param: `ЭлементыСтроения.${k}.Тип.НормативнаяНагрузкаАнтресоль`,
-      value: format1CValue(floorStructure?.liveLoad || "400"),
+      value: format1CValue(
+        floorStructure?.liveLoad !== undefined &&
+        floorStructure?.liveLoad !== null &&
+        floorStructure?.liveLoad !== "" &&
+        !isNaN(Number(floorStructure.liveLoad))
+          ? Number(floorStructure.liveLoad)
+          : "400"
+      ),
       name: `Элемент ${k}: Полезная нагрузка (кг/м²)`
     });
     rows.push({
@@ -617,7 +624,14 @@ export function get1CParameters(data = {}) {
       rows.push({
         category: "Междуэтажные перекрытия",
         param: `ЭтажностьЗдания.${tier}.ПолезнаяНагрузкаНаПерекрытия`,
-        value: format1CValue(floorStructure?.liveLoad || "400"),
+        value: format1CValue(
+          floorStructure?.liveLoad !== undefined &&
+          floorStructure?.liveLoad !== null &&
+          floorStructure?.liveLoad !== "" &&
+          !isNaN(Number(floorStructure.liveLoad))
+            ? Number(floorStructure.liveLoad)
+            : "400"
+        ),
         name: `Этаж ${floorNum}: Полезная нагрузка (кг/м²)`
       });
       if (elevs[tier - 1] !== undefined && elevs[tier - 1] !== null) {
