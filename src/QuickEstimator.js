@@ -1481,59 +1481,61 @@ export default function QuickEstimator({
       </div>
 
       <div style={styles.sectionTitle}>2. Панели и цены</div>
-      {useSandwich && (
-        <div style={styles.grid}>
-          <div style={styles.field}>
-            <label style={styles.label}>Раскладка</label>
-            <select style={styles.select} value={layoutMode} onChange={(e) => setLayoutMode(e.target.value)}>
-              <option value="horizontal">Горизонт.</option>
-              <option value="vertical">Вертикал.</option>
-            </select>
-          </div>
-          <div style={styles.field}>
-            <label style={styles.label}>{layoutMode === "horizontal" ? "Модуль (м)" : "Модуль вертик. (м)"}</label>
-            <input style={styles.input} type="number" step="0.01" value={panelModule} onChange={(e) => setPanelModule(parseFloat(e.target.value) || 1.0)} />
-          </div>
-          {layoutMode === "horizontal" && (
-            <div style={styles.field}>
-              <label style={styles.label}>Длина панели (м)</label>
-              <input style={styles.input} type="number" value={panelStockLength} onChange={(e) => setPanelStockLength(parseFloat(e.target.value) || 6.0)} />
-            </div>
-          )}
-          <div style={styles.field}>
-            <label style={styles.label}>Цена ГК (₽/т)</label>
-            <input style={styles.input} type="number" value={gkPrice} onChange={(e) => setGkPrice(Number(e.target.value))} />
-          </div>
-          <div style={styles.field}>
-            <label style={styles.label}>Цена ЛСТК (₽/т)</label>
-            <input style={styles.input} type="number" value={lstkPrice} onChange={(e) => setLstkPrice(Number(e.target.value))} />
-          </div>
-          <div style={styles.field}>
-            <label style={styles.label}>Цена фасонки (₽/т)</label>
-            <input style={styles.input} type="number" value={fasonkaPrice} onChange={(e) => setFasonkaPrice(Number(e.target.value))} />
-          </div>
-          <div style={styles.field}>
-            <label style={styles.label}>Цена стен (₽/м²)</label>
-            <input style={styles.input} type="number" value={wallPrice} onChange={(e) => setWallPrice(Number(e.target.value))} />
-          </div>
-          <div style={styles.field}>
-            <label style={styles.label}>Цена кровли (₽/м²)</label>
-            <input style={styles.input} type="number" value={roofPrice} onChange={(e) => setRoofPrice(Number(e.target.value))} />
-          </div>
-          <div style={styles.field}>
-            <label style={styles.label}>Цена доборов (₽/м²)</label>
-            <input style={styles.input} type="number" value={trimPrice} onChange={(e) => setTrimPrice(Number(e.target.value))} />
-          </div>
-          <div style={styles.field}>
-            <label style={styles.label}>Цена бетона (₽/м³)</label>
-            <input style={styles.input} type="number" value={concretePrice} onChange={(e) => setConcretePrice(Number(e.target.value))} />
-          </div>
-          <div style={styles.field}>
-            <label style={styles.label}>Цена арматуры (₽/т)</label>
-            <input style={styles.input} type="number" value={rebarPrice} onChange={(e) => setRebarPrice(Number(e.target.value))} />
-          </div>
+      <div style={styles.grid}>
+        <div style={styles.field}>
+          <label style={styles.label}>Цена ГК (₽/т)</label>
+          <input style={styles.input} type="number" value={gkPrice} onChange={(e) => setGkPrice(Number(e.target.value))} />
         </div>
-      )}
+        <div style={styles.field}>
+          <label style={styles.label}>Цена ЛСТК (₽/т)</label>
+          <input style={styles.input} type="number" value={lstkPrice} onChange={(e) => setLstkPrice(Number(e.target.value))} />
+        </div>
+        <div style={styles.field}>
+          <label style={styles.label}>Цена фасонки (₽/т)</label>
+          <input style={styles.input} type="number" value={fasonkaPrice} onChange={(e) => setFasonkaPrice(Number(e.target.value))} />
+        </div>
+        {useSandwich && (
+          <>
+            <div style={styles.field}>
+              <label style={styles.label}>Раскладка</label>
+              <select style={styles.select} value={layoutMode} onChange={(e) => setLayoutMode(e.target.value)}>
+                <option value="horizontal">Горизонт.</option>
+                <option value="vertical">Вертикал.</option>
+              </select>
+            </div>
+            <div style={styles.field}>
+              <label style={styles.label}>{layoutMode === "horizontal" ? "Модуль (м)" : "Модуль вертик. (м)"}</label>
+              <input style={styles.input} type="number" step="0.01" value={panelModule} onChange={(e) => setPanelModule(parseFloat(e.target.value) || 1.0)} />
+            </div>
+            {layoutMode === "horizontal" && (
+              <div style={styles.field}>
+                <label style={styles.label}>Длина панели (м)</label>
+                <input style={styles.input} type="number" value={panelStockLength} onChange={(e) => setPanelStockLength(parseFloat(e.target.value) || 6.0)} />
+              </div>
+            )}
+            <div style={styles.field}>
+              <label style={styles.label}>Цена стен (₽/м²)</label>
+              <input style={styles.input} type="number" value={wallPrice} onChange={(e) => setWallPrice(Number(e.target.value))} />
+            </div>
+            <div style={styles.field}>
+              <label style={styles.label}>Цена кровли (₽/м²)</label>
+              <input style={styles.input} type="number" value={roofPrice} onChange={(e) => setRoofPrice(Number(e.target.value))} />
+            </div>
+            <div style={styles.field}>
+              <label style={styles.label}>Цена доборов (₽/м²)</label>
+              <input style={styles.input} type="number" value={trimPrice} onChange={(e) => setTrimPrice(Number(e.target.value))} />
+            </div>
+          </>
+        )}
+        <div style={styles.field}>
+          <label style={styles.label}>Цена бетона (₽/м³)</label>
+          <input style={styles.input} type="number" value={concretePrice} onChange={(e) => setConcretePrice(Number(e.target.value))} />
+        </div>
+        <div style={styles.field}>
+          <label style={styles.label}>Цена арматуры (₽/т)</label>
+          <input style={styles.input} type="number" value={rebarPrice} onChange={(e) => setRebarPrice(Number(e.target.value))} />
+        </div>
+      </div>
 
       <div style={styles.sectionTitle}>3. Модуль инженерных проемов комплекса ЕВРОАНГАР</div>
       
