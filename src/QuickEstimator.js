@@ -810,7 +810,15 @@ export default function QuickEstimator({
       let pureBeamFramesAndTies210 = baseBeamTotal210 - basePurlinsGK210;
       if (pureBeamFramesAndTies210 < 0) pureBeamFramesAndTies210 = 0;
 
-      pureBeamFramesAndTies210 *= lMult * kBldg * k_multi;
+      // ЗАДАЧА 5: Коэффициент bldg_col_add (kBldg) должен увеличивать ТОЛЬКО массу
+      // основных колонн здания, воспринимающих дополнительную нагрузку от антресоли,
+      // и НЕ должен увеличивать балки, фермы, связи, прогоны и прочие части каркаса.
+      // В текущей модели QuickEstimator (на базе baseMatrix210) отдельная масса колонн
+      // отсутствует (масса рам агрегирована: колонны + ригели/балки/фермы).
+      // Согласно ТЗ: не придумываем условный процент колонн от общей массы (20%, 30% и т.п.)
+      // и не применяем kBldg к общей агрегированной массе каркаса.
+      // Для корректного применения коэффициента в будущем необходим отдельный базовый вес колонн.
+      pureBeamFramesAndTies210 *= lMult * k_multi;
 
       if (hasThisCrane && crane.type === "support") {
         if (capVal <= 5) pureBeamFramesAndTies210 *= 1.15;
