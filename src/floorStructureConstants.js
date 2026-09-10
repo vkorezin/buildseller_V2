@@ -89,9 +89,10 @@ export const FLOOR_TYPES = [
     category: "composite",
     standard: "ТУ 5858-001, СП 266.1325800",
     defaultThickness: 200,
-    thicknessRange: [150, 250],
-    thicknessPresets: [150, 180, 200, 220, 250],
-    isConstantThickness: false,
+    thicknessRange: [200, 200],
+    thicknessPresets: [200],
+    isConstantThickness: true,
+    constantThicknessNote: "Постоянная стандартная толщина 200 мм (сборные балки с заполнением блоками)",
     deadLoad: 220, // кг/м²
     beamSpacing: "3.0 – 5.0 м",
     fireRating: "REI 60",
@@ -703,6 +704,33 @@ export function getAutoColumnSpans(spanWidth) {
     }
   }
   return spans;
+}
+
+/**
+ * Валидация толщины перекрытия по диапазону thicknessRange типа перекрытия.
+ * Источником истины является thicknessRange конкретного типа перекрытия.
+ * Возвращает { isValid: boolean, error: string | null }.
+ */
+export function validateFloorThickness(typeInfo, thickness) {
+  if (!typeInfo) return { isValid: true, error: null };
+  if (typeInfo.isConstantThickness) {
+    return { isValid: true, error: null };
+  }
+  const [minT, maxT] = typeInfo.thicknessRange || [0, 9999];
+  if (thickness === "" || thickness === null || thickness === undefined) {
+    return {
+      isValid: false,
+      error: `Толщина должна быть от ${minT} до ${maxT} мм.`,
+    };
+  }
+  const num = Number(thickness);
+  if (isNaN(num) || num < minT || num > maxT) {
+    return {
+      isValid: false,
+      error: `Толщина должна быть от ${minT} до ${maxT} мм.`,
+    };
+  }
+  return { isValid: true, error: null };
 }
 
 

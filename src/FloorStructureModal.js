@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   FLOOR_TYPES,
   LIVE_LOAD_PRESETS,
@@ -13,6 +13,7 @@ import {
   getAutoColumnSpans,
   getLayersForTypeAndThickness,
   getValidFloorElevations,
+  validateFloorThickness,
 } from "./floorStructureConstants";
 
 export default function FloorStructureModal({
@@ -42,8 +43,24 @@ export default function FloorStructureModal({
   });
 
   const [thickness, setThickness] = useState(() => {
-    return initialStructure?.thickness ?? DEFAULT_FLOOR_STRUCTURE.thickness;
+    const init = initialStructure || DEFAULT_FLOOR_STRUCTURE;
+    const typeId = init.type || DEFAULT_FLOOR_STRUCTURE.type;
+    const typeInfo = FLOOR_TYPES.find((t) => t.id === typeId) || FLOOR_TYPES[0];
+    return typeInfo.isConstantThickness
+      ? typeInfo.defaultThickness
+      : (init.thickness ?? typeInfo.defaultThickness);
   });
+
+  const [lastValidThickness, setLastValidThickness] = useState(() => {
+    const init = initialStructure || DEFAULT_FLOOR_STRUCTURE;
+    const typeId = init.type || DEFAULT_FLOOR_STRUCTURE.type;
+    const typeInfo = FLOOR_TYPES.find((t) => t.id === typeId) || FLOOR_TYPES[0];
+    return typeInfo.isConstantThickness
+      ? typeInfo.defaultThickness
+      : (init.thickness ?? typeInfo.defaultThickness);
+  });
+
+  const [isThicknessBlurred, setIsThicknessBlurred] = useState(false);
 
   const [floorFinishLayers, setFloorFinishLayers] = useState(() => {
     if (
@@ -126,8 +143,12 @@ export default function FloorStructureModal({
       const typeInfo = FLOOR_TYPES.find((t) => t.id === typeId) || FLOOR_TYPES[0];
 
       setSelectedType(typeId);
-      const th = init.thickness ?? typeInfo.defaultThickness;
+      const th = typeInfo.isConstantThickness
+        ? typeInfo.defaultThickness
+        : (init.thickness ?? typeInfo.defaultThickness);
       setThickness(th);
+      setLastValidThickness(th);
+      setIsThicknessBlurred(false);
 
       const initFinishLayers =
         Array.isArray(init.floorFinishLayers) && init.floorFinishLayers.length > 0
@@ -137,7 +158,9 @@ export default function FloorStructureModal({
           : [{ name: "Топпинг / покрытие пола", load: 15 }];
       setFloorFinishLayers(initFinishLayers);
 
-      if (typeId === "monolithic_deck") {
+      if (typeInfo.isConstantThickness) {
+        setDeadLoad(typeInfo.deadLoad);
+      } else if (typeId === "monolithic_deck") {
         const finishSum = initFinishLayers.reduce(
           (sum, l) => sum + (Number(l?.load) || 0),
           0
@@ -188,6 +211,32 @@ export default function FloorStructureModal({
     );
   }, [selectedType]);
 
+  // Валидация толщины перекрытия (источник истины — thicknessRange текущего типа)
+  const { isThicknessValid, thicknessErrorMessage } = useMemo(() => {
+    if (currentTypeInfo.isConstantThickness) {
+      return { isThicknessValid: true, thicknessErrorMessage: null };
+    }
+    const [minT, maxT] = currentTypeInfo.thicknessRange || [0, 9999];
+    if (thickness === "" || thickness === null || thickness === undefined) {
+      return {
+        isThicknessValid: false,
+        thicknessErrorMessage: isThicknessBlurred
+          ? `Толщина должна быть от ${minT} до ${maxT} мм.`
+          : null,
+      };
+    }
+    const numT = Number(thickness);
+    if (isNaN(numT) || numT < minT || numT > maxT) {
+      return {
+        isThicknessValid: false,
+        thicknessErrorMessage: `Толщина должна быть от ${minT} до ${maxT} мм.`,
+      };
+    }
+    return { isThicknessValid: true, thicknessErrorMessage: null };
+  }, [currentTypeInfo, thickness, isThicknessBlurred]);
+
+  const hasThicknessError = Boolean(thicknessErrorMessage);
+
   // Расчет слоев чистового пола (топпинг, стяжка и т.д.)
   const floorFinishLoad = useMemo(() => {
     if (!Array.isArray(floorFinishLayers) || floorFinishLayers.length === 0) {
@@ -196,10 +245,10 @@ export default function FloorStructureModal({
     return calculateFloorFinishLoad(floorFinishLayers);
   }, [floorFinishLayers]);
 
-  // Компоненты несущей конструкции для Н75
+  // Компоненты несущей конструкции для Н75 (по последней валидной толщине)
   const monoDeckComponents = useMemo(() => {
-    return getMonolithicDeckStructuralComponents(thickness);
-  }, [thickness]);
+    return getMonolithicDeckStructuralComponents(lastValidThickness);
+  }, [lastValidThickness]);
 
   // Собственный вес несущей конструкции перекрытия (без пола и перегородок)
   const structuralDeadLoad = useMemo(() => {
@@ -209,10 +258,10 @@ export default function FloorStructureModal({
     return Number(deadLoad) || 0;
   }, [selectedType, monoDeckComponents.structuralDeadLoad, deadLoad]);
 
-  // Динамический расчет слоев пирога с учетом толщины бетона
+  // Динамический расчет слоев пирога с учетом толщины бетона (по последней валидной толщине)
   const dynamicLayers = useMemo(() => {
-    return getLayersForTypeAndThickness(currentTypeInfo, thickness);
-  }, [currentTypeInfo, thickness]);
+    return getLayersForTypeAndThickness(currentTypeInfo, lastValidThickness);
+  }, [currentTypeInfo, lastValidThickness]);
 
   // Валидированные отметки этажей с учетом низа конструкций покрытия height
   const validElevations = useMemo(() => {
@@ -232,7 +281,7 @@ export default function FloorStructureModal({
     });
     setFloorFinishLayers(nextLayers);
     const nextFinishLoad = nextLayers.reduce((sum, l) => sum + (Number(l?.load) || 0), 0);
-    const sComp = getMonolithicDeckStructuralComponents(thickness);
+    const sComp = getMonolithicDeckStructuralComponents(lastValidThickness);
     setDeadLoad(Math.round((sComp.structuralDeadLoad + nextFinishLoad) * 1000) / 1000);
   };
 
@@ -255,7 +304,7 @@ export default function FloorStructureModal({
     ];
     setFloorFinishLayers(nextLayers);
     const nextFinishLoad = nextLayers.reduce((sum, l) => sum + (Number(l?.load) || 0), 0);
-    const sComp = getMonolithicDeckStructuralComponents(thickness);
+    const sComp = getMonolithicDeckStructuralComponents(lastValidThickness);
     setDeadLoad(Math.round((sComp.structuralDeadLoad + nextFinishLoad) * 1000) / 1000);
   };
 
@@ -265,7 +314,7 @@ export default function FloorStructureModal({
     const nextLayers = floorFinishLayers.filter((_, i) => i !== idx);
     setFloorFinishLayers(nextLayers);
     const nextFinishLoad = nextLayers.reduce((sum, l) => sum + (Number(l?.load) || 0), 0);
-    const sComp = getMonolithicDeckStructuralComponents(thickness);
+    const sComp = getMonolithicDeckStructuralComponents(lastValidThickness);
     setDeadLoad(Math.round((sComp.structuralDeadLoad + nextFinishLoad) * 1000) / 1000);
   };
 
@@ -317,17 +366,21 @@ export default function FloorStructureModal({
   // При смене типа перекрытия
   const handleTypeSelect = (typeId) => {
     setSelectedType(typeId);
+    setIsThicknessBlurred(false);
     const info = FLOOR_TYPES.find((t) => t.id === typeId);
     if (info) {
       if (info.isConstantThickness) {
-        setThickness(220);
-        setDeadLoad(330);
+        setThickness(info.defaultThickness);
+        setLastValidThickness(info.defaultThickness);
+        setDeadLoad(info.deadLoad);
       } else if (typeId === "monolithic_deck") {
         setThickness(info.defaultThickness);
+        setLastValidThickness(info.defaultThickness);
         const sComp = getMonolithicDeckStructuralComponents(info.defaultThickness);
         setDeadLoad(Math.round((sComp.structuralDeadLoad + floorFinishLoad) * 1000) / 1000);
       } else {
         setThickness(info.defaultThickness);
+        setLastValidThickness(info.defaultThickness);
         const computedWeight = calculateDeadLoadForType(typeId, info.defaultThickness);
         setDeadLoad(computedWeight);
       }
@@ -335,15 +388,30 @@ export default function FloorStructureModal({
   };
 
   // При изменении толщины перекрытия:
-  // Для Н75 пересчитывается ТОЛЬКО несущая часть, состав пола НЕ сбрасывается!
+  // Если толщина некорректна — НЕ вызывать calculateDeadLoadForType, getMonolithicDeckStructuralComponents!
+  // Последнее корректное значение нагрузки остается до исправления ошибки.
   const handleThicknessChange = (newThickness) => {
-    const val = Number(newThickness) || 0;
-    setThickness(val);
+    setThickness(newThickness);
+
+    if (currentTypeInfo.isConstantThickness) return;
+
+    if (newThickness === "" || newThickness === null || newThickness === undefined) {
+      return;
+    }
+
+    const numVal = Number(newThickness);
+    const [minT, maxT] = currentTypeInfo.thicknessRange || [0, 9999];
+
+    if (isNaN(numVal) || numVal < minT || numVal > maxT) {
+      return;
+    }
+
+    setLastValidThickness(numVal);
     if (selectedType === "monolithic_deck") {
-      const sComp = getMonolithicDeckStructuralComponents(val);
+      const sComp = getMonolithicDeckStructuralComponents(numVal);
       setDeadLoad(Math.round((sComp.structuralDeadLoad + floorFinishLoad) * 1000) / 1000);
-    } else if (!currentTypeInfo.isConstantThickness) {
-      const computedWeight = calculateDeadLoadForType(selectedType, val);
+    } else {
+      const computedWeight = calculateDeadLoadForType(selectedType, numVal);
       setDeadLoad(computedWeight);
     }
   };
@@ -356,8 +424,15 @@ export default function FloorStructureModal({
     }
   };
 
+  const lastValidCalcResultsRef = useRef(null);
+
   // Инженерный расчет нагрузок (без расчета расхода стали на антресоль)
+  // Если толщина некорректна — calculateMezzanineQBase не вызывается, отображается последнее корректное значение
   const calcResults = useMemo(() => {
+    if (!isThicknessValid && lastValidCalcResultsRef.current) {
+      return lastValidCalcResultsRef.current;
+    }
+
     const g_dead = Number(deadLoad) || 0;
     const g_part =
       partitionsLoad !== "" && partitionsLoad != null && !isNaN(Number(partitionsLoad))
@@ -390,7 +465,7 @@ export default function FloorStructureModal({
     const colLoadTon =
       numSubSpans > 1 ? ((q_design * tribArea) / 1000).toFixed(1) : "—";
 
-    return {
+    const res = {
       g_tot,
       g_dead,
       g_part,
@@ -404,7 +479,11 @@ export default function FloorStructureModal({
       colLoadTon,
       numSubSpans,
     };
+
+    lastValidCalcResultsRef.current = res;
+    return res;
   }, [
+    isThicknessValid,
     deadLoad,
     partitionsLoad,
     liveLoad,
@@ -415,22 +494,17 @@ export default function FloorStructureModal({
   ]);
 
   const handleSave = () => {
-    let finalThick = currentTypeInfo.isConstantThickness
-      ? 220
-      : Number(thickness) || currentTypeInfo.defaultThickness;
+    if (!isThicknessValid) return;
 
-    // Валидация толщины по диапазону thicknessRange
-    if (!currentTypeInfo.isConstantThickness && currentTypeInfo.thicknessRange) {
-      const [minT, maxT] = currentTypeInfo.thicknessRange;
-      if (finalThick < minT) finalThick = minT;
-      if (finalThick > maxT) finalThick = maxT;
-    }
+    let finalThick = currentTypeInfo.isConstantThickness
+      ? currentTypeInfo.defaultThickness
+      : Number(thickness);
 
     const calculatedStructuralDL =
       currentTypeInfo.id === "monolithic_deck"
         ? getMonolithicDeckStructuralComponents(finalThick).structuralDeadLoad
         : currentTypeInfo.isConstantThickness
-        ? 330
+        ? currentTypeInfo.deadLoad
         : calculateDeadLoadForType(currentTypeInfo.id, finalThick);
 
     const currentFloorFinishLoad =
@@ -442,7 +516,7 @@ export default function FloorStructureModal({
       currentTypeInfo.id === "monolithic_deck"
         ? Math.round((calculatedStructuralDL + currentFloorFinishLoad) * 1000) / 1000
         : currentTypeInfo.isConstantThickness
-        ? 330
+        ? currentTypeInfo.deadLoad
         : calculateDeadLoadForType(currentTypeInfo.id, finalThick);
 
     const safePartitionsLoad =
@@ -1226,9 +1300,9 @@ export default function FloorStructureModal({
                     >
                       <span style={{ fontSize: "1.1em" }}>🔒</span>
                       <span>
-                        <strong>Постоянная заводская толщина 220 мм</strong>{" "}
-                        (ГОСТ 9561-2016 для сборных многопустотных плит ПК/ПБ).
-                        Собственный вес зафиксирован: <strong>330 кг/м²</strong>.
+                        <strong>Постоянная толщина {currentTypeInfo.defaultThickness} мм</strong>{" "}
+                        ({currentTypeInfo.constantThicknessNote || currentTypeInfo.name}).
+                        Собственный вес зафиксирован: <strong>{currentTypeInfo.deadLoad} кг/м²</strong>.
                       </span>
                     </div>
                   ) : (
@@ -1248,7 +1322,10 @@ export default function FloorStructureModal({
                             <button
                               key={tPreset}
                               type="button"
-                              onClick={() => handleThicknessChange(tPreset)}
+                              onClick={() => {
+                                setIsThicknessBlurred(false);
+                                handleThicknessChange(tPreset);
+                              }}
                               style={{
                                 padding: "4px 10px",
                                 borderRadius: "4px",
@@ -1311,7 +1388,7 @@ export default function FloorStructureModal({
                         display: "block",
                         fontSize: "0.76em",
                         fontWeight: 600,
-                        color: "#475569",
+                        color: hasThicknessError ? "#dc2626" : "#475569",
                         marginBottom: "4px",
                       }}
                     >
@@ -1320,30 +1397,55 @@ export default function FloorStructureModal({
                     <input
                       type="number"
                       disabled={currentTypeInfo.isConstantThickness}
+                      readOnly={currentTypeInfo.isConstantThickness}
                       style={{
                         width: "100%",
                         padding: "6px 10px",
                         borderRadius: "6px",
-                        border: "1px solid #cbd5e1",
+                        border: hasThicknessError
+                          ? "1.5px solid #dc2626"
+                          : "1px solid #cbd5e1",
                         fontSize: "0.85em",
                         boxSizing: "border-box",
                         backgroundColor: currentTypeInfo.isConstantThickness
                           ? "#f1f5f9"
+                          : hasThicknessError
+                          ? "#fef2f2"
                           : "#ffffff",
                         color: currentTypeInfo.isConstantThickness
                           ? "#64748b"
+                          : hasThicknessError
+                          ? "#991b1b"
                           : "#0f172a",
+                        cursor: currentTypeInfo.isConstantThickness
+                          ? "not-allowed"
+                          : "text",
+                        outline: "none",
                       }}
                       value={thickness}
                       onChange={(e) => handleThicknessChange(e.target.value)}
+                      onBlur={() => setIsThicknessBlurred(true)}
                     />
-                    {!currentTypeInfo.isConstantThickness && currentTypeInfo.thicknessRange && (
-                      (Number(thickness) < currentTypeInfo.thicknessRange[0] ||
-                       Number(thickness) > currentTypeInfo.thicknessRange[1]) && (
-                        <div style={{ fontSize: "0.72em", color: "#dc2626", marginTop: "3px", fontWeight: 500 }}>
-                          ⚠️ Вне диапазона ({currentTypeInfo.thicknessRange[0]}–{currentTypeInfo.thicknessRange[1]} мм)
-                        </div>
-                      )
+                    {hasThicknessError && (
+                      <div
+                        style={{
+                          fontSize: "0.78em",
+                          color: "#dc2626",
+                          marginTop: "4px",
+                          fontWeight: 600,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                        }}
+                      >
+                        <span>⚠️</span>
+                        <span>{thicknessErrorMessage}</span>
+                      </div>
+                    )}
+                    {currentTypeInfo.isConstantThickness && (
+                      <div style={{ fontSize: "0.72em", color: "#64748b", marginTop: "3px" }}>
+                        Фиксированная заводская толщина (не редактируется)
+                      </div>
                     )}
                   </div>
 
@@ -2825,7 +2927,14 @@ export default function FloorStructureModal({
         >
           <div style={{ fontSize: "0.82em", color: "#64748b" }}>
             Выбрано: <strong>{currentTypeInfo.shortName}</strong>, толщина{" "}
-            <strong>{thickness} мм</strong>, полезная {liveLoad} кг/м²
+            {isThicknessValid ? (
+              <strong>{thickness} мм</strong>
+            ) : (
+              <strong style={{ color: "#dc2626" }}>
+                {thickness ? `${thickness} мм (недопустимо)` : "не указана"}
+              </strong>
+            )}
+            , полезная {liveLoad} кг/м²
           </div>
           <div style={{ display: "flex", gap: "10px" }}>
             <button
@@ -2846,17 +2955,19 @@ export default function FloorStructureModal({
             </button>
             <button
               type="button"
+              disabled={!isThicknessValid}
               onClick={handleSave}
               style={{
                 padding: "8px 20px",
-                backgroundColor: "#28a745",
+                backgroundColor: isThicknessValid ? "#28a745" : "#94a3b8",
                 color: "#ffffff",
                 border: "none",
                 borderRadius: "6px",
                 fontWeight: 700,
                 fontSize: "0.85em",
-                cursor: "pointer",
-                boxShadow: "0 2px 4px rgba(40,167,69,0.3)",
+                cursor: isThicknessValid ? "pointer" : "not-allowed",
+                opacity: isThicknessValid ? 1 : 0.65,
+                boxShadow: isThicknessValid ? "0 2px 4px rgba(40,167,69,0.3)" : "none",
               }}
             >
               ✅ Применить к расчету
