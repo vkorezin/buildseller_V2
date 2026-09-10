@@ -464,7 +464,8 @@ export default function App() {
         columnStep: 6,
         orientation: "horizontal",
         mezzanines: [],
-        loads: null,
+        climateLoads: null,
+        envelopeLoads: null,
         gables: null,
       },
     },
@@ -583,7 +584,8 @@ export default function App() {
           columnStep: 5,
           orientation: "horizontal",
           mezzanines: [],
-          loads: null,
+          climateLoads: null,
+          envelopeLoads: null,
           gables: null,
         },
       },
@@ -741,7 +743,7 @@ export default function App() {
       setBlocks(
         blocks.map((b) =>
           b.id === editingBlockId
-            ? { ...b, data: { ...b.data, ...newData } }
+            ? { ...b, data: { ...b.data, ...tempBlockData, ...newData } }
             : b
         )
       );
@@ -844,6 +846,26 @@ export default function App() {
       setBlocks((prevBlocks) => {
         const existingBlock1 =
           prevBlocks.find((b) => b.id === 1) || prevBlocks[0];
+
+        const isEnvelopeLoads = (obj) =>
+          obj &&
+          (obj.wallType !== undefined ||
+            obj.wallLoad !== undefined ||
+            obj.roofType !== undefined ||
+            obj.roofLoad !== undefined ||
+            obj.techLoad !== undefined);
+
+        const existingData = existingBlock1 ? { ...existingBlock1.data } : {};
+
+        let preservedEnvelopeLoads = existingData.envelopeLoads;
+        if (!preservedEnvelopeLoads && isEnvelopeLoads(existingData.loads)) {
+          preservedEnvelopeLoads = existingData.loads;
+        }
+
+        if (existingData.loads) {
+          delete existingData.loads;
+        }
+
         const updatedBlock1 = {
           ...(existingBlock1 || {
             id: 1,
@@ -857,7 +879,8 @@ export default function App() {
             },
           }),
           data: {
-            ...(existingBlock1 ? existingBlock1.data : {}),
+            ...existingData,
+            envelopeLoads: preservedEnvelopeLoads || null,
             generalData: {
               blockWidth: totalWidth,
               blockLength: L,
@@ -869,7 +892,7 @@ export default function App() {
             orientation: existingBlock1?.data?.orientation || "horizontal",
             mezzanines: generatedMezzanines,
             floorStructure: floorStruct,
-            loads: {
+            climateLoads: {
               snow:
                 estimatorData.snowLoad !== null &&
                 estimatorData.snowLoad !== undefined &&
@@ -925,12 +948,13 @@ export default function App() {
   };
 
   const handleStep2Loads = (loadsData) => {
-    setTempBlockData((prev) => ({ ...prev, loads: loadsData }));
+    setTempBlockData((prev) => ({ ...prev, envelopeLoads: loadsData }));
     setCurrentView("gableseditor");
   };
 
   const handleBackFromLoads = (loadsData) => {
-    if (loadsData) setTempBlockData((prev) => ({ ...prev, loads: loadsData }));
+    if (loadsData)
+      setTempBlockData((prev) => ({ ...prev, envelopeLoads: loadsData }));
     setCurrentView("editor");
   };
 
@@ -1200,10 +1224,22 @@ export default function App() {
   }
 
   if (currentView === "loadseditor") {
+    const isEnvelopeLoads = (obj) =>
+      obj &&
+      (obj.wallType !== undefined ||
+        obj.wallLoad !== undefined ||
+        obj.roofType !== undefined ||
+        obj.roofLoad !== undefined ||
+        obj.techLoad !== undefined);
+
+    const initialEnvelopeLoads =
+      tempBlockData?.envelopeLoads ??
+      (isEnvelopeLoads(tempBlockData?.loads) ? tempBlockData.loads : null);
+
     return (
       <LoadsEditor
         blockName={blocks.find((b) => b.id === editingBlockId)?.name}
-        initialLoads={tempBlockData.loads}
+        initialLoads={initialEnvelopeLoads}
         onBack={handleBackFromLoads}
         onNext={handleStep2Loads}
       />

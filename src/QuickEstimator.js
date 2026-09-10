@@ -336,16 +336,32 @@ export default function QuickEstimator({
   });
 
   const [snowLoad, setSnowLoad] = useState(() => {
-    if (projectLoads?.snow != null) {
-      return String(Math.round(projectLoads.snow * 100));
+    if (initialBlock?.data?.climateLoads?.snow != null) {
+      return String(Math.round(Number(initialBlock.data.climateLoads.snow) * 100));
+    }
+    if (initialBlock?.data?.snowLoad !== undefined && initialBlock?.data?.snowLoad !== null && initialBlock?.data?.snowLoad !== "") {
+      return String(initialBlock.data.snowLoad);
+    }
+    if (initialBlock?.snowLoad !== undefined && initialBlock?.snowLoad !== null && initialBlock?.snowLoad !== "") {
+      return String(initialBlock.snowLoad);
     }
     if (initialBlock?.data?.loads?.snow != null) {
-      return String(Math.round(initialBlock.data.loads.snow * 100));
+      return String(Math.round(Number(initialBlock.data.loads.snow) * 100));
+    }
+    if (projectLoads?.snow != null) {
+      return String(Math.round(Number(projectLoads.snow) * 100));
     }
     return "180";
   });
 
   const [windLoad, setWindLoad] = useState(() => {
+    if (
+      initialBlock?.data?.climateLoads?.wind !== undefined &&
+      initialBlock?.data?.climateLoads?.wind !== null &&
+      initialBlock?.data?.climateLoads?.wind !== ""
+    ) {
+      return String(Math.round(Number(initialBlock.data.climateLoads.wind) * 100));
+    }
     if (initialBlock?.data?.windLoad !== undefined && initialBlock?.data?.windLoad !== null && initialBlock?.data?.windLoad !== "") {
       return String(initialBlock.data.windLoad);
     }
@@ -826,9 +842,25 @@ export default function QuickEstimator({
     let totalTiesKg = 0;
     let totalSavingsKg = 0;
 
+    const hasSpecialSuspensionCrane = cranes.some((crane) => {
+      const cap = Number(crane.cap);
+      return crane.type === "suspension" && cap > 0 && (cap > 5 || W > 15);
+    });
+
     cranes.forEach((crane, i) => {
       const capVal = Number(crane.cap);
       const hasThisCrane = capVal > 0;
+
+      const isStandardSuspensionCrane =
+        crane.type === "suspension" &&
+        capVal > 0 &&
+        capVal <= 5 &&
+        W <= 15;
+
+      const isSpecialSuspensionCrane =
+        crane.type === "suspension" &&
+        capVal > 0 &&
+        (capVal > 5 || W > 15);
 
       // Проверка снегового кармана шеда
       let hasShedPocket = false;
@@ -843,7 +875,7 @@ export default function QuickEstimator({
 
       let spanSnow = baseSnow * kSnowBig * kSnowSlope * kSnowShed;
 
-      if (hasThisCrane && crane.type === "suspension") spanSnow += 140;
+      if (isStandardSuspensionCrane) spanSnow += 140;
 
       const baseWeight210_Truss = interpolate2D(baseMatrix210, H_eff, W);
       const basePurlins210 = getRoofPurlinWeight(roofPurlins, 210);
@@ -905,7 +937,7 @@ export default function QuickEstimator({
         totalSavingsKg += (fullBeamBuildingRate - totalReducedBuildingRate) * spanArea;
       }
 
-      if (hasThisCrane) {
+      if (hasThisCrane && !isSpecialSuspensionCrane) {
         const trackLength = L * 2;
         let trackLinW = 0;
         if (crane.type === "suspension") trackLinW = CRANE_DATA.suspension.beam;
@@ -1264,12 +1296,20 @@ export default function QuickEstimator({
       mezzanineArea: mezzCalc.mezzanineArea,
       mezzanineWeightKg,
       totalCost: Math.round(totalCostNum).toLocaleString("ru-RU"),
-      isBlockedByValidation: validationMetrics.isOverloaded || !spansVal.isValid || !storiesVal.isValid,
+      isBlockedByValidation:
+        !spansVal.isValid ||
+        !storiesVal.isValid ||
+        validationMetrics.isOverloaded ||
+        hasSpecialSuspensionCrane,
       validationError: !spansVal.isValid
         ? spansVal.error
         : !storiesVal.isValid
         ? storiesVal.error
-        : (validationMetrics.isOverloaded ? "Суммарная площадь проемов физически превышает общую геометрическую площадь стен здания (более 100%)." : null),
+        : validationMetrics.isOverloaded
+        ? "Суммарная площадь проемов физически превышает общую геометрическую площадь стен здания (более 100%)."
+        : hasSpecialSuspensionCrane
+        ? "Подвесной кран при пролёте более 15 м требует индивидуального расчёта конструктора. Стандартный быстрый расчёт для этой конфигурации не применяется."
+        : null,
     };
   }, [
     spanWidth, spansCount, length, height, slope, roofShape, snowLoad,
