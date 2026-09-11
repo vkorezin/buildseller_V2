@@ -1,6 +1,12 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   FLOOR_TYPES,
+  STEEL_GRATING_PROFILES,
+  DEFAULT_STEEL_GRATING_PROFILE_ID,
+  KNAUF_FILL_DENSITY_PRESETS,
+  DEFAULT_KNAUF_FILL_DENSITY,
+  normalizeKnaufFillDensity,
+  getSteelGratingProfile,
   LIVE_LOAD_PRESETS,
   SAFETY_FACTOR_PRESETS,
   RESPONSIBILITY_FACTORS,
@@ -61,6 +67,13 @@ export default function FloorStructureModal({
   });
 
   const [isThicknessBlurred, setIsThicknessBlurred] = useState(false);
+
+    const [knaufFillDensity, setKnaufFillDensity] = useState(() =>
+      normalizeKnaufFillDensity(initialStructure?.knaufFillDensity)
+    );
+    const [gratingProfileId, setGratingProfileId] = useState(() =>
+      getSteelGratingProfile(initialStructure?.gratingProfileId).id
+    );
 
   const [floorFinishLayers, setFloorFinishLayers] = useState(() => {
     if (
@@ -148,14 +161,21 @@ export default function FloorStructureModal({
       const typeInfo = FLOOR_TYPES.find((t) => t.id === typeId) || FLOOR_TYPES[0];
 
       setSelectedType(typeId);
-      const th = typeInfo.isConstantThickness
-        ? typeInfo.defaultThickness
-        : (init.thickness ?? typeInfo.defaultThickness);
-      setThickness(th);
-      setLastValidThickness(th);
-      setIsThicknessBlurred(false);
+    const initDensity = normalizeKnaufFillDensity(init.knaufFillDensity);
+    const initGratingProfile = getSteelGratingProfile(init.gratingProfileId);
+    setKnaufFillDensity(initDensity);
+    setGratingProfileId(initGratingProfile.id);
 
-      const initFinishLayers =
+    const th = typeId === "steel_grating"
+      ? initGratingProfile.height
+      : typeInfo.isConstantThickness
+      ? typeInfo.defaultThickness
+      : (init.thickness ?? typeInfo.defaultThickness);
+    setThickness(th);
+    setLastValidThickness(th);
+    setIsThicknessBlurred(false);
+
+    const initFinishLayers =
         Array.isArray(init.floorFinishLayers) && init.floorFinishLayers.length > 0
           ? init.floorFinishLayers
           : init.floorFinishLoad !== undefined && init.floorFinishLoad !== null
@@ -164,23 +184,35 @@ export default function FloorStructureModal({
       setFloorFinishLayers(initFinishLayers);
 
       if (typeInfo.isConstantThickness) {
-        setDeadLoad(typeInfo.deadLoad);
-      } else if (typeId === "monolithic_deck") {
-        const finishSum = initFinishLayers.reduce(
-          (sum, l) => sum + (Number(l?.load) || 0),
-          0
-        );
-        const sComp = getMonolithicDeckStructuralComponents(th);
-        setDeadLoad(Math.round((sComp.structuralDeadLoad + finishSum) * 1000) / 1000);
-      } else {
-        setDeadLoad(
-          init.deadLoad != null
-            ? init.deadLoad
-            : calculateDeadLoadForType(typeId, th)
-        );
-      }
+      setDeadLoad(typeInfo.deadLoad);
+    } else if (typeId === "monolithic_deck") {
+      const finishSum = initFinishLayers.reduce(
+        (sum, l) => sum + (Number(l?.load) || 0),
+        0
+      );
+      const sComp = getMonolithicDeckStructuralComponents(th);
+      setDeadLoad(Math.round((sComp.structuralDeadLoad + finishSum) * 1000) / 1000);
+    } else if (typeId === "knauf_dry_floor") {
+      setDeadLoad(
+        calculateDeadLoadForType(typeId, th, undefined, {
+          knaufFillDensity: initDensity,
+        })
+      );
+    } else if (typeId === "steel_grating") {
+      setDeadLoad(
+        calculateDeadLoadForType(typeId, initGratingProfile.height, undefined, {
+          gratingProfileId: initGratingProfile.id,
+        })
+      );
+    } else {
+      setDeadLoad(
+        init.deadLoad != null
+          ? init.deadLoad
+          : calculateDeadLoadForType(typeId, th)
+      );
+    }
 
-      setPartitionsLoad(
+    setPartitionsLoad(
         init.partitionsLoad !== undefined &&
         init.partitionsLoad !== null &&
         !isNaN(Number(init.partitionsLoad))
@@ -218,13 +250,27 @@ export default function FloorStructureModal({
   }, [isOpen, initialStructure, storiesCount, height, spanWidth]);
 
   const currentTypeInfo = useMemo(() => {
-    return (
-      FLOOR_TYPES.find((t) => t.id === selectedType) || FLOOR_TYPES[0]
+      return (
+        FLOOR_TYPES.find((t) => t.id === selectedType) || FLOOR_TYPES[0]
+      );
+    }, [selectedType]);
+
+    const selectedGratingProfile = useMemo(
+      () => getSteelGratingProfile(gratingProfileId),
+      [gratingProfileId]
     );
-  }, [selectedType]);
+
+    const isDeadLoadComputed =
+      currentTypeInfo.isConstantThickness ||
+      selectedType === "monolithic_deck" ||
+      selectedType === "knauf_dry_floor" ||
+      selectedType === "steel_grating";
 
   // Валидация толщины перекрытия (источник истины — thicknessRange текущего типа)
   const { isThicknessValid, thicknessErrorMessage } = useMemo(() => {
+    if (selectedType === "steel_grating") {
+      return { isThicknessValid: true, thicknessErrorMessage: null };
+    }
     if (currentTypeInfo.isConstantThickness) {
       return { isThicknessValid: true, thicknessErrorMessage: null };
     }
@@ -245,7 +291,7 @@ export default function FloorStructureModal({
       };
     }
     return { isThicknessValid: true, thicknessErrorMessage: null };
-  }, [currentTypeInfo, thickness, isThicknessBlurred]);
+  }, [currentTypeInfo, selectedType, thickness, isThicknessBlurred]);
 
   const hasThicknessError = Boolean(thicknessErrorMessage);
 
@@ -272,8 +318,11 @@ export default function FloorStructureModal({
 
   // Динамический расчет слоев пирога с учетом толщины бетона (по последней валидной толщине)
   const dynamicLayers = useMemo(() => {
-    return getLayersForTypeAndThickness(currentTypeInfo, lastValidThickness);
-  }, [currentTypeInfo, lastValidThickness]);
+      return getLayersForTypeAndThickness(currentTypeInfo, lastValidThickness, {
+        knaufFillDensity,
+        gratingProfileId,
+      });
+    }, [currentTypeInfo, lastValidThickness, knaufFillDensity, gratingProfileId]);
 
   // Валидированные отметки этажей с учетом низа конструкций покрытия height
   const validElevations = useMemo(() => {
@@ -377,58 +426,82 @@ export default function FloorStructureModal({
 
   // При смене типа перекрытия
   const handleTypeSelect = (typeId) => {
-    setSelectedType(typeId);
-    setIsThicknessBlurred(false);
-    const info = FLOOR_TYPES.find((t) => t.id === typeId);
-    if (info) {
-      if (info.isConstantThickness) {
-        setThickness(info.defaultThickness);
-        setLastValidThickness(info.defaultThickness);
-        setDeadLoad(info.deadLoad);
-      } else if (typeId === "monolithic_deck") {
-        setThickness(info.defaultThickness);
-        setLastValidThickness(info.defaultThickness);
-        const sComp = getMonolithicDeckStructuralComponents(info.defaultThickness);
-        setDeadLoad(Math.round((sComp.structuralDeadLoad + floorFinishLoad) * 1000) / 1000);
-      } else {
-        setThickness(info.defaultThickness);
-        setLastValidThickness(info.defaultThickness);
-        const computedWeight = calculateDeadLoadForType(typeId, info.defaultThickness);
-        setDeadLoad(computedWeight);
+      setSelectedType(typeId);
+      setIsThicknessBlurred(false);
+      const info = FLOOR_TYPES.find((t) => t.id === typeId);
+      if (info) {
+        if (info.isConstantThickness) {
+          setThickness(info.defaultThickness);
+          setLastValidThickness(info.defaultThickness);
+          setDeadLoad(info.deadLoad);
+        } else if (typeId === "monolithic_deck") {
+          setThickness(info.defaultThickness);
+          setLastValidThickness(info.defaultThickness);
+          const sComp = getMonolithicDeckStructuralComponents(info.defaultThickness);
+          setDeadLoad(Math.round((sComp.structuralDeadLoad + floorFinishLoad) * 1000) / 1000);
+        } else if (typeId === "knauf_dry_floor") {
+          const density = normalizeKnaufFillDensity(knaufFillDensity);
+          setKnaufFillDensity(density);
+          setThickness(info.defaultThickness);
+          setLastValidThickness(info.defaultThickness);
+          setDeadLoad(calculateDeadLoadForType(typeId, info.defaultThickness, undefined, { knaufFillDensity: density }));
+        } else if (typeId === "steel_grating") {
+          const profile = getSteelGratingProfile(gratingProfileId);
+          setGratingProfileId(profile.id);
+          setThickness(profile.height);
+          setLastValidThickness(profile.height);
+          setDeadLoad(calculateDeadLoadForType(typeId, profile.height, undefined, { gratingProfileId: profile.id }));
+        } else {
+          setThickness(info.defaultThickness);
+          setLastValidThickness(info.defaultThickness);
+          setDeadLoad(calculateDeadLoadForType(typeId, info.defaultThickness));
+        }
       }
-    }
-  };
+    };
 
-  // При изменении толщины перекрытия:
+    // При изменении толщины перекрытия:
   // Если толщина некорректна — НЕ вызывать calculateDeadLoadForType, getMonolithicDeckStructuralComponents!
   // Последнее корректное значение нагрузки остается до исправления ошибки.
   const handleThicknessChange = (newThickness) => {
-    setThickness(newThickness);
+      if (selectedType === "steel_grating") return;
+      setThickness(newThickness);
+      if (currentTypeInfo.isConstantThickness) return;
+      if (newThickness === "" || newThickness === null || newThickness === undefined) return;
 
-    if (currentTypeInfo.isConstantThickness) return;
+      const numVal = Number(newThickness);
+      const [minT, maxT] = currentTypeInfo.thicknessRange || [0, 9999];
+      if (isNaN(numVal) || numVal < minT || numVal > maxT) return;
 
-    if (newThickness === "" || newThickness === null || newThickness === undefined) {
-      return;
-    }
+      setLastValidThickness(numVal);
+      if (selectedType === "monolithic_deck") {
+        const sComp = getMonolithicDeckStructuralComponents(numVal);
+        setDeadLoad(Math.round((sComp.structuralDeadLoad + floorFinishLoad) * 1000) / 1000);
+      } else if (selectedType === "knauf_dry_floor") {
+        setDeadLoad(calculateDeadLoadForType(selectedType, numVal, undefined, { knaufFillDensity }));
+      } else {
+        setDeadLoad(calculateDeadLoadForType(selectedType, numVal));
+      }
+    };
 
-    const numVal = Number(newThickness);
-    const [minT, maxT] = currentTypeInfo.thicknessRange || [0, 9999];
+    const handleKnaufFillDensityChange = (value) => {
+      const density = normalizeKnaufFillDensity(value);
+      setKnaufFillDensity(density);
+      if (selectedType === "knauf_dry_floor") {
+        const thick = Number(lastValidThickness) || currentTypeInfo.defaultThickness || 70;
+        setDeadLoad(calculateDeadLoadForType("knauf_dry_floor", thick, undefined, { knaufFillDensity: density }));
+      }
+    };
 
-    if (isNaN(numVal) || numVal < minT || numVal > maxT) {
-      return;
-    }
+    const handleGratingProfileChange = (profileId) => {
+      const profile = getSteelGratingProfile(profileId);
+      setGratingProfileId(profile.id);
+      setThickness(profile.height);
+      setLastValidThickness(profile.height);
+      setIsThicknessBlurred(false);
+      setDeadLoad(calculateDeadLoadForType("steel_grating", profile.height, undefined, { gratingProfileId: profile.id }));
+    };
 
-    setLastValidThickness(numVal);
-    if (selectedType === "monolithic_deck") {
-      const sComp = getMonolithicDeckStructuralComponents(numVal);
-      setDeadLoad(Math.round((sComp.structuralDeadLoad + floorFinishLoad) * 1000) / 1000);
-    } else {
-      const computedWeight = calculateDeadLoadForType(selectedType, numVal);
-      setDeadLoad(computedWeight);
-    }
-  };
-
-  // Выбор пресета полезной нагрузки
+    // Выбор пресета полезной нагрузки
   const handleLiveLoadPreset = (preset) => {
     setLiveLoad(preset.value);
     if (preset.factor) {
@@ -511,16 +584,23 @@ export default function FloorStructureModal({
   const handleSave = () => {
     if (!isThicknessValid) return;
 
-    let finalThick = currentTypeInfo.isConstantThickness
+    let finalThick = selectedType === "steel_grating"
+      ? selectedGratingProfile.height
+      : currentTypeInfo.isConstantThickness
       ? currentTypeInfo.defaultThickness
       : Number(thickness);
+
+    const floorCalcOptions = {
+      knaufFillDensity: normalizeKnaufFillDensity(knaufFillDensity),
+      gratingProfileId: selectedGratingProfile.id,
+    };
 
     const calculatedStructuralDL =
       currentTypeInfo.id === "monolithic_deck"
         ? getMonolithicDeckStructuralComponents(finalThick).structuralDeadLoad
         : currentTypeInfo.isConstantThickness
         ? currentTypeInfo.deadLoad
-        : calculateDeadLoadForType(currentTypeInfo.id, finalThick);
+        : calculateDeadLoadForType(currentTypeInfo.id, finalThick, undefined, floorCalcOptions);
 
     const currentFloorFinishLoad =
       currentTypeInfo.id === "monolithic_deck"
@@ -532,7 +612,7 @@ export default function FloorStructureModal({
         ? Math.round((calculatedStructuralDL + currentFloorFinishLoad) * 1000) / 1000
         : currentTypeInfo.isConstantThickness
         ? currentTypeInfo.deadLoad
-        : calculateDeadLoadForType(currentTypeInfo.id, finalThick);
+        : calculateDeadLoadForType(currentTypeInfo.id, finalThick, undefined, floorCalcOptions);
 
     const safePartitionsLoad =
       partitionsLoad !== "" && partitionsLoad != null && !isNaN(Number(partitionsLoad))
@@ -566,7 +646,17 @@ export default function FloorStructureModal({
       liveLoad: safeLiveLoad,
       safetyFactor: safeSafetyFactor,
       responsibilityFactor: safeResponsibilityFactor,
-      standard: currentTypeInfo.standard,
+    ...(currentTypeInfo.id === "knauf_dry_floor"
+      ? { knaufFillDensity: floorCalcOptions.knaufFillDensity }
+      : {}),
+    ...(currentTypeInfo.id === "steel_grating"
+      ? {
+          gratingProfileId: selectedGratingProfile.id,
+          gratingProfileName: selectedGratingProfile.name,
+          gratingWeight: selectedGratingProfile.gratingWeight,
+        }
+      : {}),
+    standard: currentTypeInfo.standard,
       codeRef: "СП 20.13330.2016 (п. 8.2.2), ГОСТ 27751-2014",
       designLoadKg: unifiedDesignLoadKg,
       normLoadKg: calculatedDL + safePartitionsLoad + safeLiveLoad,
@@ -1322,10 +1412,30 @@ export default function FloorStructureModal({
                       marginBottom: "6px",
                     }}
                   >
-                    Толщина перекрытия (мм):
+                    {selectedType === "steel_grating" ? "Тип решётчатого настила:" : "Толщина перекрытия (мм):"}
                   </label>
 
-                  {currentTypeInfo.isConstantThickness ? (
+                  {selectedType === "steel_grating" ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <select
+              value={gratingProfileId}
+              onChange={(e) => handleGratingProfileChange(e.target.value)}
+              style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #94a3b8", backgroundColor: "#ffffff", color: "#0f172a", fontSize: "0.85em", fontWeight: 600 }}
+            >
+              {STEEL_GRATING_PROFILES.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.name} — h={profile.height} мм, {profile.gratingWeight} кг/м²
+                </option>
+              ))}
+            </select>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 16px", padding: "8px 10px", borderRadius: "6px", backgroundColor: "#ecfdf5", border: "1px solid #a7f3d0", fontSize: "0.78em", color: "#065f46" }}>
+              <span>Высота несущей полосы: <strong>{selectedGratingProfile.height} мм</strong></span>
+              <span>Масса решётки: <strong>{selectedGratingProfile.gratingWeight} кг/м²</strong></span>
+              <span>Второстепенные балки: <strong>22 кг/м²</strong></span>
+              <span>Итого deadLoad: <strong>{deadLoad} кг/м²</strong></span>
+            </div>
+          </div>
+        ) : currentTypeInfo.isConstantThickness ? (
                     <div
                       style={{
                         padding: "8px 12px",
@@ -1415,7 +1525,33 @@ export default function FloorStructureModal({
                   )}
                 </div>
 
-                {/* Поля точной корректировки */}
+                {selectedType === "knauf_dry_floor" && (
+        <div style={{ marginBottom: "12px", padding: "10px 12px", borderRadius: "8px", border: "1px solid #c4b5fd", backgroundColor: "#faf5ff" }}>
+          <div style={{ fontSize: "0.8em", fontWeight: 700, color: "#5b21b6", marginBottom: "7px" }}>
+            Расчётная плотность сухой засыпки
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "6px" }}>
+            {KNAUF_FILL_DENSITY_PRESETS.map((density) => {
+              const isActive = Number(knaufFillDensity) === density;
+              return (
+                <button
+                  key={density}
+                  type="button"
+                  onClick={() => handleKnaufFillDensityChange(density)}
+                  style={{ padding: "5px 12px", borderRadius: "5px", border: isActive ? "1.5px solid #7c3aed" : "1px solid #cbd5e1", backgroundColor: isActive ? "#ede9fe" : "#ffffff", color: isActive ? "#6d28d9" : "#334155", fontWeight: isActive ? 700 : 500, cursor: "pointer" }}
+                >
+                  {density} кг/м³{density === DEFAULT_KNAUF_FILL_DENSITY ? " (по умолчанию)" : ""}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: "0.75em", color: "#6b21a8" }}>
+            Элемент пола 20 мм: <strong>24 кг/м²</strong> · засыпка {Math.max(0, Number(lastValidThickness) - 20)} мм · профлист: <strong>18 кг/м²</strong> · итог: <strong>{deadLoad} кг/м²</strong>
+          </div>
+        </div>
+      )}
+
+      {/* Поля точной корректировки */}
                 <div
                   style={{
                     display: "grid",
@@ -1433,12 +1569,12 @@ export default function FloorStructureModal({
                         marginBottom: "4px",
                       }}
                     >
-                      Толщина плиты / настила (мм):
+                      {selectedType === "steel_grating" ? "Высота несущей полосы (мм):" : "Толщина плиты / настила (мм):"}
                     </label>
                     <input
                       type="number"
-                      disabled={currentTypeInfo.isConstantThickness}
-                      readOnly={currentTypeInfo.isConstantThickness}
+                      disabled={currentTypeInfo.isConstantThickness || selectedType === "steel_grating"}
+                      readOnly={currentTypeInfo.isConstantThickness || selectedType === "steel_grating"}
                       style={{
                         width: "100%",
                         padding: "6px 10px",
@@ -1506,7 +1642,7 @@ export default function FloorStructureModal({
                     </label>
                     <input
                       type="number"
-                      disabled={currentTypeInfo.isConstantThickness || selectedType === "monolithic_deck"}
+                      disabled={isDeadLoadComputed}
                       style={{
                         width: "100%",
                         padding: "6px 10px",
