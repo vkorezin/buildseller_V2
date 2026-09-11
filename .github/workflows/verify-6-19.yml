@@ -1,0 +1,26 @@
+name: Verify task 6.19 mezzanine floor UX
+on:
+  push:
+    branches: [chatgpt-6-19-mezz-ux]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          npm install --legacy-peer-deps --no-audit --no-fund
+          npm install --no-save --legacy-peer-deps --no-audit --no-fund ajv@8.17.1 ajv-keywords@5.1.0
+      - name: Build
+        run: npm run build
+      - name: Verify 6.19 invariants
+        run: |
+          grep -q 'STRUCTURAL_PRESETS' src/MezzanineFloorEditor.js
+          grep -q 'FINISH_PRESETS' src/MezzanineFloorEditor.js
+          grep -q 'Рифлёный лист — чечевица' src/MezzanineFloorEditor.js
+          grep -q 'Рифлёный лист — ромб' src/MezzanineFloorEditor.js
+          grep -q 'Просечно-вытяжной лист ПВЛ' src/MezzanineFloorEditor.js
+          grep -q 'Состав пола' src/MezzanineFloorEditor.js
+          grep -q 'LIVE_LOAD_PRESETS' src/MezzanineFloorEditor.js
