@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   FLOOR_TYPES,
   STEEL_GRATING_PROFILES,
@@ -16,6 +16,7 @@ import {
   calculateFloorFinishLoad,
   calculateMezzanineQBase,
   getLayersForTypeAndThickness,
+  validateFloorThickness,
 } from "./floorStructureConstants";
 
 const CUSTOM_TYPE = "custom_floor";
@@ -131,6 +132,11 @@ const smallBtn = {
   cursor: "pointer",
 };
 const miniLabel = { display: "block", fontSize: ".73em", color: "#64748b", marginBottom: 3 };
+const errorText = { color: "#dc2626", fontSize: ".72em", marginTop: 4, lineHeight: 1.25 };
+
+const isFiniteValue = (v) => v !== "" && v !== null && v !== undefined && Number.isFinite(Number(v));
+const nonNegativeValue = (v, fallback = 0) => isFiniteValue(v) && Number(v) >= 0 ? Number(v) : fallback;
+const positiveValue = (v) => isFiniteValue(v) && Number(v) > 0;
 
 function getPreset(group, presetId) {
   const list = group === "finish" ? FINISH_PRESETS : STRUCTURAL_PRESETS;
@@ -202,6 +208,57 @@ function normalizeCustomLayers(layers, legacyDeadLoad = 0) {
   }];
 }
 
+export function validateMezzanineFloorStructure(structure = {}) {
+  const errors = [];
+  const typeId = structure.type || DEFAULT_FLOOR_STRUCTURE.type;
+  const ti = FLOOR_TYPES.find((x) => x.id === typeId);
+
+  if (typeId === CUSTOM_TYPE) {
+    if (!positiveValue(structure.thickness) || Number(structure.thickness) > 500) {
+      errors.push("Общая толщина своего пола должна быть больше 0 и не более 500 мм.");
+    }
+    const layers = normalizeCustomLayers(structure.customLayers, structure.deadLoad);
+    const activeStructural = layers.filter((x) => x.enabled !== false && x.group === "structural");
+    if (activeStructural.length === 0 || activeStructural.reduce((sum, x) => sum + layerWeight(x), 0) <= 0) {
+      errors.push("Добавьте хотя бы один несущий слой с массой больше 0 кг/м².");
+    }
+    layers.forEach((layer) => {
+      if (layer.enabled === false) return;
+      const preset = getPreset(layer.group, layer.presetId);
+      if (preset?.mode === "density") {
+        if (!positiveValue(layer.thickness)) errors.push(`Слой «${layer.name || preset.name}»: толщина должна быть больше 0.`);
+        if (!positiveValue(layer.density)) errors.push(`Слой «${layer.name || preset.name}»: плотность должна быть больше 0.`);
+      } else if (preset?.mode === "manual") {
+        if (!isFiniteValue(layer.weight) || Number(layer.weight) < 0) errors.push(`Слой «${layer.name || preset.name}»: масса должна быть 0 или больше.`);
+      }
+    });
+  } else if (ti) {
+    if (typeId !== "steel_grating") {
+      const check = validateFloorThickness(ti, structure.thickness ?? ti.defaultThickness);
+      if (!check.isValid) errors.push(check.error);
+    }
+    if (SEPARATE_FINISH_TYPES.includes(typeId)) {
+      const fl = Array.isArray(structure.floorFinishLayers) ? structure.floorFinishLayers : [];
+      fl.forEach((layer) => {
+        if (!isFiniteValue(layer?.load) || Number(layer.load) < 0) {
+          errors.push(`Слой пола «${layer?.name || "без названия"}»: нагрузка должна быть 0 или больше.`);
+        }
+      });
+    }
+  }
+
+  if (!isFiniteValue(structure.liveLoad) || Number(structure.liveLoad) < 0) {
+    errors.push("Полезная нагрузка должна быть числом 0 или больше.");
+  }
+  if (!isFiniteValue(structure.partitionsLoad) || Number(structure.partitionsLoad) < 0) {
+    errors.push("Нагрузка от перегородок должна быть числом 0 или больше.");
+  }
+  if (!positiveValue(structure.safetyFactor)) errors.push("Коэффициент γf должен быть больше 0.");
+  if (!positiveValue(structure.responsibilityFactor)) errors.push("Коэффициент γn должен быть больше 0.");
+
+  return { isValid: errors.length === 0, errors };
+}
+
 export function createDefaultMezzanineFloorStructure() {
   return clone(DEFAULT_FLOOR_STRUCTURE);
 }
@@ -259,12 +316,34 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
   const finishLayers = Array.isArray(fs.floorFinishLayers) && fs.floorFinishLayers.length
     ? fs.floorFinishLayers
     : (typeInfo?.defaultFloorFinishLayers ? clone(typeInfo.defaultFloorFinishLayers) : []);
-  const finishLoad = isSeparateFinish ? calculateFloorFinishLoad(finishLayers) : 0;
+  const finishLoad = isSeparateFinish
+    ? finishLayers.reduce((sum, layer) => sum + nonNegativeValue(layer?.load, 0), 0)
+    : 0;
   const density = normalizeKnaufFillDensity(fs.knaufFillDensity ?? DEFAULT_KNAUF_FILL_DENSITY);
   const grating = getSteelGratingProfile(fs.gratingProfileId || DEFAULT_STEEL_GRATING_PROFILE_ID);
+
+  const initialThicknessDraft = type === "steel_grating"
+    ? grating.height
+    : (fs.thickness ?? typeInfo?.defaultThickness ?? 120);
+  const [thicknessDraft, setThicknessDraft] = useState(initialThicknessDraft);
+  useEffect(() => {
+    setThicknessDraft(type === "steel_grating" ? grating.height : (fs.thickness ?? typeInfo?.defaultThickness ?? 120));
+  }, [mezzanine?.id, type, fs.thickness, grating.height, typeInfo?.defaultThickness]);
+
+  const thicknessValidation = isCustom
+    ? {
+        isValid: positiveValue(thicknessDraft) && Number(thicknessDraft) <= 500,
+        error: "Общая толщина своего пола должна быть больше 0 и не более 500 мм.",
+      }
+    : typeInfo && type !== "steel_grating"
+      ? validateFloorThickness(typeInfo, thicknessDraft)
+      : { isValid: true, error: null };
+
   const thickness = type === "steel_grating"
     ? grating.height
-    : finite(fs.thickness, typeInfo?.defaultThickness || 120);
+    : thicknessValidation.isValid
+      ? Number(thicknessDraft)
+      : finite(fs.lastValidThickness, finite(fs.thickness, typeInfo?.defaultThickness || 120));
 
   const customCalc = useMemo(() => {
     const layers = normalizeCustomLayers(fs.customLayers, fs.deadLoad);
@@ -284,12 +363,13 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
     ? customCalc.total
     : calculateDeadLoadForType(type, thickness, isSeparateFinish ? finishLoad : undefined, { knaufFillDensity: density, gratingProfileId: grating.id });
   const floorFinishLoad = isCustom ? customCalc.finish : finishLoad;
-  const liveLoad = finite(fs.liveLoad, 0);
-  const partitionsLoad = finite(fs.partitionsLoad, 0);
+  const liveLoad = nonNegativeValue(fs.liveLoad, 0);
+  const partitionsLoad = nonNegativeValue(fs.partitionsLoad, 0);
   const safetyFactor = finite(fs.safetyFactor, 1.2);
   const responsibilityFactor = finite(fs.responsibilityFactor, 1.0);
   const qDesign = calculateMezzanineQBase({ deadLoad, partitionsLoad, liveLoad, safetyFactor, responsibilityFactor });
   const qNorm = deadLoad + partitionsLoad + liveLoad;
+  const validation = validateMezzanineFloorStructure({ ...fs, thickness: thicknessDraft });
 
   const dynamicLayers = !isCustom && typeInfo
     ? getLayersForTypeAndThickness(typeInfo, thickness, { knaufFillDensity: density, gratingProfileId: grating.id })
@@ -326,7 +406,7 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
             ? next.floorFinishLayers
             : clone(ti.defaultFloorFinishLayers || []))
         : [];
-      nextFinish = sep ? calculateFloorFinishLoad(fl) : 0;
+      nextFinish = sep ? fl.reduce((sum, layer) => sum + nonNegativeValue(layer?.load, 0), 0) : 0;
       nextStructural = sep
         ? calculateStructuralDeadLoadForType(nextType, nextThickness, { knaufFillDensity: nextDensity, gratingProfileId: nextGrating.id })
         : calculateDeadLoadForType(nextType, nextThickness, undefined, { knaufFillDensity: nextDensity, gratingProfileId: nextGrating.id });
@@ -347,24 +427,36 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
     next.deadLoad = Math.round(nextDead * 1000) / 1000;
     const q = calculateMezzanineQBase({
       deadLoad: next.deadLoad,
-      partitionsLoad: finite(next.partitionsLoad, partitionsLoad),
-      liveLoad: finite(next.liveLoad, liveLoad),
+      partitionsLoad: nonNegativeValue(next.partitionsLoad, partitionsLoad),
+      liveLoad: nonNegativeValue(next.liveLoad, liveLoad),
       safetyFactor: finite(next.safetyFactor, safetyFactor),
       responsibilityFactor: finite(next.responsibilityFactor, responsibilityFactor),
     });
     next.designLoadKg = q;
-    next.normLoadKg = next.deadLoad + finite(next.partitionsLoad, partitionsLoad) + finite(next.liveLoad, liveLoad);
+    next.normLoadKg = next.deadLoad + nonNegativeValue(next.partitionsLoad, partitionsLoad) + nonNegativeValue(next.liveLoad, liveLoad);
+    next.lastValidThickness = next.thickness;
 
     onPatch({
       floorStructure: next,
       thickness: next.thickness,
       loadDead: next.deadLoad,
-      loadLive: finite(next.liveLoad, liveLoad),
-      loadPartitions: finite(next.partitionsLoad, partitionsLoad),
+      loadLive: nonNegativeValue(next.liveLoad, liveLoad),
+      loadPartitions: nonNegativeValue(next.partitionsLoad, partitionsLoad),
       safetyFactor: finite(next.safetyFactor, safetyFactor),
       responsibilityFactor: finite(next.responsibilityFactor, responsibilityFactor),
       designLoadKg: q,
     });
+  };
+
+  const handleThicknessChange = (raw) => {
+    setThicknessDraft(raw);
+    if (type === "steel_grating") return;
+    const check = isCustom
+      ? { isValid: positiveValue(raw) && Number(raw) <= 500 }
+      : validateFloorThickness(typeInfo, raw);
+    if (check.isValid) {
+      commit({ thickness: Number(raw), lastValidThickness: Number(raw) });
+    }
   };
 
   const switchType = (newType) => {
@@ -452,11 +544,11 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
             <>
               <div>
                 <span style={miniLabel}>Толщина, мм</span>
-                <input style={field} type="number" min="0" value={layer.thickness ?? 0} onChange={(e) => updateLayer(layer.id, { thickness: e.target.value })} />
+                <input style={{ ...field, borderColor: positiveValue(layer.thickness) ? "#cbd5e1" : "#ef4444", background: positiveValue(layer.thickness) ? "#fff" : "#fef2f2" }} type="number" min="0" value={layer.thickness ?? 0} onChange={(e) => updateLayer(layer.id, { thickness: e.target.value })} />
               </div>
               <div>
                 <span style={miniLabel}>Плотность, кг/м³</span>
-                <input style={field} type="number" min="0" value={layer.density ?? 0} onChange={(e) => updateLayer(layer.id, { density: e.target.value })} />
+                <input style={{ ...field, borderColor: positiveValue(layer.density) ? "#cbd5e1" : "#ef4444", background: positiveValue(layer.density) ? "#fff" : "#fef2f2" }} type="number" min="0" value={layer.density ?? 0} onChange={(e) => updateLayer(layer.id, { density: e.target.value })} />
               </div>
             </>
           ) : preset.mode === "fixed" ? (
@@ -466,7 +558,7 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
           ) : (
             <div style={{ gridColumn: "1 / -1" }}>
               <span style={miniLabel}>Масса, кг/м²</span>
-              <input style={field} type="number" min="0" value={layer.weight ?? 0} onChange={(e) => updateLayer(layer.id, { weight: e.target.value })} />
+              <input style={{ ...field, borderColor: isFiniteValue(layer.weight) && Number(layer.weight) >= 0 ? "#cbd5e1" : "#ef4444", background: isFiniteValue(layer.weight) && Number(layer.weight) >= 0 ? "#fff" : "#fef2f2" }} type="number" min="0" value={layer.weight ?? 0} onChange={(e) => updateLayer(layer.id, { weight: e.target.value })} />
             </div>
           )}
         </div>
@@ -587,7 +679,15 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
             ) : !typeInfo.isConstantThickness ? (
               <div>
                 <span style={miniLabel}>Толщина конструкции, мм</span>
-                <input style={field} type="number" value={fs.thickness ?? typeInfo.defaultThickness} onChange={(e) => commit({ thickness: e.target.value })} />
+                <input
+                  style={{ ...field, borderColor: thicknessValidation.isValid ? "#cbd5e1" : "#ef4444", background: thicknessValidation.isValid ? "#fff" : "#fef2f2" }}
+                  type="number"
+                  min={typeInfo.thicknessRange?.[0]}
+                  max={typeInfo.thicknessRange?.[1]}
+                  value={thicknessDraft}
+                  onChange={(e) => handleThicknessChange(e.target.value)}
+                />
+                {!thicknessValidation.isValid && <div style={errorText}>⚠️ {thicknessValidation.error}</div>}
               </div>
             ) : (
               <div style={{ paddingTop: 16, fontSize: ".78em", color: "#475569" }}>Толщина: <strong>{typeInfo.defaultThickness} мм</strong></div>
@@ -623,7 +723,7 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
               {finishLayers.map((layer, idx) => (
                 <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 95px 30px", gap: 6, marginBottom: 6 }}>
                   <input style={field} value={layer.name || ""} onChange={(e) => { const a = clone(finishLayers); a[idx].name = e.target.value; commit({ floorFinishLayers: a }); }} />
-                  <input style={field} type="number" value={layer.load ?? 0} onChange={(e) => { const a = clone(finishLayers); a[idx].load = e.target.value; commit({ floorFinishLayers: a }); }} />
+                  <input style={{ ...field, borderColor: isFiniteValue(layer.load) && Number(layer.load) >= 0 ? "#cbd5e1" : "#ef4444", background: isFiniteValue(layer.load) && Number(layer.load) >= 0 ? "#fff" : "#fef2f2" }} type="number" min="0" value={layer.load ?? 0} onChange={(e) => { const a = clone(finishLayers); a[idx].load = e.target.value; commit({ floorFinishLayers: a }); }} />
                   <button type="button" style={smallBtn} onClick={() => commit({ floorFinishLayers: finishLayers.filter((_, i) => i !== idx) })}>×</button>
                 </div>
               ))}
@@ -642,7 +742,12 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
             </div>
             <div>
               <span style={miniLabel}>Общая толщина, мм</span>
-              <input style={field} type="number" min="0" value={fs.thickness ?? 120} onChange={(e) => commit({ thickness: e.target.value })} />
+              <input
+                style={{ ...field, borderColor: thicknessValidation.isValid ? "#cbd5e1" : "#ef4444", background: thicknessValidation.isValid ? "#fff" : "#fef2f2" }}
+                type="number" min="1" max="500" value={thicknessDraft}
+                onChange={(e) => handleThicknessChange(e.target.value)}
+              />
+              {!thicknessValidation.isValid && <div style={errorText}>⚠️ {thicknessValidation.error}</div>}
             </div>
           </div>
 
@@ -671,11 +776,11 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 8 }}>
           <div>
             <span style={miniLabel}>Полезная (нормативная), кг/м²</span>
-            <input style={field} type="number" min="0" value={fs.liveLoad ?? 0} onChange={(e) => commit({ liveLoad: e.target.value })} />
+            <input style={{ ...field, borderColor: isFiniteValue(fs.liveLoad) && Number(fs.liveLoad) >= 0 ? "#cbd5e1" : "#ef4444", background: isFiniteValue(fs.liveLoad) && Number(fs.liveLoad) >= 0 ? "#fff" : "#fef2f2" }} type="number" min="0" value={fs.liveLoad ?? 0} onChange={(e) => commit({ liveLoad: e.target.value })} />
           </div>
           <div>
             <span style={miniLabel}>Перегородки, кг/м²</span>
-            <input style={field} type="number" min="0" value={fs.partitionsLoad ?? 0} onChange={(e) => commit({ partitionsLoad: e.target.value })} />
+            <input style={{ ...field, borderColor: isFiniteValue(fs.partitionsLoad) && Number(fs.partitionsLoad) >= 0 ? "#cbd5e1" : "#ef4444", background: isFiniteValue(fs.partitionsLoad) && Number(fs.partitionsLoad) >= 0 ? "#fff" : "#fef2f2" }} type="number" min="0" value={fs.partitionsLoad ?? 0} onChange={(e) => commit({ partitionsLoad: e.target.value })} />
           </div>
           <div>
             <span style={miniLabel}>Коэффициент γf</span>
@@ -735,6 +840,15 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
           <div style={{ color: "#0369a1" }}>Расчётная</div><strong style={{ color: "#075985" }}>{qDesign.toFixed(1)} кг/м²</strong>
         </div>
       </div>
+
+      {!validation.isValid && (
+        <div style={{ marginTop: 10, padding: 9, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, color: "#b91c1c", fontSize: ".75em" }}>
+          <strong>⚠️ Исправьте параметры перед сохранением:</strong>
+          <ul style={{ margin: "5px 0 0 18px", padding: 0 }}>
+            {validation.errors.map((err, idx) => <li key={idx}>{err}</li>)}
+          </ul>
+        </div>
+      )}
 
       <div style={{ marginTop: 7, fontSize: ".69em", color: "#64748b" }}>
         q = (G × 1.1 + Pперег × 1.2 + Q × γf) × γn
