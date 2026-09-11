@@ -1,4 +1,8 @@
 import React, { useState, useMemo, memo } from "react";
+import MezzanineFloorEditor, {
+  createDefaultMezzanineFloorStructure,
+  normalizeMezzanineFloor,
+} from "./MezzanineFloorEditor";
 
 // --- СТИЛИ (Оптимизированы под full-width экраны ЕВРОАНГАР) ---
 const styles = {
@@ -275,7 +279,11 @@ export default function MezzanineEditor({
   initialMezzanines,
   onBack,
 }) {
-  const [mezzanines, setMezzanines] = useState(initialMezzanines || []);
+  const [mezzanines, setMezzanines] = useState(() =>
+    (initialMezzanines || []).map((m) =>
+      normalizeMezzanineFloor(m, blockData?.floorStructure || null)
+    )
+  );
   const [selectedId, setSelectedId] = useState(
     mezzanines.length > 0 ? mezzanines[0].id : null
   );
@@ -285,6 +293,7 @@ export default function MezzanineEditor({
 
   const handleAdd = () => {
     const newId = "mz_" + Date.now();
+    const floorStructure = createDefaultMezzanineFloorStructure();
     const newMz = {
       id: newId,
       name: `Антресоль ${mezzanines.length + 1}`,
@@ -293,11 +302,13 @@ export default function MezzanineEditor({
       length: "6.0",
       offsetX: "0.0",
       offsetY: "0.0",
-      thickness: "120",
-      loadLive: "200",
-      loadPartitions: "50",
-      loadDead: "150",
-      safetyFactor: "1.2",
+      thickness: floorStructure.thickness,
+      loadLive: floorStructure.liveLoad,
+      loadPartitions: floorStructure.partitionsLoad,
+      loadDead: floorStructure.deadLoad,
+      safetyFactor: floorStructure.safetyFactor,
+      responsibilityFactor: floorStructure.responsibilityFactor,
+      floorStructure,
       colsX: "2",
       colsY: "2",
     };
@@ -322,6 +333,12 @@ export default function MezzanineEditor({
     );
   };
 
+  const handlePatch = (patch) => {
+    setMezzanines((prev) =>
+      prev.map((m) => (m.id === selectedId ? { ...m, ...patch } : m))
+    );
+  };
+
   const selectedMezzanine = useMemo(() => {
     return mezzanines.find((m) => m.id === selectedId) || null;
   }, [mezzanines, selectedId]);
@@ -340,21 +357,13 @@ export default function MezzanineEditor({
       loadPartitions: parseFloat(m.loadPartitions) || 0,
       loadDead: parseFloat(m.loadDead) || 0,
       safetyFactor: parseFloat(m.safetyFactor) || 1.0,
+      responsibilityFactor: parseFloat(m.responsibilityFactor) || 1.0,
       // ИСПРАВЛЕНО: Защита от 1 пролета. Минимум 2 ряда колонн для стабильности других чертежей калькулятора!
       colsX: Math.max(2, parseInt(m.colsX, 10) || 2),
       colsY: Math.max(2, parseInt(m.colsY, 10) || 2),
     }));
     onBack(formattedMezzanines);
   };
-
-  const totalDesignLoad = useMemo(() => {
-    if (!selectedMezzanine) return 0;
-    const p = parseFloat(selectedMezzanine.loadLive) || 0;
-    const g = parseFloat(selectedMezzanine.loadPartitions) || 0;
-    const d = parseFloat(selectedMezzanine.loadDead) || 0;
-    const f = parseFloat(selectedMezzanine.safetyFactor) || 1.0;
-    return Math.round((p + g + d) * f);
-  }, [selectedMezzanine]);
 
   // Валидация выхода антресоли за контуры основного здания
   const isOutOfBounds = useMemo(() => {
@@ -434,12 +443,12 @@ export default function MezzanineEditor({
                   />
                 </div>
                 <div>
-                  <label style={styles.label}>Толщина плиты (мм):</label>
+                  <label style={styles.label}>Название антресоли:</label>
                   <input
-                    type="number"
+                    type="text"
                     style={styles.input}
-                    value={selectedMezzanine.thickness}
-                    onChange={(e) => handleChange("thickness", e.target.value)}
+                    value={selectedMezzanine.name}
+                    onChange={(e) => handleChange("name", e.target.value)}
                   />
                 </div>
               </div>
@@ -516,64 +525,12 @@ export default function MezzanineEditor({
               </div>
             </div>
 
-            {/* НАГРУЗКИ */}
+            {/* ПЕРЕКРЫТИЕ И НАГРУЗКИ */}
             <div style={styles.section}>
-              <h3 style={styles.h3}>3. Нагрузки (кг/м²)</h3>
-              <div style={styles.row}>
-                <div>
-                  <label style={styles.label}>Полезная (нормативная):</label>
-                  <input
-                    type="number"
-                    style={styles.input}
-                    value={selectedMezzanine.loadLive}
-                    onChange={(e) => handleChange("loadLive", e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label style={styles.label}>От перегородок:</label>
-                  <input
-                    type="number"
-                    style={styles.input}
-                    value={selectedMezzanine.loadPartitions}
-                    onChange={(e) => handleChange("loadPartitions", e.target.value)}
-                  />
-                </div>
-              </div>
-              <div style={styles.row}>
-                <div>
-                  <label style={styles.label}>Постоянная (пол, состав):</label>
-                  <input
-                    type="number"
-                    style={styles.input}
-                    value={selectedMezzanine.loadDead}
-                    onChange={(e) => handleChange("loadDead", e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label style={styles.label}>Коэф. надежности (γf):</label>
-                  <input
-                    type="number"
-                    step="0.05"
-                    style={styles.input}
-                    value={selectedMezzanine.safetyFactor}
-                    onChange={(e) => handleChange("safetyFactor", e.target.value)}
-                  />
-                </div>
-              </div>
-              <div
-                style={{
-                  fontSize: "0.85em",
-                  color: "#005699",
-                  marginTop: "8px",
-                  fontWeight: "bold",
-                  backgroundColor: "#e6f7ff",
-                  padding: "8px",
-                  borderRadius: "4px",
-                  border: "1px solid #b0e0ff"
-                }}
-              >
-                Полная расчетная нагрузка = {totalDesignLoad} кг/м²
-              </div>
+              <MezzanineFloorEditor
+                mezzanine={selectedMezzanine}
+                onPatch={handlePatch}
+              />
             </div>
           </div>
         ) : (
