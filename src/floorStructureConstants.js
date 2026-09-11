@@ -3,6 +3,33 @@
  * в соответствии с СП 20.13330.2016 «Нагрузки и воздействия» и ГОСТ 27751-2014.
  */
 
+export const STEEL_GRATING_PROFILES = [
+  { id: "SP_34x38_25x3", name: "SP 34×38 / 25×3", height: 25, barThickness: 3, gratingWeight: 23 },
+  { id: "SP_34x38_30x2", name: "SP 34×38 / 30×2", height: 30, barThickness: 2, gratingWeight: 20 },
+  { id: "SP_34x38_30x3", name: "SP 34×38 / 30×3", height: 30, barThickness: 3, gratingWeight: 27 },
+  { id: "SP_34x38_35x3", name: "SP 34×38 / 35×3", height: 35, barThickness: 3, gratingWeight: 31 },
+  { id: "SP_34x38_40x3", name: "SP 34×38 / 40×3", height: 40, barThickness: 3, gratingWeight: 35 },
+  { id: "SP_34x38_40x4", name: "SP 34×38 / 40×4", height: 40, barThickness: 4, gratingWeight: 47 },
+];
+
+export const DEFAULT_STEEL_GRATING_PROFILE_ID = "SP_34x38_35x3";
+export const KNAUF_FILL_DENSITY_PRESETS = [400, 600, 800];
+export const DEFAULT_KNAUF_FILL_DENSITY = 600;
+
+export function normalizeKnaufFillDensity(value) {
+  const density = Number(value);
+  return KNAUF_FILL_DENSITY_PRESETS.includes(density)
+    ? density
+    : DEFAULT_KNAUF_FILL_DENSITY;
+}
+
+export function getSteelGratingProfile(profileId) {
+  return (
+    STEEL_GRATING_PROFILES.find((profile) => profile.id === profileId) ||
+    STEEL_GRATING_PROFILES.find((profile) => profile.id === DEFAULT_STEEL_GRATING_PROFILE_ID)
+  );
+}
+
 export const FLOOR_TYPES = [
   {
     id: "monolithic_deck",
@@ -108,28 +135,28 @@ export const FLOOR_TYPES = [
     ],
   },
   {
-    id: "steel_grating",
-    name: "Стальной рифленый лист (чечевица 4–8 мм) или решетчатый настил SP/PR",
-    shortName: "Стальной настил",
-    category: "steel",
-    standard: "ГОСТ 8568-77, ГОСТ 23120-2016",
-    defaultThickness: 35,
-    thicknessRange: [25, 500],
-    thicknessPresets: [25, 30, 35, 40, 50],
-    isConstantThickness: false,
-    deadLoad: 57, // кг/м² (35 + 22)
-    beamSpacing: "1.0 – 1.8 м",
-    fireRating: "R 15 (требуется конструктивная огнезащита)",
-    features:
-      "Промышленное перекрытие для технологических площадок, насосных, котельных, цеховых антресолей и галерей обслуживания. Минимальный собственный вес.",
-    color: "#059669",
-    layers: [
-      { name: "Стальной рифленый лист t=6мм или сварная решетка SP", thickness: 35, weight: 35 },
-      { name: "Второстепенные прогоны из швеллера / профильной трубы", thickness: 120, weight: 22 },
-    ],
-  },
-  {
-    id: "timber_deck",
+  id: "steel_grating",
+  name: "Сварной решетчатый настил SP 34×38 по стальным балкам",
+  shortName: "Решётчатый настил SP",
+  category: "steel",
+  standard: "ГОСТ 23120-2016",
+  defaultThickness: 35,
+  thicknessRange: [25, 40],
+  thicknessPresets: [25, 30, 35, 40],
+  isConstantThickness: false,
+  deadLoad: 53, // кг/м²: SP 34×38 / 35×3 (31) + второстепенные балки (22)
+  beamSpacing: "1.0 – 1.8 м",
+  fireRating: "R 15 (требуется конструктивная огнезащита)",
+  features:
+    "Промышленное перекрытие на сварном решетчатом настиле SP. Масса настила определяется выбранным стандартным профилем, а не условной толщиной листа.",
+  color: "#059669",
+  layers: [
+    { name: "Решётчатый настил SP 34×38 / 35×3", thickness: 35, weight: 31 },
+    { name: "Второстепенные прогоны из швеллера / профильной трубы", thickness: 120, weight: 22 },
+  ],
+},
+{
+  id: "timber_deck",
     name: "Деревянный настил по стальным балкам (двойной настил ЦСП / OSB-3)",
     shortName: "Деревянный настил",
     category: "timber",
@@ -154,27 +181,27 @@ export const FLOOR_TYPES = [
     ],
   },
   {
-    id: "knauf_dry_floor",
-    name: "Сборная сухая стяжка по профлисту (KNAUF Суперпол / ГВЛВ)",
-    shortName: "Сухая стяжка KNAUF",
-    category: "dry_screed",
-    standard: "СП 29.13330.2011, Серия 1.031.9-2.07",
-    defaultThickness: 70,
-    thicknessRange: [50, 500],
-    thicknessPresets: [50, 60, 70, 80, 100],
-    isConstantThickness: false,
-    deadLoad: 95, // кг/м²
-    beamSpacing: "1.5 – 2.5 м",
-    fireRating: "REI 45",
-    features:
-      "Монтаж без бетонных работ: несущий профнастил, жесткие звукоизоляционные маты ФЛОР БАТТС, керамзитовая подсыпка и влагостойкие гипсоволокнистые элементы пола KNAUF.",
-    color: "#7c3aed",
-    layers: [
-      { name: "Элементы пола КНАУФ Суперпол (ГВЛВ 20 мм)", thickness: 20, weight: 25 },
-      { name: "Сухая керамзитовая засыпка Компэвит (50 мм)", thickness: 50, weight: 52 },
-      { name: "Несущий профилированный лист Н57/Н75", thickness: 75, weight: 18 },
-    ],
-  },
+  id: "knauf_dry_floor",
+  name: "Сборная сухая стяжка по профлисту (KNAUF Суперпол / ГВЛВ)",
+  shortName: "Сухая стяжка KNAUF",
+  category: "dry_screed",
+  standard: "СП 29.13330.2011, Серия 1.031.9-2.07",
+  defaultThickness: 70,
+  thicknessRange: [50, 500],
+  thicknessPresets: [50, 60, 70, 80, 100],
+  isConstantThickness: false,
+  deadLoad: 72, // кг/м² при t=70 мм и расчетной плотности засыпки 600 кг/м³
+  beamSpacing: "1.5 – 2.5 м",
+  fireRating: "REI 45",
+  features:
+    "Монтаж без бетонных работ: элемент пола KNAUF 20 мм, сухая засыпка с задаваемой расчетной плотностью и несущий профнастил.",
+  color: "#7c3aed",
+  layers: [
+    { name: "Элементы пола КНАУФ Суперпол (ГВЛВ 20 мм)", thickness: 20, weight: 24 },
+    { name: "Сухая засыпка (50 мм, 600 кг/м³)", thickness: 50, weight: 30 },
+    { name: "Несущий профилированный лист Н57/Н75", thickness: 75, weight: 18 },
+  ],
+},
 ];
 
 export const LIVE_LOAD_PRESETS = [
@@ -312,6 +339,10 @@ export const DEFAULT_FLOOR_STRUCTURE = {
   columnSpansMode: "auto", // "auto" | "manual"
   columnSpans: null, // массив пролетов стоек, например [6, 6, 6]
   deckProfile: "Н75-750-0.8",
+  knaufFillDensity: DEFAULT_KNAUF_FILL_DENSITY,
+  gratingProfileId: DEFAULT_STEEL_GRATING_PROFILE_ID,
+  gratingProfileName: getSteelGratingProfile(DEFAULT_STEEL_GRATING_PROFILE_ID).name,
+  gratingWeight: getSteelGratingProfile(DEFAULT_STEEL_GRATING_PROFILE_ID).gratingWeight,
   storyElevations: null, // массив отметок перекрытий [3.6, 7.2], null = равномерный шаг
   mezzanineWidth: null, // null = во всю ширину здания, либо число в метрах (например, 6, 9, 12)
   mezzanineLength: null, // null = на всю длину здания, либо число в метрах (например, 12, 18, 24)
@@ -435,12 +466,12 @@ export function getMonolithicDeckStructuralComponents(t) {
  * Расчет собственного веса несущей конструкции перекрытия structuralDeadLoad (кг/м²).
  * Без состава пола и без перегородок.
  */
-export function calculateStructuralDeadLoadForType(typeId, t) {
+export function calculateStructuralDeadLoadForType(typeId, t, options = {}) {
   const thick = Number(t) || 120;
   if (typeId === "monolithic_deck") {
     return getMonolithicDeckStructuralComponents(thick).structuralDeadLoad;
   }
-  return calculateDeadLoadForType(typeId, thick, 0);
+  return calculateDeadLoadForType(typeId, thick, 0, options);
 }
 
 /**
@@ -458,7 +489,7 @@ export function calculateFloorFinishLoad(layers) {
  * Расчет собственного веса перекрытия (кг/м²) в зависимости от типа и толщины.
  * Для Н75: deadLoad = structuralDeadLoad + floorFinishLoad.
  */
-export function calculateDeadLoadForType(typeId, t, floorFinishLoad) {
+export function calculateDeadLoadForType(typeId, t, floorFinishLoad, options = {}) {
   const thick = Number(t) || 120;
   switch (typeId) {
     case "precast_hollow_core":
@@ -478,15 +509,19 @@ export function calculateDeadLoadForType(typeId, t, floorFinishLoad) {
     case "precast_block_composite":
       // Сборно-монолитное (при t=200мм -> 220 кг/м²)
       return Math.max(120, Math.round(thick * 1.1));
-    case "steel_grating":
-      // Стальной настил: лист или решетка толщиной thick мм + балки/прогоны 22 кг/м²
-      return Math.max(30, Math.round(22 + thick * 1.0));
+    case "steel_grating": {
+      const profile = getSteelGratingProfile(options?.gratingProfileId);
+      return Math.round((profile.gratingWeight + 22) * 1000) / 1000;
+    }
     case "timber_deck":
       // Деревянный настил
       return Math.max(25, Math.round(16 + thick * 0.4));
-    case "knauf_dry_floor":
-      // Сухая стяжка KNAUF: ГВЛВ 20 мм (25 кг/м²) + керамзитовая засыпка
-      return Math.max(50, Math.round(43 + Math.max(0, thick - 20) * 1.04));
+    case "knauf_dry_floor": {
+      const density = normalizeKnaufFillDensity(options?.knaufFillDensity);
+      const backfillHeightMm = Math.max(0, thick - 20);
+      const backfillLoad = (backfillHeightMm / 1000) * density;
+      return Math.round((24 + 18 + backfillLoad) * 1000) / 1000;
+    }
     default:
       return 245.745;
   }
@@ -498,7 +533,7 @@ export function calculateDeadLoadForType(typeId, t, floorFinishLoad) {
  * В слои входят исключительно элементы конструкции перекрытия (deadLoad).
  * Нагрузка от перегородок вынесена в отдельную позицию.
  */
-export function getLayersForTypeAndThickness(typeInfo, t) {
+export function getLayersForTypeAndThickness(typeInfo, t, options = {}) {
   if (!typeInfo) return [];
   const thick = Number(t) || typeInfo.defaultThickness || 120;
 
@@ -559,23 +594,23 @@ export function getLayersForTypeAndThickness(typeInfo, t) {
   }
 
   if (typeInfo.id === "steel_grating") {
-    const sheetWeight = Math.round(thick * 1.0);
-    return [
-      {
-        name: `Стальной рифленый лист / решетка SP (толщина ${thick} мм)`,
-        thickness: thick,
-        weight: sheetWeight,
-        highlight: true,
-      },
-      {
-        name: "Второстепенные прогоны из швеллера / профильной трубы",
-        thickness: 120,
-        weight: 22,
-      },
-    ];
-  }
+      const profile = getSteelGratingProfile(options?.gratingProfileId);
+      return [
+        {
+          name: `Решётчатый настил ${profile.name}`,
+          thickness: profile.height,
+          weight: profile.gratingWeight,
+          highlight: true,
+        },
+        {
+          name: "Второстепенные прогоны из швеллера / профильной трубы",
+          thickness: 120,
+          weight: 22,
+        },
+      ];
+    }
 
-  if (typeInfo.id === "precast_block_composite") {
+    if (typeInfo.id === "precast_block_composite") {
     const compositeWeight = calculateDeadLoadForType("precast_block_composite", thick);
     return [
       {
@@ -600,29 +635,30 @@ export function getLayersForTypeAndThickness(typeInfo, t) {
   }
 
   if (typeInfo.id === "knauf_dry_floor") {
-    const backfillH = Math.max(20, thick - 20);
-    const backfillWeight = Math.round(backfillH * 1.04);
-    return [
-      {
-        name: "Сборные гипсоволокнистые элементы пола KNAUF КНАУФ-суперпол (20 мм)",
-        thickness: 20,
-        weight: 25,
-      },
-      {
-        name: `Керамзитовая засыпка мелкой фракции (${backfillH} мм)`,
-        thickness: backfillH,
-        weight: backfillWeight,
-        highlight: true,
-      },
-      {
-        name: "Несущий профлист Н57/Н75",
-        thickness: 75,
-        weight: 18,
-      },
-    ];
-  }
+      const density = normalizeKnaufFillDensity(options?.knaufFillDensity);
+      const backfillH = Math.max(0, thick - 20);
+      const backfillWeight = Math.round(((backfillH / 1000) * density) * 1000) / 1000;
+      return [
+        {
+          name: "Сборные гипсоволокнистые элементы пола KNAUF КНАУФ-суперпол (20 мм)",
+          thickness: 20,
+          weight: 24,
+        },
+        {
+          name: `Сухая засыпка (${backfillH} мм, ${density} кг/м³)`,
+          thickness: backfillH,
+          weight: backfillWeight,
+          highlight: true,
+        },
+        {
+          name: "Несущий профлист Н57/Н75",
+          thickness: 75,
+          weight: 18,
+        },
+      ];
+    }
 
-  return typeInfo.layers || [];
+    return typeInfo.layers || [];
 }
 
 /**
