@@ -74,14 +74,18 @@ export const FLOOR_TYPES = [
     thicknessPresets: [220],
     isConstantThickness: true,
     constantThicknessNote: "Постоянная стандартная заводская толщина 220 мм (ГОСТ 9561-2016)",
-    deadLoad: 330, // кг/м²
+    structuralDeadLoad: 280, // кг/м²: плита 230 + замоноличивание 15 + главные стальные балки 35
+    defaultFloorFinishLayers: [
+      { name: "Выравнивающая армированная стяжка М150 (30 мм)", load: 50 },
+    ],
+    floorFinishLoad: 50,
+    deadLoad: 330, // кг/м² = structuralDeadLoad 280 + floorFinishLoad 50
     beamSpacing: "4.5 – 7.2 м",
     fireRating: "REI 60 – REI 120",
     features:
       "Заводские предварительно напряженные плиты ПБ-22 или ПК. Укладываются по верхним полкам стальных ригелей. Не требуют мокрых монолитных работ на стройплощадке.",
     color: "#0284c7",
     layers: [
-      { name: "Выравнивающая армированная стяжка М150 (30 мм)", thickness: 30, weight: 50 },
       { name: "Сборные преднапряженные многопустотные плиты ПБ-220", thickness: 220, weight: 230 },
       { name: "Замоноличивание швов бетоном B20", thickness: 0, weight: 15 },
       { name: "Главные стальные балки перекрытия", thickness: 350, weight: 35 },
@@ -97,14 +101,18 @@ export const FLOOR_TYPES = [
     thicknessRange: [140, 500],
     thicknessPresets: [140, 160, 180, 200, 220, 250],
     isConstantThickness: false,
-    deadLoad: 525, // кг/м² (при t=180мм: 180*2.5 + 25 топпинг + 50 ригели = 525)
+    structuralDeadLoad: 500, // кг/м² при t=180 мм: плита 450 + главные стальные ригели 50
+    defaultFloorFinishLayers: [
+      { name: "Топпинг пола / обеспыливающая пропитка (10 мм)", load: 25 },
+    ],
+    floorFinishLoad: 25,
+    deadLoad: 525, // кг/м² = structuralDeadLoad 500 + floorFinishLoad 25
     beamSpacing: "4.0 – 6.0 м",
     fireRating: "REI 90 – REI 150",
     features:
       "Сплошная плита тяжелого бетона B25 с двухслойным армированием. Обладает максимальной несущей способностью и вибростойкостью под тяжелые станки и погрузчики.",
     color: "#475569",
     layers: [
-      { name: "Топпинг пола / обеспыливающая пропитка (10 мм)", thickness: 10, weight: 25 },
       { name: "Монолитная железобетонная плита B25 (двойная арматура)", thickness: 180, weight: 450 },
       { name: "Главные стальные ригели каркаса", thickness: 400, weight: 50 },
     ],
@@ -471,6 +479,12 @@ export function calculateStructuralDeadLoadForType(typeId, t, options = {}) {
   if (typeId === "monolithic_deck") {
     return getMonolithicDeckStructuralComponents(thick).structuralDeadLoad;
   }
+  if (typeId === "precast_hollow_core") {
+    return 280;
+  }
+  if (typeId === "monolithic_slab") {
+    return Math.max(225, Math.round(thick * 2.5 + 50));
+  }
   return calculateDeadLoadForType(typeId, thick, 0, options);
 }
 
@@ -492,9 +506,14 @@ export function calculateFloorFinishLoad(layers) {
 export function calculateDeadLoadForType(typeId, t, floorFinishLoad, options = {}) {
   const thick = Number(t) || 120;
   switch (typeId) {
-    case "precast_hollow_core":
-      // Сборные многопустотные плиты ПК/ПБ - постоянная заводская толщина 220 мм и масса 330 кг/м²
-      return 330;
+    case "precast_hollow_core": {
+      const structural = 280;
+      const finish =
+        floorFinishLoad !== undefined && floorFinishLoad !== null && !isNaN(Number(floorFinishLoad))
+          ? Number(floorFinishLoad)
+          : 50;
+      return Math.round((structural + finish) * 1000) / 1000;
+    }
     case "monolithic_deck": {
       const structural = getMonolithicDeckStructuralComponents(thick).structuralDeadLoad;
       const finish =
@@ -503,9 +522,14 @@ export function calculateDeadLoadForType(typeId, t, floorFinishLoad, options = {
           : 15;
       return Math.round((structural + finish) * 1000) / 1000;
     }
-    case "monolithic_slab":
-      // Монолитная плита тяжелого бетона B25 (при t=180мм -> 525 кг/м²: 180*2.5 + 25 топпинг + 50 ригели)
-      return Math.max(250, Math.round(thick * 2.5 + 75));
+    case "monolithic_slab": {
+      const structural = Math.max(225, Math.round(thick * 2.5 + 50));
+      const finish =
+        floorFinishLoad !== undefined && floorFinishLoad !== null && !isNaN(Number(floorFinishLoad))
+          ? Number(floorFinishLoad)
+          : 25;
+      return Math.round((structural + finish) * 1000) / 1000;
+    }
     case "precast_block_composite":
       // Сборно-монолитное (при t=200мм -> 220 кг/м²)
       return Math.max(120, Math.round(thick * 1.1));
@@ -571,14 +595,30 @@ export function getLayersForTypeAndThickness(typeInfo, t, options = {}) {
     ];
   }
 
+  if (typeInfo.id === "precast_hollow_core") {
+    return [
+      {
+        name: "Сборные преднапряженные многопустотные плиты ПБ-220",
+        thickness: 220,
+        weight: 230,
+        highlight: true,
+      },
+      {
+        name: "Замоноличивание швов бетоном B20",
+        thickness: 0,
+        weight: 15,
+      },
+      {
+        name: "Главные стальные балки перекрытия",
+        thickness: 350,
+        weight: 35,
+      },
+    ];
+  }
+
   if (typeInfo.id === "monolithic_slab") {
     const slabWeight = Math.round(thick * 2.5);
     return [
-      {
-        name: "Топпинг пола / обеспыливающая пропитка (10 мм)",
-        thickness: 10,
-        weight: 25,
-      },
       {
         name: `Монолитная железобетонная плита B25 (толщина ${thick} мм)`,
         thickness: thick,
