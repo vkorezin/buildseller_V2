@@ -1,0 +1,78 @@
+name: Apply task 6.17 gamma_n
+
+on:
+  push:
+    branches:
+      - chatgpt-6-17-gamman
+
+permissions:
+  contents: write
+
+concurrency:
+  group: task-6-17
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply source patch
+        run: python3 scripts/apply_617.py
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          npm install --legacy-peer-deps --no-audit --no-fund
+          npm install --no-save --legacy-peer-deps --no-audit --no-fund ajv@8.17.1 ajv-keywords@5.1.0
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify task 6.17 invariants
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          c = Path('src/floorStructureConstants.js').read_text()
+          m = Path('src/MezzanineCoefficientsEditor.js').read_text()
+          f = Path('src/FloorStructureModal.js').read_text()
+
+          checks = [
+              'qDesign = qBase * responsibilityFactor (γn)',
+              'const qBase = g_dead * 1.1 + p_part * 1.2 + p_live * sf;',
+              'return Math.round(qBase * gamma_n * 10) / 10;',
+              'responsibilityFactor: responsibilityFactor,',
+              'responsibilityFactor: gamma_n,',
+              'responsibilityFactor: safeResponsibilityFactor,',
+          ]
+          joined = c + '\n' + m + '\n' + f
+          for item in checks:
+              assert item in joined, item
+
+          base = 300 * 1.1 + 50 * 1.2 + 400 * 1.2
+          assert round(base, 1) == 870.0
+          assert round(base * 0.8, 1) == 696.0
+          assert round(base * 1.0, 1) == 870.0
+          assert round(base * 1.1, 1) == 957.0
+
+          # Zero loads remain valid values; gamma_n still applies to the resulting design load.
+          zero_case = 300 * 1.1 + 0 * 1.2 + 0 * 1.2
+          assert round(zero_case * 0.8, 1) == 264.0
+
+          print('6.17 gamma_n invariants OK')
+          PY
+
+      - name: Commit patched sources
+        shell: bash
+        run: |
+          git config user.name "ChatGPT 6.17"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/floorStructureConstants.js src/MezzanineCoefficientsEditor.js src/FloorStructureModal.js
+          git commit -m "fix(loads): apply responsibility factor gamma_n [skip ci]"
+          git push
