@@ -2,6 +2,7 @@ import React, { useState, useMemo, memo } from "react";
 import MezzanineFloorEditor, {
   createDefaultMezzanineFloorStructure,
   normalizeMezzanineFloor,
+  validateMezzanineFloorStructure,
 } from "./MezzanineFloorEditor";
 
 // --- СТИЛИ (Оптимизированы под full-width экраны ЕВРОАНГАР) ---
@@ -288,8 +289,9 @@ export default function MezzanineEditor({
     mezzanines.length > 0 ? mezzanines[0].id : null
   );
 
-  const buildingW = blockData.generalData.blockWidth || 0;
-  const buildingL = blockData.generalData.blockLength || 0;
+  const buildingW = Number(blockData.generalData.blockWidth) || 0;
+  const buildingL = Number(blockData.generalData.blockLength) || 0;
+  const buildingH = Number(blockData.generalData.blockHeight) || 0;
 
   const handleAdd = () => {
     const newId = "mz_" + Date.now();
@@ -343,8 +345,60 @@ export default function MezzanineEditor({
     return mezzanines.find((m) => m.id === selectedId) || null;
   }, [mezzanines, selectedId]);
 
+  const validateMezzanine = (m) => {
+    const errors = [];
+    const num = (v) => v !== "" && v !== null && v !== undefined && Number.isFinite(Number(v));
+    const elevation = Number(m.elevation);
+    const width = Number(m.width);
+    const length = Number(m.length);
+    const x = Number(m.offsetX);
+    const y = Number(m.offsetY);
+    const colsX = Number(m.colsX);
+    const colsY = Number(m.colsY);
+
+    if (!num(m.elevation) || elevation <= 0) errors.push("Отметка пола должна быть больше 0 м.");
+    if (buildingH > 0 && num(m.elevation) && elevation >= buildingH) errors.push(`Отметка пола должна быть ниже высоты здания +${buildingH} м.`);
+    if (!num(m.width) || width <= 0) errors.push("Ширина антресоли должна быть больше 0 м.");
+    if (!num(m.length) || length <= 0) errors.push("Длина антресоли должна быть больше 0 м.");
+    if (!num(m.offsetX) || x < 0) errors.push("Смещение X должно быть 0 или больше.");
+    if (!num(m.offsetY) || y < 0) errors.push("Смещение Y должно быть 0 или больше.");
+    if (num(m.width) && num(m.offsetX) && x + width > buildingW + 1e-9) errors.push(`Антресоль выходит за ширину здания ${buildingW} м.`);
+    if (num(m.length) && num(m.offsetY) && y + length > buildingL + 1e-9) errors.push(`Антресоль выходит за длину здания ${buildingL} м.`);
+    if (!Number.isInteger(colsX) || colsX < 2) errors.push("Количество рядов колонн по X — целое число не меньше 2.");
+    if (!Number.isInteger(colsY) || colsY < 2) errors.push("Количество рядов колонн по Y — целое число не меньше 2.");
+
+    const floorCheck = validateMezzanineFloorStructure(m.floorStructure || {
+      type: "custom_floor",
+      thickness: m.thickness,
+      deadLoad: m.loadDead,
+      liveLoad: m.loadLive,
+      partitionsLoad: m.loadPartitions,
+      safetyFactor: m.safetyFactor,
+      responsibilityFactor: m.responsibilityFactor,
+      customLayers: [],
+    });
+    errors.push(...floorCheck.errors);
+    return { isValid: errors.length === 0, errors };
+  };
+
+  const validationById = useMemo(() => {
+    const map = new Map();
+    mezzanines.forEach((m) => map.set(m.id, validateMezzanine(m)));
+    return map;
+  }, [mezzanines, buildingW, buildingL, buildingH]);
+  const selectedValidation = selectedMezzanine
+    ? (validationById.get(selectedMezzanine.id) || { isValid: true, errors: [] })
+    : { isValid: true, errors: [] };
+
   // Экспорт наверх: Парсим строки в float и жестко гарантируем минимум 2 ряда опор
   const handleBackWithData = () => {
+    const firstInvalid = mezzanines.find((m) => !(validationById.get(m.id)?.isValid ?? true));
+    if (firstInvalid) {
+      setSelectedId(firstInvalid.id);
+      const errs = validationById.get(firstInvalid.id)?.errors || [];
+      alert(`Исправьте ошибки в «${firstInvalid.name || "антресоли"}»:\n\n${errs.join("\n")}`);
+      return;
+    }
     const formattedMezzanines = mezzanines.map(m => ({
       ...m,
       elevation: parseFloat(m.elevation) || 0,
@@ -365,15 +419,8 @@ export default function MezzanineEditor({
     onBack(formattedMezzanines);
   };
 
-  // Валидация выхода антресоли за контуры основного здания
-  const isOutOfBounds = useMemo(() => {
-    if (!selectedMezzanine) return false;
-    const w = parseFloat(selectedMezzanine.width) || 0;
-    const l = parseFloat(selectedMezzanine.length) || 0;
-    const x = parseFloat(selectedMezzanine.offsetX) || 0;
-    const y = parseFloat(selectedMezzanine.offsetY) || 0;
-    return (x + w > buildingW || y + l > buildingL || x < 0 || y < 0);
-  }, [selectedMezzanine, buildingW, buildingL]);
+  // Проверки геометрии, сетки колонн и перекрытия выполняются перед сохранением.
+
 
   return (
     <div style={styles.container}>
@@ -413,18 +460,20 @@ export default function MezzanineEditor({
         {/* 2. ФОРМА РЕДАКТИРОВАНИЯ */}
         {selectedMezzanine ? (
           <div style={styles.colForm}>
-            {isOutOfBounds && (
+            {!selectedValidation.isValid && (
               <div style={{
-                padding: "10px", 
-                backgroundColor: "#ffebe6", 
-                border: "1px solid #ffc0b0", 
-                color: "#d90000", 
-                borderRadius: "6px", 
+                padding: "10px",
+                backgroundColor: "#fef2f2",
+                border: "1px solid #fecaca",
+                color: "#b91c1c",
+                borderRadius: "6px",
                 marginBottom: "15px",
-                fontWeight: "bold",
-                fontSize: "0.9em"
+                fontSize: "0.86em"
               }}>
-                ⚠️ Внимание: Контур антресоли выходит за габариты здания ({buildingW}х{buildingL}м)! Проверьте смещения или размеры.
+                <strong>⚠️ Исправьте ошибки перед сохранением:</strong>
+                <ul style={{ margin: "6px 0 0 18px", padding: 0 }}>
+                  {selectedValidation.errors.map((err, idx) => <li key={idx}>{err}</li>)}
+                </ul>
               </div>
             )}
 
