@@ -589,6 +589,7 @@ export default function FloorStructureModal({
       partitionsLoad: g_part,
       liveLoad: p_live,
       safetyFactor: gamma_f,
+      responsibilityFactor: gamma_n,
     });
 
     // В кН/м² (1 кПа = 100 кг/м²)
@@ -682,6 +683,7 @@ export default function FloorStructureModal({
       partitionsLoad: safePartitionsLoad,
       liveLoad: safeLiveLoad,
       safetyFactor: safeSafetyFactor,
+      responsibilityFactor: safeResponsibilityFactor,
     });
 
     const result = {
