@@ -1,0 +1,37 @@
+name: Apply task 6.20 validation parity
+on:
+  push:
+    branches: [chatgpt-6-20-validation]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply source patch
+        run: python3 scripts/apply_620.py
+      - name: Install dependencies
+        run: |
+          npm install --legacy-peer-deps --no-audit --no-fund
+          npm install --no-save --legacy-peer-deps --no-audit --no-fund ajv@8.17.1 ajv-keywords@5.1.0
+      - name: Build
+        run: npm run build
+      - name: Verify 6.20 invariants
+        run: |
+          grep -q 'validateMezzanineFloorStructure' src/MezzanineFloorEditor.js
+          grep -q 'validateFloorThickness' src/MezzanineFloorEditor.js
+          grep -q 'Общая толщина своего пола должна быть больше 0' src/MezzanineFloorEditor.js
+          grep -q 'Исправьте ошибки перед сохранением' src/MezzanineEditor.js
+          grep -q 'Количество рядов колонн по X' src/MezzanineEditor.js
+          grep -q 'Полезная нагрузка должна быть числом 0 или больше' src/MezzanineFloorEditor.js
+      - name: Commit patched sources
+        run: |
+          git config user.name 'ChatGPT 6.20'
+          git config user.email 'actions@users.noreply.github.com'
+          git add src/MezzanineFloorEditor.js src/MezzanineEditor.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(mezzanine): add quick-estimator validation parity [skip ci]'
+          git push
