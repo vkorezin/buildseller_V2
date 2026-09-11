@@ -5,6 +5,7 @@ import {
   DEFAULT_STEEL_GRATING_PROFILE_ID,
   KNAUF_FILL_DENSITY_PRESETS,
   DEFAULT_KNAUF_FILL_DENSITY,
+  LIVE_LOAD_PRESETS,
   SAFETY_FACTOR_PRESETS,
   RESPONSIBILITY_FACTORS,
   DEFAULT_FLOOR_STRUCTURE,
@@ -30,39 +31,121 @@ const PVL = [
   ["406", 15.7], ["506", 16.4], ["508", 20.9], ["510", 24.7], ["606", 17.3], ["608", 21.9], ["610", 26.0],
 ];
 
-export const CUSTOM_FLOOR_PRESETS = [
-  { id: "concrete", name: "Тяжёлый бетон", mode: "density", thickness: 80, density: 2450, group: "structural" },
-  { id: "screed", name: "Цементно-песчаная стяжка", mode: "density", thickness: 40, density: 2000, group: "finish" },
-  { id: "h75", name: "Профлист Н75-750-0.8", mode: "fixed", thickness: 75, weight: 11.2, group: "structural" },
-  { id: "rebar", name: "Арматура / сетка", mode: "manual", weight: 8, group: "structural" },
-  { id: "chequer_lentil", name: "Лист рифлёный — чечевица (ГОСТ 8568-77)", mode: "profile", profiles: CHEQUER_LENTIL.map(([t,w]) => ({ id: String(t), label: `${t} мм — ${w} кг/м²`, thickness: t, weight: w })), group: "structural" },
-  { id: "chequer_diamond", name: "Лист рифлёный — ромб (ГОСТ 8568-77)", mode: "profile", profiles: CHEQUER_DIAMOND.map(([t,w]) => ({ id: String(t), label: `${t} мм — ${w} кг/м²`, thickness: t, weight: w })), group: "structural" },
-  { id: "pvl", name: "Лист просечно-вытяжной ПВЛ (ГОСТ 8706-78)", mode: "profile", profiles: PVL.map(([p,w]) => ({ id: String(p), label: `ПВЛ ${p} — ${w} кг/м²`, thickness: Number(String(p)[0]), weight: w })), group: "structural" },
-  { id: "sp_grating", name: "Сварной решётчатый настил SP 34×38", mode: "profile", profiles: STEEL_GRATING_PROFILES.map((p) => ({ id: p.id, label: `${p.name} — ${p.gratingWeight} кг/м²`, thickness: p.height, weight: p.gratingWeight })), group: "structural" },
-  { id: "osb", name: "OSB-3", mode: "density", thickness: 22, density: 650, group: "finish" },
-  { id: "plywood", name: "Фанера", mode: "density", thickness: 18, density: 650, group: "finish" },
-  { id: "csp", name: "ЦСП", mode: "density", thickness: 16, density: 1300, group: "finish" },
-  { id: "gvl", name: "ГВЛ / элемент пола KNAUF", mode: "manual", thickness: 20, weight: 24, group: "finish" },
-  { id: "knauf_fill", name: "Сухая засыпка KNAUF", mode: "density", thickness: 50, density: 600, group: "finish" },
-  { id: "tile", name: "Керамогранит / плитка", mode: "density", thickness: 10, density: 2300, group: "finish" },
-  { id: "custom", name: "Пользовательский слой", mode: "manual", weight: 0, group: "finish" },
+const STRUCTURAL_PRESETS = [
+  { id: "struct_h75", name: "Профлист Н75-750-0.8", mode: "fixed", thickness: 75, weight: 11.2 },
+  { id: "struct_profile_other", name: "Профлист — другой", mode: "manual", weight: 0 },
+  { id: "struct_concrete", name: "Тяжёлый бетон", mode: "density", thickness: 80, density: 2450 },
+  { id: "struct_rebar", name: "Арматура / сетка", mode: "manual", weight: 8 },
+  {
+    id: "sp_grating",
+    name: "Сварной решётчатый настил SP 34×38",
+    mode: "profile",
+    profiles: STEEL_GRATING_PROFILES.map((p) => ({
+      id: p.id,
+      label: `${p.name} — ${p.gratingWeight} кг/м²`,
+      thickness: p.height,
+      weight: p.gratingWeight,
+    })),
+  },
+  {
+    id: "chequer_lentil",
+    name: "Рифлёный лист — чечевица",
+    mode: "profile",
+    profiles: CHEQUER_LENTIL.map(([t, w]) => ({
+      id: String(t), label: `${t} мм — ${w} кг/м²`, thickness: t, weight: w,
+    })),
+  },
+  {
+    id: "chequer_diamond",
+    name: "Рифлёный лист — ромб",
+    mode: "profile",
+    profiles: CHEQUER_DIAMOND.map(([t, w]) => ({
+      id: String(t), label: `${t} мм — ${w} кг/м²`, thickness: t, weight: w,
+    })),
+  },
+  {
+    id: "pvl",
+    name: "Просечно-вытяжной лист ПВЛ",
+    mode: "profile",
+    profiles: PVL.map(([p, w]) => ({
+      id: String(p), label: `ПВЛ ${p} — ${w} кг/м²`, thickness: Number(String(p)[0]), weight: w,
+    })),
+  },
+  { id: "struct_custom", name: "Другая несущая конструкция", mode: "manual", weight: 0, customName: true },
 ];
 
-const clone = (v) => JSON.parse(JSON.stringify(v));
-const finite = (v, fallback = 0) => (v !== "" && v != null && Number.isFinite(Number(v)) ? Number(v) : fallback);
+const FINISH_PRESETS = [
+  { id: "finish_topping", name: "Топпинг / обеспыливающее покрытие", mode: "manual", weight: 15 },
+  { id: "finish_screed", name: "Цементно-песчаная стяжка", mode: "density", thickness: 40, density: 2000 },
+  { id: "finish_concrete_screed", name: "Бетонная стяжка", mode: "density", thickness: 50, density: 2200 },
+  { id: "finish_self_level", name: "Самонивелирующийся пол", mode: "density", thickness: 10, density: 1800 },
+  { id: "finish_polymer", name: "Эпоксидное / полимерное покрытие", mode: "manual", weight: 3 },
+  { id: "finish_ceramic", name: "Керамическая плитка", mode: "density", thickness: 10, density: 2000 },
+  { id: "finish_porcelain", name: "Керамогранит", mode: "density", thickness: 10, density: 2300 },
+  { id: "finish_stone", name: "Натуральный камень", mode: "density", thickness: 20, density: 2700 },
+  { id: "finish_osb", name: "OSB-3", mode: "density", thickness: 22, density: 650 },
+  { id: "finish_plywood", name: "Фанера", mode: "density", thickness: 18, density: 650 },
+  { id: "finish_csp", name: "ЦСП", mode: "density", thickness: 16, density: 1300 },
+  { id: "finish_gvl", name: "ГВЛ / KNAUF Суперпол", mode: "manual", thickness: 20, weight: 24 },
+  { id: "finish_knauf_fill", name: "Сухая засыпка KNAUF", mode: "density", thickness: 50, density: 600 },
+  { id: "finish_mineral_wool", name: "Минеральная вата", mode: "density", thickness: 50, density: 100 },
+  { id: "finish_xps", name: "XPS", mode: "density", thickness: 50, density: 35 },
+  { id: "finish_pir", name: "PIR", mode: "density", thickness: 50, density: 35 },
+  { id: "finish_expanded_clay", name: "Керамзитовая засыпка", mode: "density", thickness: 50, density: 450 },
+  { id: "finish_waterproof", name: "Гидроизоляция", mode: "manual", weight: 5 },
+  { id: "finish_acoustic", name: "Звукоизоляционная мембрана", mode: "manual", weight: 5 },
+  { id: "finish_custom", name: "Другое покрытие / слой пола", mode: "manual", weight: 0, customName: true },
+];
 
-export function createDefaultMezzanineFloorStructure() {
-  return clone(DEFAULT_FLOOR_STRUCTURE);
+const LEGACY_PRESET_MAP = {
+  concrete: "struct_concrete",
+  h75: "struct_h75",
+  rebar: "struct_rebar",
+  custom: "struct_custom",
+  screed: "finish_screed",
+  osb: "finish_osb",
+  plywood: "finish_plywood",
+  csp: "finish_csp",
+  gvl: "finish_gvl",
+  knauf_fill: "finish_knauf_fill",
+  tile: "finish_porcelain",
+};
+
+const clone = (v) => JSON.parse(JSON.stringify(v));
+const finite = (v, fallback = 0) =>
+  v !== "" && v != null && Number.isFinite(Number(v)) ? Number(v) : fallback;
+
+const field = {
+  width: "100%",
+  padding: "7px 8px",
+  boxSizing: "border-box",
+  border: "1px solid #cbd5e1",
+  borderRadius: 6,
+  backgroundColor: "#fff",
+};
+const smallBtn = {
+  border: "1px solid #cbd5e1",
+  background: "#fff",
+  borderRadius: 6,
+  padding: "6px 9px",
+  cursor: "pointer",
+};
+const miniLabel = { display: "block", fontSize: ".73em", color: "#64748b", marginBottom: 3 };
+
+function getPreset(group, presetId) {
+  const list = group === "finish" ? FINISH_PRESETS : STRUCTURAL_PRESETS;
+  return list.find((p) => p.id === presetId) || null;
 }
 
-export function makeCustomLayer(presetId = "custom") {
-  const p = CUSTOM_FLOOR_PRESETS.find((x) => x.id === presetId) || CUSTOM_FLOOR_PRESETS[CUSTOM_FLOOR_PRESETS.length - 1];
+function makeCustomLayer(group, presetId) {
+  const list = group === "finish" ? FINISH_PRESETS : STRUCTURAL_PRESETS;
+  const p = list.find((x) => x.id === presetId) || list[0];
   const profile = p.profiles?.[0];
   return {
     id: `layer_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     presetId: p.id,
     name: p.name,
-    group: p.group,
+    group,
     mode: p.mode,
     enabled: true,
     thickness: profile?.thickness ?? p.thickness ?? 0,
@@ -72,25 +155,55 @@ export function makeCustomLayer(presetId = "custom") {
   };
 }
 
+function normalizeLayer(layer) {
+  const group = layer?.group === "finish" ? "finish" : "structural";
+  let presetId = LEGACY_PRESET_MAP[layer?.presetId] || layer?.presetId;
+  if (layer?.presetId === "custom") presetId = group === "finish" ? "finish_custom" : "struct_custom";
+  let preset = getPreset(group, presetId);
+  if (!preset) {
+    presetId = group === "finish" ? "finish_custom" : "struct_custom";
+    preset = getPreset(group, presetId);
+  }
+  const profile = preset.profiles?.find((p) => String(p.id) === String(layer?.profileId)) || preset.profiles?.[0];
+  return {
+    ...layer,
+    id: layer?.id || `layer_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    group,
+    presetId,
+    name: layer?.name || preset.name,
+    mode: preset.mode,
+    enabled: layer?.enabled !== false,
+    thickness: layer?.thickness ?? profile?.thickness ?? preset.thickness ?? 0,
+    density: layer?.density ?? preset.density ?? 0,
+    weight: layer?.weight ?? profile?.weight ?? preset.weight ?? 0,
+    profileId: layer?.profileId ?? profile?.id ?? null,
+  };
+}
+
 function layerWeight(layer) {
   if (!layer || layer.enabled === false) return 0;
-  if (layer.mode === "density") return Math.max(0, finite(layer.thickness)) / 1000 * Math.max(0, finite(layer.density));
+  const preset = getPreset(layer.group, layer.presetId);
+  if (layer.mode === "density") {
+    return Math.max(0, finite(layer.thickness)) / 1000 * Math.max(0, finite(layer.density));
+  }
   if (layer.mode === "profile") {
-    const p = CUSTOM_FLOOR_PRESETS.find((x) => x.id === layer.presetId);
-    const item = p?.profiles?.find((x) => String(x.id) === String(layer.profileId)) || p?.profiles?.[0];
-    return item ? item.weight : Math.max(0, finite(layer.weight));
+    const p = preset?.profiles?.find((x) => String(x.id) === String(layer.profileId)) || preset?.profiles?.[0];
+    return p ? p.weight : Math.max(0, finite(layer.weight));
   }
   return Math.max(0, finite(layer.weight));
 }
 
 function normalizeCustomLayers(layers, legacyDeadLoad = 0) {
-  if (Array.isArray(layers) && layers.length) return clone(layers);
+  if (Array.isArray(layers) && layers.length) return layers.map(normalizeLayer);
   return [{
-    ...makeCustomLayer("custom"),
+    ...makeCustomLayer("structural", "struct_custom"),
     name: "Существующая постоянная нагрузка",
-    group: "structural",
     weight: Math.max(0, finite(legacyDeadLoad)),
   }];
+}
+
+export function createDefaultMezzanineFloorStructure() {
+  return clone(DEFAULT_FLOOR_STRUCTURE);
 }
 
 export function normalizeMezzanineFloor(mezzanine = {}, blockFloorStructure = null) {
@@ -121,6 +234,9 @@ export function normalizeMezzanineFloor(mezzanine = {}, blockFloorStructure = nu
       responsibilityFactor: finite(mezzanine.responsibilityFactor, 1.0),
     };
   }
+  if (floorStructure.type === CUSTOM_TYPE) {
+    floorStructure.customLayers = normalizeCustomLayers(floorStructure.customLayers, floorStructure.deadLoad);
+  }
   return {
     ...mezzanine,
     floorStructure,
@@ -132,9 +248,6 @@ export function normalizeMezzanineFloor(mezzanine = {}, blockFloorStructure = nu
     responsibilityFactor: floorStructure.responsibilityFactor ?? mezzanine.responsibilityFactor ?? 1.0,
   };
 }
-
-const field = { width: "100%", padding: "6px", boxSizing: "border-box", border: "1px solid #cbd5e1", borderRadius: 4 };
-const smallBtn = { border: "1px solid #cbd5e1", background: "#fff", borderRadius: 4, padding: "5px 8px", cursor: "pointer" };
 
 export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
   const fs = mezzanine?.floorStructure || createDefaultMezzanineFloorStructure();
@@ -149,14 +262,17 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
   const finishLoad = isSeparateFinish ? calculateFloorFinishLoad(finishLayers) : 0;
   const density = normalizeKnaufFillDensity(fs.knaufFillDensity ?? DEFAULT_KNAUF_FILL_DENSITY);
   const grating = getSteelGratingProfile(fs.gratingProfileId || DEFAULT_STEEL_GRATING_PROFILE_ID);
-  const thickness = type === "steel_grating" ? grating.height : finite(fs.thickness, typeInfo?.defaultThickness || 120);
+  const thickness = type === "steel_grating"
+    ? grating.height
+    : finite(fs.thickness, typeInfo?.defaultThickness || 120);
 
   const customCalc = useMemo(() => {
     const layers = normalizeCustomLayers(fs.customLayers, fs.deadLoad);
-    const enabled = layers.filter((x) => x.enabled !== false);
-    const structural = enabled.filter((x) => x.group === "structural").reduce((s, x) => s + layerWeight(x), 0);
-    const finish = enabled.filter((x) => x.group !== "structural").reduce((s, x) => s + layerWeight(x), 0);
-    return { layers, structural, finish, total: structural + finish };
+    const structuralLayers = layers.filter((x) => x.group === "structural");
+    const finishCustomLayers = layers.filter((x) => x.group === "finish");
+    const structural = structuralLayers.reduce((s, x) => s + layerWeight(x), 0);
+    const finish = finishCustomLayers.reduce((s, x) => s + layerWeight(x), 0);
+    return { layers, structuralLayers, finishCustomLayers, structural, finish, total: structural + finish };
   }, [fs.customLayers, fs.deadLoad]);
 
   const structuralDeadLoad = isCustom
@@ -168,13 +284,16 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
     ? customCalc.total
     : calculateDeadLoadForType(type, thickness, isSeparateFinish ? finishLoad : undefined, { knaufFillDensity: density, gratingProfileId: grating.id });
   const floorFinishLoad = isCustom ? customCalc.finish : finishLoad;
-
   const liveLoad = finite(fs.liveLoad, 0);
   const partitionsLoad = finite(fs.partitionsLoad, 0);
   const safetyFactor = finite(fs.safetyFactor, 1.2);
   const responsibilityFactor = finite(fs.responsibilityFactor, 1.0);
   const qDesign = calculateMezzanineQBase({ deadLoad, partitionsLoad, liveLoad, safetyFactor, responsibilityFactor });
   const qNorm = deadLoad + partitionsLoad + liveLoad;
+
+  const dynamicLayers = !isCustom && typeInfo
+    ? getLayersForTypeAndThickness(typeInfo, thickness, { knaufFillDensity: density, gratingProfileId: grating.id })
+    : [];
 
   const commit = (changes) => {
     const next = { ...fs, ...changes };
@@ -183,18 +302,30 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
     let nextStructural = structuralDeadLoad;
     let nextFinish = floorFinishLoad;
     let nextThickness = next.thickness ?? thickness;
+
     if (nextType === CUSTOM_TYPE) {
       const layers = normalizeCustomLayers(next.customLayers, next.deadLoad);
-      nextStructural = layers.filter((x) => x.enabled !== false && x.group === "structural").reduce((s, x) => s + layerWeight(x), 0);
-      nextFinish = layers.filter((x) => x.enabled !== false && x.group !== "structural").reduce((s, x) => s + layerWeight(x), 0);
+      next.customLayers = layers;
+      nextStructural = layers
+        .filter((x) => x.enabled !== false && x.group === "structural")
+        .reduce((s, x) => s + layerWeight(x), 0);
+      nextFinish = layers
+        .filter((x) => x.enabled !== false && x.group === "finish")
+        .reduce((s, x) => s + layerWeight(x), 0);
       nextDead = nextStructural + nextFinish;
     } else {
       const ti = FLOOR_TYPES.find((x) => x.id === nextType) || FLOOR_TYPES[0];
       const nextDensity = normalizeKnaufFillDensity(next.knaufFillDensity);
       const nextGrating = getSteelGratingProfile(next.gratingProfileId);
-      nextThickness = nextType === "steel_grating" ? nextGrating.height : (ti.isConstantThickness ? ti.defaultThickness : finite(next.thickness, ti.defaultThickness));
+      nextThickness = nextType === "steel_grating"
+        ? nextGrating.height
+        : (ti.isConstantThickness ? ti.defaultThickness : finite(next.thickness, ti.defaultThickness));
       const sep = SEPARATE_FINISH_TYPES.includes(nextType);
-      const fl = sep ? (Array.isArray(next.floorFinishLayers) && next.floorFinishLayers.length ? next.floorFinishLayers : clone(ti.defaultFloorFinishLayers || [])) : [];
+      const fl = sep
+        ? (Array.isArray(next.floorFinishLayers) && next.floorFinishLayers.length
+            ? next.floorFinishLayers
+            : clone(ti.defaultFloorFinishLayers || []))
+        : [];
       nextFinish = sep ? calculateFloorFinishLoad(fl) : 0;
       nextStructural = sep
         ? calculateStructuralDeadLoadForType(nextType, nextThickness, { knaufFillDensity: nextDensity, gratingProfileId: nextGrating.id })
@@ -206,8 +337,9 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
       next.gratingProfileName = nextGrating.name;
       next.gratingWeight = nextGrating.gratingWeight;
     }
+
     const ti = FLOOR_TYPES.find((x) => x.id === nextType);
-    next.typeName = nextType === CUSTOM_TYPE ? "Свой пол" : ti?.name;
+    next.typeName = nextType === CUSTOM_TYPE ? (next.customName || "Свой пол") : ti?.name;
     next.shortName = nextType === CUSTOM_TYPE ? "Свой пол" : ti?.shortName;
     next.thickness = finite(nextThickness, 0);
     next.structuralDeadLoad = Math.round(nextStructural * 1000) / 1000;
@@ -222,6 +354,7 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
     });
     next.designLoadKg = q;
     next.normLoadKg = next.deadLoad + finite(next.partitionsLoad, partitionsLoad) + finite(next.liveLoad, liveLoad);
+
     onPatch({
       floorStructure: next,
       thickness: next.thickness,
@@ -236,11 +369,14 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
 
   const switchType = (newType) => {
     if (newType === CUSTOM_TYPE) {
-      commit({
-        type: CUSTOM_TYPE,
-        thickness: fs.thickness || 120,
-        customLayers: normalizeCustomLayers(fs.customLayers, deadLoad),
-      });
+      const existing = Array.isArray(fs.customLayers) && fs.customLayers.length
+        ? normalizeCustomLayers(fs.customLayers, deadLoad)
+        : [{
+            ...makeCustomLayer("structural", "struct_custom"),
+            name: "Исходная конструкция",
+            weight: deadLoad,
+          }];
+      commit({ type: CUSTOM_TYPE, thickness: fs.thickness || 120, customLayers: existing });
       return;
     }
     const ti = FLOOR_TYPES.find((x) => x.id === newType) || FLOOR_TYPES[0];
@@ -253,118 +389,355 @@ export default function MezzanineFloorEditor({ mezzanine, onPatch }) {
     });
   };
 
-  const updateCustomLayer = (idx, patch) => {
-    const layers = customCalc.layers.map((l, i) => i === idx ? { ...l, ...patch } : l);
+  const updateLayer = (layerId, patch) => {
+    const layers = customCalc.layers.map((l) => l.id === layerId ? normalizeLayer({ ...l, ...patch }) : l);
     commit({ customLayers: layers });
   };
 
-  const changePreset = (idx, presetId) => {
-    const replacement = makeCustomLayer(presetId);
-    replacement.id = customCalc.layers[idx].id;
-    const layers = customCalc.layers.map((l, i) => i === idx ? replacement : l);
+  const changeLayerPreset = (layerId, group, presetId) => {
+    const replacement = makeCustomLayer(group, presetId);
+    replacement.id = layerId;
+    const layers = customCalc.layers.map((l) => l.id === layerId ? replacement : l);
     commit({ customLayers: layers });
   };
 
-  const dynamicLayers = !isCustom && typeInfo ? getLayersForTypeAndThickness(typeInfo, thickness, { knaufFillDensity: density, gratingProfileId: grating.id }) : [];
+  const addLayer = (group, presetId) => {
+    if (!presetId) return;
+    commit({ customLayers: [...customCalc.layers, makeCustomLayer(group, presetId)] });
+  };
+
+  const removeLayer = (layerId) => {
+    commit({ customLayers: customCalc.layers.filter((l) => l.id !== layerId) });
+  };
+
+  const renderLayer = (layer, group) => {
+    const list = group === "finish" ? FINISH_PRESETS : STRUCTURAL_PRESETS;
+    const preset = getPreset(group, layer.presetId) || list[list.length - 1];
+    const profile = preset.profiles?.find((p) => String(p.id) === String(layer.profileId)) || preset.profiles?.[0];
+    const customName = preset.customName;
+    return (
+      <div key={layer.id} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: 9, marginBottom: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 32px", gap: 7, alignItems: "start" }}>
+          <select style={field} value={layer.presetId} onChange={(e) => changeLayerPreset(layer.id, group, e.target.value)}>
+            {list.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <button type="button" style={smallBtn} onClick={() => removeLayer(layer.id)} title="Удалить слой">×</button>
+        </div>
+
+        {customName && (
+          <input
+            style={{ ...field, marginTop: 7 }}
+            value={layer.name || ""}
+            placeholder={group === "finish" ? "Название слоя пола" : "Название несущего элемента"}
+            onChange={(e) => updateLayer(layer.id, { name: e.target.value })}
+          />
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginTop: 7 }}>
+          {preset.mode === "profile" ? (
+            <div style={{ gridColumn: "1 / -1" }}>
+              <span style={miniLabel}>Типоразмер</span>
+              <select
+                style={field}
+                value={profile?.id || ""}
+                onChange={(e) => {
+                  const p = preset.profiles.find((x) => String(x.id) === String(e.target.value));
+                  updateLayer(layer.id, { profileId: p.id, thickness: p.thickness, weight: p.weight });
+                }}
+              >
+                {preset.profiles.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+              </select>
+            </div>
+          ) : preset.mode === "density" ? (
+            <>
+              <div>
+                <span style={miniLabel}>Толщина, мм</span>
+                <input style={field} type="number" min="0" value={layer.thickness ?? 0} onChange={(e) => updateLayer(layer.id, { thickness: e.target.value })} />
+              </div>
+              <div>
+                <span style={miniLabel}>Плотность, кг/м³</span>
+                <input style={field} type="number" min="0" value={layer.density ?? 0} onChange={(e) => updateLayer(layer.id, { density: e.target.value })} />
+              </div>
+            </>
+          ) : preset.mode === "fixed" ? (
+            <div style={{ gridColumn: "1 / -1", fontSize: ".78em", color: "#475569", padding: "5px 0" }}>
+              Фиксированная масса по выбранному материалу: <strong>{finite(preset.weight).toFixed(1)} кг/м²</strong>
+            </div>
+          ) : (
+            <div style={{ gridColumn: "1 / -1" }}>
+              <span style={miniLabel}>Масса, кг/м²</span>
+              <input style={field} type="number" min="0" value={layer.weight ?? 0} onChange={(e) => updateLayer(layer.id, { weight: e.target.value })} />
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 7, fontSize: ".78em" }}>
+          <label style={{ color: "#475569" }}>
+            <input type="checkbox" checked={layer.enabled !== false} onChange={(e) => updateLayer(layer.id, { enabled: e.target.checked })} /> В расчёте
+          </label>
+          <strong>{layerWeight(layer).toFixed(1)} кг/м²</strong>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCustomGroup = (group, title, subtitle, layers, total) => {
+    const list = group === "finish" ? FINISH_PRESETS : STRUCTURAL_PRESETS;
+    const isFinish = group === "finish";
+    return (
+      <div style={{ border: `1px solid ${isFinish ? "#fed7aa" : "#bfdbfe"}`, background: isFinish ? "#fffaf3" : "#f8fbff", borderRadius: 10, padding: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start", marginBottom: 9 }}>
+          <div>
+            <div style={{ fontWeight: 700, color: "#0f172a", fontSize: ".9em" }}>{title}</div>
+            <div style={{ fontSize: ".73em", color: "#64748b", marginTop: 2 }}>{subtitle}</div>
+          </div>
+          <div style={{ whiteSpace: "nowrap", fontSize: ".8em", fontWeight: 700, color: isFinish ? "#9a3412" : "#1d4ed8" }}>
+            {total.toFixed(1)} кг/м²
+          </div>
+        </div>
+
+        {layers.length === 0 && (
+          <div style={{ fontSize: ".76em", color: "#94a3b8", padding: "8px 0" }}>Слои пока не добавлены.</div>
+        )}
+        {layers.map((layer) => renderLayer(layer, group))}
+
+        <select
+          style={{ ...field, borderStyle: "dashed", cursor: "pointer" }}
+          value=""
+          onChange={(e) => {
+            addLayer(group, e.target.value);
+            e.target.value = "";
+          }}
+        >
+          <option value="">＋ Добавить {isFinish ? "слой пола" : "несущий материал"}…</option>
+          {list.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </div>
+    );
+  };
+
+  const typeCards = [
+    ...FLOOR_TYPES,
+    {
+      id: CUSTOM_TYPE,
+      shortName: "Свой пол",
+      name: "Пользовательская конструкция из отдельных несущих материалов и слоёв пола",
+      standard: "Послойная сборка",
+      deadLoad: null,
+      fireRating: "Индивидуально",
+    },
+  ];
 
   return (
     <div>
-      <h3 style={{ margin: "0 0 10px", fontSize: "1.1em", color: "#333", borderBottom: "1px solid #ddd", paddingBottom: 5 }}>3. Перекрытие и нагрузки</h3>
+      <h3 style={{ margin: "0 0 12px", fontSize: "1.08em", color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 7 }}>
+        3. Перекрытие и нагрузки
+      </h3>
 
-      <label style={{ display: "block", fontWeight: 700, fontSize: ".85em", marginBottom: 4 }}>Конструкция перекрытия</label>
-      <select style={field} value={type} onChange={(e) => switchType(e.target.value)}>
-        {FLOOR_TYPES.map((t) => <option key={t.id} value={t.id}>{t.shortName}</option>)}
-        <option value={CUSTOM_TYPE}>Свой пол / пользовательская конструкция</option>
-      </select>
+      <div style={{ fontSize: ".85em", fontWeight: 700, color: "#1e293b", marginBottom: 7 }}>Тип несущего перекрытия</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(205px, 1fr))", gap: 8 }}>
+        {typeCards.map((card) => {
+          const selected = card.id === type;
+          return (
+            <button
+              key={card.id}
+              type="button"
+              onClick={() => switchType(card.id)}
+              style={{
+                textAlign: "left",
+                border: selected ? "2px solid #0969da" : "1px solid #cbd5e1",
+                borderRadius: 9,
+                background: selected ? "#f0f7ff" : "#fff",
+                padding: 10,
+                cursor: "pointer",
+                minHeight: 82,
+              }}
+            >
+              <div style={{ fontWeight: 700, color: selected ? "#0969da" : "#1e293b", fontSize: ".82em" }}>{card.shortName}</div>
+              <div style={{ color: "#64748b", fontSize: ".69em", lineHeight: 1.3, marginTop: 4 }}>{card.name}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 7, marginTop: 7, fontSize: ".68em", color: "#475569" }}>
+                <span>{card.deadLoad != null ? `≈ ${card.deadLoad} кг/м²` : "Собственный состав"}</span>
+                <span>{card.fireRating}</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
       {!isCustom && typeInfo && (
-        <div style={{ marginTop: 10, padding: 10, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 6 }}>
-          {type === "steel_grating" ? (
+        <div style={{ marginTop: 12, border: "1px solid #e2e8f0", background: "#f8fafc", borderRadius: 10, padding: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
             <div>
-              <label style={{ fontSize: ".8em", fontWeight: 700 }}>Профиль настила</label>
-              <select style={field} value={grating.id} onChange={(e) => commit({ gratingProfileId: e.target.value })}>
-                {STEEL_GRATING_PROFILES.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.gratingWeight} кг/м²</option>)}
-              </select>
+              <div style={{ fontWeight: 700, color: "#0f172a", fontSize: ".88em" }}>{typeInfo.name}</div>
+              <div style={{ color: "#64748b", fontSize: ".72em", marginTop: 2 }}>{typeInfo.standard}</div>
             </div>
-          ) : !typeInfo.isConstantThickness ? (
-            <div>
-              <label style={{ fontSize: ".8em", fontWeight: 700 }}>Толщина, мм</label>
-              <input style={field} type="number" value={fs.thickness ?? typeInfo.defaultThickness} onChange={(e) => commit({ thickness: e.target.value })} />
+            <div style={{ fontSize: ".74em", color: "#0369a1", background: "#e0f2fe", padding: "4px 8px", borderRadius: 5 }}>
+              Шаг балок: {typeInfo.beamSpacing}
             </div>
-          ) : (
-            <div style={{ fontSize: ".82em" }}>Толщина: <strong>{typeInfo.defaultThickness} мм</strong></div>
-          )}
-          {type === "knauf_dry_floor" && (
-            <div style={{ marginTop: 8 }}>
-              <label style={{ fontSize: ".8em", fontWeight: 700 }}>Плотность засыпки, кг/м³</label>
-              <select style={field} value={density} onChange={(e) => commit({ knaufFillDensity: Number(e.target.value) })}>
-                {KNAUF_FILL_DENSITY_PRESETS.map((d) => <option key={d} value={d}>{d}</option>)}
-              </select>
+          </div>
+
+          <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
+            {type === "steel_grating" ? (
+              <div>
+                <span style={miniLabel}>Профиль настила</span>
+                <select style={field} value={grating.id} onChange={(e) => commit({ gratingProfileId: e.target.value })}>
+                  {STEEL_GRATING_PROFILES.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.gratingWeight} кг/м²</option>)}
+                </select>
+              </div>
+            ) : !typeInfo.isConstantThickness ? (
+              <div>
+                <span style={miniLabel}>Толщина конструкции, мм</span>
+                <input style={field} type="number" value={fs.thickness ?? typeInfo.defaultThickness} onChange={(e) => commit({ thickness: e.target.value })} />
+              </div>
+            ) : (
+              <div style={{ paddingTop: 16, fontSize: ".78em", color: "#475569" }}>Толщина: <strong>{typeInfo.defaultThickness} мм</strong></div>
+            )}
+
+            {type === "knauf_dry_floor" && (
+              <div>
+                <span style={miniLabel}>Плотность засыпки, кг/м³</span>
+                <select style={field} value={density} onChange={(e) => commit({ knaufFillDensity: Number(e.target.value) })}>
+                  {KNAUF_FILL_DENSITY_PRESETS.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginTop: 10, border: "1px solid #bfdbfe", borderRadius: 8, background: "#fff", padding: 10 }}>
+            <div style={{ fontWeight: 700, fontSize: ".8em", color: "#1e3a8a", marginBottom: 6 }}>
+              Несущая конструкция {isSeparateFinish ? `— ${structuralDeadLoad.toFixed(1)} кг/м²` : ""}
             </div>
-          )}
+            {dynamicLayers.map((l, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "4px 0", borderTop: i ? "1px solid #f1f5f9" : "none", fontSize: ".75em" }}>
+                <span style={{ color: "#475569" }}>{l.name}</span>
+                <strong style={{ whiteSpace: "nowrap" }}>{Number(l.weight || 0).toFixed(1)} кг/м²</strong>
+              </div>
+            ))}
+          </div>
+
           {isSeparateFinish && (
-            <div style={{ marginTop: 10 }}>
-              <div style={{ fontSize: ".8em", fontWeight: 700, marginBottom: 5 }}>Состав пола</div>
+            <div style={{ marginTop: 9, border: "1px solid #fed7aa", borderRadius: 8, background: "#fffaf3", padding: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: ".8em", color: "#9a3412", marginBottom: 6 }}>
+                <span>Состав пола</span><span>{floorFinishLoad.toFixed(1)} кг/м²</span>
+              </div>
               {finishLayers.map((layer, idx) => (
-                <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 100px 28px", gap: 6, marginBottom: 5 }}>
+                <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 95px 30px", gap: 6, marginBottom: 6 }}>
                   <input style={field} value={layer.name || ""} onChange={(e) => { const a = clone(finishLayers); a[idx].name = e.target.value; commit({ floorFinishLayers: a }); }} />
                   <input style={field} type="number" value={layer.load ?? 0} onChange={(e) => { const a = clone(finishLayers); a[idx].load = e.target.value; commit({ floorFinishLayers: a }); }} />
-                  <button style={smallBtn} onClick={() => commit({ floorFinishLayers: finishLayers.filter((_, i) => i !== idx) })}>×</button>
+                  <button type="button" style={smallBtn} onClick={() => commit({ floorFinishLayers: finishLayers.filter((_, i) => i !== idx) })}>×</button>
                 </div>
               ))}
-              <button style={smallBtn} onClick={() => commit({ floorFinishLayers: [...finishLayers, { name: "Новый слой", load: 0 }] })}>+ слой пола</button>
+              <button type="button" style={smallBtn} onClick={() => commit({ floorFinishLayers: [...finishLayers, { name: "Новый слой пола", load: 0 }] })}>＋ слой пола</button>
             </div>
           )}
-          <div style={{ marginTop: 8, fontSize: ".78em", color: "#475569" }}>
-            {dynamicLayers.map((l, i) => <div key={i}>{l.name}: <strong>{Number(l.weight || 0).toFixed(1)} кг/м²</strong></div>)}
-          </div>
         </div>
       )}
 
       {isCustom && (
-        <div style={{ marginTop: 10, padding: 10, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 6 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 130px", gap: 8, marginBottom: 10 }}>
-            <div><label style={{ fontSize: ".8em", fontWeight: 700 }}>Название конструкции</label><input style={field} value={fs.customName || "Свой пол"} onChange={(e) => commit({ customName: e.target.value })} /></div>
-            <div><label style={{ fontSize: ".8em", fontWeight: 700 }}>Общая толщина, мм</label><input style={field} type="number" value={fs.thickness ?? 120} onChange={(e) => commit({ thickness: e.target.value })} /></div>
+        <div style={{ marginTop: 12, border: "1px solid #cbd5e1", borderRadius: 10, background: "#f8fafc", padding: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 150px", gap: 8, marginBottom: 10 }}>
+            <div>
+              <span style={miniLabel}>Название своей конструкции</span>
+              <input style={field} value={fs.customName || "Свой пол"} onChange={(e) => commit({ customName: e.target.value })} />
+            </div>
+            <div>
+              <span style={miniLabel}>Общая толщина, мм</span>
+              <input style={field} type="number" min="0" value={fs.thickness ?? 120} onChange={(e) => commit({ thickness: e.target.value })} />
+            </div>
           </div>
-          {customCalc.layers.map((layer, idx) => {
-            const preset = CUSTOM_FLOOR_PRESETS.find((x) => x.id === layer.presetId) || CUSTOM_FLOOR_PRESETS[CUSTOM_FLOOR_PRESETS.length - 1];
-            const profile = preset.profiles?.find((x) => String(x.id) === String(layer.profileId)) || preset.profiles?.[0];
-            return (
-              <div key={layer.id} style={{ borderTop: idx ? "1px solid #e2e8f0" : "none", padding: "8px 0" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "90px 1fr 30px", gap: 6 }}>
-                  <select style={field} value={layer.group} onChange={(e) => updateCustomLayer(idx, { group: e.target.value })}><option value="structural">Несущая</option><option value="finish">Пол</option></select>
-                  <select style={field} value={layer.presetId} onChange={(e) => changePreset(idx, e.target.value)}>{CUSTOM_FLOOR_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-                  <button style={smallBtn} onClick={() => commit({ customLayers: customCalc.layers.filter((_, i) => i !== idx) })}>×</button>
-                </div>
-                {preset.id === "custom" && <input style={{ ...field, marginTop: 5 }} value={layer.name || ""} placeholder="Название слоя" onChange={(e) => updateCustomLayer(idx, { name: e.target.value })} />}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 5, alignItems: "end" }}>
-                  {preset.mode === "profile" ? (
-                    <div style={{ gridColumn: "1 / span 2" }}><label style={{ fontSize: ".75em" }}>Типоразмер</label><select style={field} value={profile?.id || ""} onChange={(e) => { const p = preset.profiles.find((x) => String(x.id) === String(e.target.value)); updateCustomLayer(idx, { profileId: p.id, thickness: p.thickness, weight: p.weight }); }}>{preset.profiles.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select></div>
-                  ) : preset.mode === "density" ? <>
-                    <div><label style={{ fontSize: ".75em" }}>Толщина, мм</label><input style={field} type="number" value={layer.thickness ?? 0} onChange={(e) => updateCustomLayer(idx, { thickness: e.target.value })} /></div>
-                    <div><label style={{ fontSize: ".75em" }}>Плотность, кг/м³</label><input style={field} type="number" value={layer.density ?? 0} onChange={(e) => updateCustomLayer(idx, { density: e.target.value })} /></div>
-                  </> : preset.mode === "fixed" ? <div style={{ gridColumn: "1 / span 2", fontSize: ".78em" }}>Фиксированная масса по сортаменту</div> : <div style={{ gridColumn: "1 / span 2" }}><label style={{ fontSize: ".75em" }}>Масса, кг/м²</label><input style={field} type="number" value={layer.weight ?? 0} onChange={(e) => updateCustomLayer(idx, { weight: e.target.value })} /></div>}
-                  <div><label style={{ fontSize: ".75em" }}>В расчёте</label><div style={{ padding: "6px 0" }}><input type="checkbox" checked={layer.enabled !== false} onChange={(e) => updateCustomLayer(idx, { enabled: e.target.checked })} /> <strong>{layerWeight(layer).toFixed(1)}</strong> кг/м²</div></div>
-                </div>
-              </div>
-            );
-          })}
-          <button style={smallBtn} onClick={() => commit({ customLayers: [...customCalc.layers, makeCustomLayer("custom")] })}>+ Добавить слой</button>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 10 }}>
+            {renderCustomGroup(
+              "structural",
+              "🏗️ Несущая конструкция",
+              "Только материалы, которые формируют несущую часть перекрытия.",
+              customCalc.structuralLayers,
+              customCalc.structural
+            )}
+            {renderCustomGroup(
+              "finish",
+              "🧱 Состав пола",
+              "Стяжки, покрытия, плиты, утеплители, засыпки и отделочные слои.",
+              customCalc.finishCustomLayers,
+              customCalc.finish
+            )}
+          </div>
         </div>
       )}
 
-      <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        <div><label style={{ fontSize: ".8em", fontWeight: 700 }}>Полезная (нормативная), кг/м²</label><input style={field} type="number" value={fs.liveLoad ?? 0} onChange={(e) => commit({ liveLoad: e.target.value })} /></div>
-        <div><label style={{ fontSize: ".8em", fontWeight: 700 }}>Перегородки, кг/м²</label><input style={field} type="number" value={fs.partitionsLoad ?? 0} onChange={(e) => commit({ partitionsLoad: e.target.value })} /></div>
-        <div><label style={{ fontSize: ".8em", fontWeight: 700 }}>γf</label><select style={field} value={fs.safetyFactor ?? 1.2} onChange={(e) => commit({ safetyFactor: Number(e.target.value) })}>{SAFETY_FACTOR_PRESETS.map((p) => <option key={p.value} value={p.value}>{p.value}</option>)}</select></div>
-        <div><label style={{ fontSize: ".8em", fontWeight: 700 }}>γn</label><select style={field} value={fs.responsibilityFactor ?? 1.0} onChange={(e) => commit({ responsibilityFactor: Number(e.target.value) })}>{RESPONSIBILITY_FACTORS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}</select></div>
+      <div style={{ marginTop: 14, borderTop: "1px solid #e2e8f0", paddingTop: 12 }}>
+        <div style={{ fontSize: ".85em", fontWeight: 700, color: "#1e293b", marginBottom: 7 }}>Нагрузки</div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 8 }}>
+          <div>
+            <span style={miniLabel}>Полезная (нормативная), кг/м²</span>
+            <input style={field} type="number" min="0" value={fs.liveLoad ?? 0} onChange={(e) => commit({ liveLoad: e.target.value })} />
+          </div>
+          <div>
+            <span style={miniLabel}>Перегородки, кг/м²</span>
+            <input style={field} type="number" min="0" value={fs.partitionsLoad ?? 0} onChange={(e) => commit({ partitionsLoad: e.target.value })} />
+          </div>
+          <div>
+            <span style={miniLabel}>Коэффициент γf</span>
+            <select style={field} value={fs.safetyFactor ?? 1.2} onChange={(e) => commit({ safetyFactor: Number(e.target.value) })}>
+              {SAFETY_FACTOR_PRESETS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <span style={miniLabel}>Класс ответственности γn</span>
+            <select style={field} value={fs.responsibilityFactor ?? 1.0} onChange={(e) => commit({ responsibilityFactor: Number(e.target.value) })}>
+              {RESPONSIBILITY_FACTORS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(105px, 1fr))", gap: 5 }}>
+          {LIVE_LOAD_PRESETS.map((p) => {
+            const active = Number(liveLoad) === Number(p.value);
+            return (
+              <button
+                key={p.value}
+                type="button"
+                onClick={() => commit({ liveLoad: p.value, safetyFactor: p.factor || safetyFactor })}
+                title={p.label}
+                style={{
+                  border: active ? "2px solid #0969da" : "1px solid #cbd5e1",
+                  background: active ? "#f0f7ff" : "#fff",
+                  borderRadius: 6,
+                  padding: "6px 5px",
+                  cursor: "pointer",
+                  fontSize: ".71em",
+                  fontWeight: active ? 700 : 500,
+                  color: active ? "#0969da" : "#475569",
+                }}
+              >
+                {p.title}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <div style={{ marginTop: 10, padding: 10, background: "#e6f7ff", border: "1px solid #b0e0ff", borderRadius: 5, color: "#005699", fontSize: ".84em" }}>
-        <div>Несущая часть: <strong>{structuralDeadLoad.toFixed(1)}</strong> кг/м² · состав пола: <strong>{floorFinishLoad.toFixed(1)}</strong> кг/м² · постоянная: <strong>{deadLoad.toFixed(1)}</strong> кг/м²</div>
-        <div>Нормативная суммарная: <strong>{qNorm.toFixed(1)}</strong> кг/м²</div>
-        <div style={{ fontSize: "1.08em", marginTop: 3 }}>Расчётная: <strong>{qDesign.toFixed(1)} кг/м²</strong> = (G×1.1 + Pпер×1.2 + Q×γf) × γn</div>
+      <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(125px, 1fr))", gap: 7 }}>
+        <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 7, padding: 8, fontSize: ".75em" }}>
+          <div style={{ color: "#64748b" }}>Несущая часть</div><strong>{structuralDeadLoad.toFixed(1)} кг/м²</strong>
+        </div>
+        <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 7, padding: 8, fontSize: ".75em" }}>
+          <div style={{ color: "#64748b" }}>Состав пола</div><strong>{floorFinishLoad.toFixed(1)} кг/м²</strong>
+        </div>
+        <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 7, padding: 8, fontSize: ".75em" }}>
+          <div style={{ color: "#64748b" }}>Постоянная G</div><strong>{deadLoad.toFixed(1)} кг/м²</strong>
+        </div>
+        <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 7, padding: 8, fontSize: ".75em" }}>
+          <div style={{ color: "#64748b" }}>Нормативная</div><strong>{qNorm.toFixed(1)} кг/м²</strong>
+        </div>
+        <div style={{ background: "#e6f7ff", border: "1px solid #7dd3fc", borderRadius: 7, padding: 8, fontSize: ".75em" }}>
+          <div style={{ color: "#0369a1" }}>Расчётная</div><strong style={{ color: "#075985" }}>{qDesign.toFixed(1)} кг/м²</strong>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 7, fontSize: ".69em", color: "#64748b" }}>
+        q = (G × 1.1 + Pперег × 1.2 + Q × γf) × γn
       </div>
     </div>
   );
