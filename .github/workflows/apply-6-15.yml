@@ -25,7 +25,7 @@ jobs:
         run: python3 scripts/apply_615.py
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: Build
         run: npm run build
