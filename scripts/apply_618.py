@@ -38,9 +38,8 @@ assert old_thickness in s
 s = s.replace(old_thickness, new_name)
 
 start = s.index('            {/* НАГРУЗКИ */}')
-end_marker = '            </div>\n          </div>\n        ) : ('
+end_marker = '          </div>\n        ) : ('
 end = s.index(end_marker, start)
-old_section = s[start:end]
 new_section = '''            {/* ПЕРЕКРЫТИЕ И НАГРУЗКИ */}\n            <div style={styles.section}>\n              <MezzanineFloorEditor\n                mezzanine={selectedMezzanine}\n                onPatch={handlePatch}\n              />\n            </div>\n'''
 s = s[:start] + new_section + s[end:]
 
