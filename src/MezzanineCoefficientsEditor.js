@@ -121,7 +121,7 @@ export function calculateMezzanineMetal({
     };
   }
 
-  // 1. Расчетная нагрузка q по СП 20: g_dead * 1.1 + p_partitions * 1.2 + p_live * safetyFactor
+  // 1. Расчетная нагрузка q: (g_dead * 1.1 + p_partitions * 1.2 + p_live * safetyFactor) * responsibilityFactor (γn)
   const g_dead =
     floorStructure?.deadLoad !== "" &&
     floorStructure?.deadLoad != null &&
@@ -146,6 +146,13 @@ export function calculateMezzanineMetal({
     !isNaN(Number(floorStructure.safetyFactor))
       ? Number(floorStructure.safetyFactor)
       : 1.2;
+  const responsibilityFactor =
+    floorStructure?.responsibilityFactor !== "" &&
+    floorStructure?.responsibilityFactor != null &&
+    !isNaN(Number(floorStructure.responsibilityFactor)) &&
+    Number(floorStructure.responsibilityFactor) > 0
+      ? Number(floorStructure.responsibilityFactor)
+      : 1.0;
   const q = Math.max(
     100,
     calculateMezzanineQBase({
@@ -153,6 +160,7 @@ export function calculateMezzanineMetal({
       partitionsLoad: p_partitions,
       liveLoad: p_live,
       safetyFactor: safetyFactor,
+      responsibilityFactor: responsibilityFactor,
     })
   );
 

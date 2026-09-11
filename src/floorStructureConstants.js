@@ -357,20 +357,23 @@ export const DEFAULT_FLOOR_STRUCTURE = {
 };
 
 /**
- * Единая формула расчета расчетной эквивалентной нагрузки q на перекрытие (кг/м²) по СП 20.13330:
+ * Единая формула расчетной эквивалентной нагрузки q на перекрытие (кг/м²):
  * qBase = deadLoad * 1.1 + partitionsLoad * 1.2 + liveLoad * safetyFactor
- * Разрешает partitionsLoad = 0 (ноль допустим).
- * Принимает объект { deadLoad, partitionsLoad, liveLoad, safetyFactor }.
+ * qDesign = qBase * responsibilityFactor (γn)
+ * Разрешает partitionsLoad = 0 и liveLoad = 0 (ноль допустим).
+ * Имя функции сохранено для обратной совместимости; возвращается итоговая qDesign.
+ * Принимает объект { deadLoad, partitionsLoad, liveLoad, safetyFactor, responsibilityFactor }.
  */
 export function calculateMezzanineQBase(params = {}) {
-  let deadLoad, partitionsLoad, liveLoad, safetyFactor;
+  let deadLoad, partitionsLoad, liveLoad, safetyFactor, responsibilityFactor;
   if (typeof params === "object" && params !== null) {
-    ({ deadLoad, partitionsLoad, liveLoad, safetyFactor } = params);
+    ({ deadLoad, partitionsLoad, liveLoad, safetyFactor, responsibilityFactor } = params);
   } else {
     deadLoad = arguments[0];
     partitionsLoad = arguments[1];
     liveLoad = arguments[2];
     safetyFactor = arguments[3];
+    responsibilityFactor = arguments[4];
   }
 
   const g_dead =
@@ -389,8 +392,17 @@ export function calculateMezzanineQBase(params = {}) {
     safetyFactor !== undefined && safetyFactor !== null && safetyFactor !== "" && !isNaN(Number(safetyFactor))
       ? Number(safetyFactor)
       : 1.2;
+  const gamma_n =
+    responsibilityFactor !== undefined &&
+    responsibilityFactor !== null &&
+    responsibilityFactor !== "" &&
+    !isNaN(Number(responsibilityFactor)) &&
+    Number(responsibilityFactor) > 0
+      ? Number(responsibilityFactor)
+      : 1.0;
 
-  return Math.round((g_dead * 1.1 + p_part * 1.2 + p_live * sf) * 10) / 10;
+  const qBase = g_dead * 1.1 + p_part * 1.2 + p_live * sf;
+  return Math.round(qBase * gamma_n * 10) / 10;
 }
 
 /**
